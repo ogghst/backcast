@@ -1,5 +1,6 @@
 """Main application entry point."""
 
+import asyncio
 import logging
 import time as _time
 from collections.abc import AsyncGenerator
@@ -14,6 +15,7 @@ from pydantic import ValidationError
 
 # Include routers
 from app.api.routes import (
+    agent_schedules,
     ai_chat,
     ai_config,
     ai_upload,
@@ -138,6 +140,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     from app.core.notifications.registry import ChannelKind
 
     _telegram_poller: TelegramUpdatePoller | None = None
+    _scheduler_task: asyncio.Task[None] | None = None
+    _scheduler_stop: asyncio.Event | None = None
     if settings.TELEGRAM_ENABLED and settings.TELEGRAM_BOT_TOKEN:
         notification_dispatcher.configure(
             {
@@ -203,11 +207,34 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception:
         logger.warning("[STARTUP] mcp_init FAILED", exc_info=True)
 
+    # Start the in-process agent scheduler (lifespan task). Same process as the
+    # API, so scheduled runs launch where the in-memory ExecutionLifecycle /
+    # event-bus live. Non-critical: a failure here never blocks startup.
+    try:
+        from app.scheduler.main import run_scheduler_loop
+
+        _scheduler_stop = asyncio.Event()
+        _scheduler_task = asyncio.create_task(
+            run_scheduler_loop(_scheduler_stop),
+            name="agent-scheduler",
+        )
+        logger.info("[STARTUP] agent_scheduler OK")
+    except Exception:
+        logger.warning("[STARTUP] agent_scheduler FAILED", exc_info=True)
+
     logger.info("[STARTUP] COMPLETE %.0fms", (_time.time() - _startup_start) * 1000)
 
     yield
 
     # Shutdown: clean up resources
+    if _scheduler_task is not None and _scheduler_stop is not None:
+        _scheduler_stop.set()
+        try:
+            await asyncio.wait_for(_scheduler_task, timeout=10)
+        except (TimeoutError, asyncio.CancelledError):
+            _scheduler_task.cancel()
+        logger.info("[SHUTDOWN] agent_scheduler OK")
+
     if _telegram_poller is not None:
         try:
             await _telegram_poller.stop()
@@ -523,6 +550,11 @@ app.include_router(
     ai_chat.router,
     prefix=settings.API_V1_STR,
     tags=["AI Chat"],
+)
+app.include_router(
+    agent_schedules.router,
+    prefix=settings.API_V1_STR,
+    tags=["Agent Schedules"],
 )
 app.include_router(
     ai_upload.router,

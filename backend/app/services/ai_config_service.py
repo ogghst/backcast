@@ -6,6 +6,7 @@ Handles API key encryption for sensitive values.
 
 import base64
 import logging
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -485,6 +486,9 @@ class AIConfigService:
         self,
         user_id: UUID,
         status: str | None = None,
+        schedule_id: UUID | None = None,
+        started_from: datetime | None = None,
+        started_to: datetime | None = None,
         limit: int = 20,
         offset: int = 0,
     ) -> tuple[list[Any], int, bool]:
@@ -499,6 +503,10 @@ class AIConfigService:
             user_id: Owner to filter executions by (via the session).
             status: Optional ``AIAgentExecution.status`` filter (e.g.
                 ``"running"``, ``"completed"``).
+            schedule_id: Optional filter to a specific schedule's runs
+                (``AIAgentExecution.schedule_id``). Only set for scheduled runs.
+            started_from: Optional inclusive lower bound on ``started_at``.
+            started_to: Optional inclusive upper bound on ``started_at``.
             limit: Page size (capped by the caller at 50).
             offset: Page offset.
 
@@ -529,6 +537,12 @@ class AIConfigService:
         )
         if status is not None:
             stmt = stmt.where(AIAgentExecution.status == status)
+        if schedule_id is not None:
+            stmt = stmt.where(AIAgentExecution.schedule_id == schedule_id)
+        if started_from is not None:
+            stmt = stmt.where(AIAgentExecution.started_at >= started_from)
+        if started_to is not None:
+            stmt = stmt.where(AIAgentExecution.started_at <= started_to)
         stmt = (
             stmt.order_by(AIAgentExecution.started_at.desc())
             .offset(offset)
@@ -552,6 +566,12 @@ class AIConfigService:
         )
         if status is not None:
             count_stmt = count_stmt.where(AIAgentExecution.status == status)
+        if schedule_id is not None:
+            count_stmt = count_stmt.where(AIAgentExecution.schedule_id == schedule_id)
+        if started_from is not None:
+            count_stmt = count_stmt.where(AIAgentExecution.started_at >= started_from)
+        if started_to is not None:
+            count_stmt = count_stmt.where(AIAgentExecution.started_at <= started_to)
         total = (await self.session.execute(count_stmt)).scalar_one()
 
         return rows, total, has_more

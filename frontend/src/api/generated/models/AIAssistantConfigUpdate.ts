@@ -16,12 +16,13 @@ export type AIAssistantConfigUpdate = {
      */
     planner_prompt?: (string | null);
     /**
-     * Custom supervisor prompt template for main agents.
+     * Custom supervisor prompt template. Supports {specialist_section} and {plan_section} placeholders.
      */
     supervisor_prompt?: (string | null);
     temperature?: (number | null);
     max_tokens?: (number | null);
     recursion_limit?: (number | null);
+    max_supervisor_iterations?: (number | null);
     /**
      * RBAC role for tool filtering
      */

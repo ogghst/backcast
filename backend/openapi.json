@@ -8902,6 +8902,283 @@
         }
       }
     },
+    "/api/v1/schedule-dependencies": {
+      "get": {
+        "tags": [
+          "Schedule Dependencies"
+        ],
+        "summary": "List Schedule Dependencies",
+        "description": "List schedule dependencies for a project or a specific schedule baseline.",
+        "operationId": "list_schedule_dependencies",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Project root ID",
+              "title": "Project Id"
+            },
+            "description": "Project root ID"
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Branch name",
+              "default": "main",
+              "title": "Branch"
+            },
+            "description": "Branch name"
+          },
+          {
+            "name": "schedule_baseline_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by schedule baseline ID",
+              "title": "Schedule Baseline Id"
+            },
+            "description": "Filter by schedule baseline ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ScheduleDependencyRead"
+                  },
+                  "title": "Response List Schedule Dependencies"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Schedule Dependencies"
+        ],
+        "summary": "Create Schedule Dependency",
+        "description": "Create a new schedule dependency between two schedule baselines.",
+        "operationId": "create_schedule_dependency",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduleDependencyCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleDependencyRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/schedule-dependencies/{schedule_dependency_id}": {
+      "get": {
+        "tags": [
+          "Schedule Dependencies"
+        ],
+        "summary": "Get Schedule Dependency",
+        "description": "Get a single schedule dependency by its root ID.",
+        "operationId": "get_schedule_dependency",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "schedule_dependency_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Schedule Dependency Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleDependencyRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Schedule Dependencies"
+        ],
+        "summary": "Update Schedule Dependency",
+        "description": "Update mutable fields of a schedule dependency.",
+        "operationId": "update_schedule_dependency",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "schedule_dependency_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Schedule Dependency Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduleDependencyUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleDependencyRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Schedule Dependencies"
+        ],
+        "summary": "Delete Schedule Dependency",
+        "description": "Delete a schedule dependency.",
+        "operationId": "delete_schedule_dependency",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "schedule_dependency_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Schedule Dependency Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/progress-entries": {
       "get": {
         "tags": [
@@ -12214,6 +12491,218 @@
         }
       }
     },
+    "/api/v1/ai/chat/executions": {
+      "get": {
+        "tags": [
+          "AI Chat",
+          "AI Chat"
+        ],
+        "summary": "List Agent Executions",
+        "description": "List the current user's agent executions for the Agents History page.\n\nReturns executions newest-first, optionally filtered by status, joined\nwith the owning conversation session (for ownership + context) and the\nassistant config (for the display name). ``schedule_id`` +\n``started_from``/``started_to`` scope the \"See runs\" view of a schedule.",
+        "operationId": "list_agent_executions",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by execution status (running, completed, ...)",
+              "title": "Status"
+            },
+            "description": "Filter by execution status (running, completed, ...)"
+          },
+          {
+            "name": "schedule_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter to one schedule's runs (the 'See runs' view)",
+              "title": "Schedule Id"
+            },
+            "description": "Filter to one schedule's runs (the 'See runs' view)"
+          },
+          {
+            "name": "started_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "ISO datetime: runs started at or after this time",
+              "title": "Started From"
+            },
+            "description": "ISO datetime: runs started at or after this time"
+          },
+          {
+            "name": "started_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "ISO datetime: runs started at or before this time",
+              "title": "Started To"
+            },
+            "description": "ISO datetime: runs started at or before this time"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page size (max 50)",
+              "default": 20,
+              "title": "Limit"
+            },
+            "description": "Page size (max 50)"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Page offset",
+              "default": 0,
+              "title": "Offset"
+            },
+            "description": "Page offset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentExecutionHistoryPaginated"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ai/chat/executions/running-count": {
+      "get": {
+        "tags": [
+          "AI Chat",
+          "AI Chat"
+        ],
+        "summary": "Count Running Agent Executions",
+        "description": "Count the user's currently-active executions (running or awaiting approval).\n\nLightweight endpoint for the Agents History menu badge.",
+        "operationId": "count_running_agent_executions",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentExecutionRunningCount"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/ai/chat/executions/{execution_id}/stop": {
+      "post": {
+        "tags": [
+          "AI Chat",
+          "AI Chat"
+        ],
+        "summary": "Stop Agent Execution",
+        "description": "Stop a running agent execution (the Agents History Stop button).\n\nVerifies ownership by checking the execution's session belongs to the\ncurrent user.  Returns 404 (not 403) for unknown / other-user executions\nto avoid leaking existence, mirroring :func:`get_execution_status`.",
+        "operationId": "stop_agent_execution",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "execution_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Execution Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/ai/chat/executions/{execution_id}/approve": {
       "post": {
         "tags": [
@@ -12259,6 +12748,395 @@
                   "type": "object",
                   "additionalProperties": true,
                   "title": "Response Approve Execution"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ai/agent-schedules": {
+      "get": {
+        "tags": [
+          "Agent Schedules",
+          "Agent Schedules"
+        ],
+        "summary": "List Agent Schedules",
+        "description": "List schedules. Owner-scoped: callers see their own schedules.\n\nAn explicit ``owner_user_id`` query param lets an admin list another\nowner's schedules (RBAC still gates the call).",
+        "operationId": "list_agent_schedules",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "is_active",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Is Active"
+            }
+          },
+          {
+            "name": "assistant_config_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Assistant Config Id"
+            }
+          },
+          {
+            "name": "owner_user_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Owner User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AgentScheduleRead"
+                  },
+                  "title": "Response List Agent Schedules"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Agent Schedules",
+          "Agent Schedules"
+        ],
+        "summary": "Create Agent Schedule",
+        "description": "Create a schedule. Invalid cron/timezone \u2192 422.",
+        "operationId": "create_agent_schedule",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentScheduleCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentScheduleRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ai/agent-schedules/{schedule_id}": {
+      "get": {
+        "tags": [
+          "Agent Schedules",
+          "Agent Schedules"
+        ],
+        "summary": "Get Agent Schedule",
+        "description": "Get a single schedule (owner-scoped).",
+        "operationId": "get_agent_schedule",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "schedule_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Schedule Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentScheduleRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Agent Schedules",
+          "Agent Schedules"
+        ],
+        "summary": "Update Agent Schedule",
+        "description": "Patch a schedule (owner-scoped). Invalid cron/timezone \u2192 422.",
+        "operationId": "update_agent_schedule",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "schedule_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Schedule Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentScheduleUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentScheduleRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Agent Schedules",
+          "Agent Schedules"
+        ],
+        "summary": "Delete Agent Schedule",
+        "description": "Delete a schedule (owner-scoped).",
+        "operationId": "delete_agent_schedule",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "schedule_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Schedule Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ai/agent-schedules/{schedule_id}/toggle": {
+      "post": {
+        "tags": [
+          "Agent Schedules",
+          "Agent Schedules"
+        ],
+        "summary": "Toggle Agent Schedule",
+        "description": "Flip is_active; clear next_run_at when deactivated (owner-scoped).",
+        "operationId": "toggle_agent_schedule",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "schedule_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Schedule Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentScheduleRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ai/agent-schedules/{schedule_id}/trigger": {
+      "post": {
+        "tags": [
+          "Agent Schedules",
+          "Agent Schedules"
+        ],
+        "summary": "Trigger Agent Schedule",
+        "description": "Launch a run for a schedule from a FRESH conversation session.\n\nAuthorization: the schedule's owner, or an admin. No ``RoleChecker`` \u2014\ntriggering an existing schedule is authorized by its existence (it was\ncreated under ``agent-schedule-manage``), so a later permission revocation\ndoes not silently halt already-scheduled runs.\n\nOverlap guard: a transaction-scoped advisory lock serializes concurrent\ntriggers for the same schedule, and the RUNNING ``AIAgentExecution`` row is\ncreated INSIDE the locked transaction (before commit) so a concurrent\ntrigger's overlap check sees it \u2192 409. The actual run then launches\nfire-and-forget via ``asyncio.create_task`` in the backend process (the\nin-memory lifecycle/event-bus singletons require this).",
+        "operationId": "trigger_agent_schedule",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "schedule_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Schedule Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentScheduleTriggerResponse"
                 }
               }
             }
@@ -15219,7 +16097,7 @@
           "Notifications"
         ],
         "summary": "List Notifications",
-        "description": "List current user's notifications with pagination.\n\nSupports filtering to show only unread notifications.\nResults are ordered by creation date, newest first.",
+        "description": "List current user's notifications with pagination and filters.\n\nSupports filtering to unread only, by category (event_type prefix), and by\nseverity. Results are ordered by creation date, newest first.",
         "operationId": "list_notifications",
         "security": [
           {
@@ -15256,6 +16134,42 @@
               "default": false,
               "title": "Unread Only"
             }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Category prefix filter (e.g. 'co', 'agent')",
+              "title": "Category"
+            },
+            "description": "Category prefix filter (e.g. 'co', 'agent')"
+          },
+          {
+            "name": "severity",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exact severity filter",
+              "title": "Severity"
+            },
+            "description": "Exact severity filter"
           }
         ],
         "responses": {
@@ -15376,6 +16290,145 @@
                 }
               }
             }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/notifications/preferences": {
+      "get": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Get Notification Preferences",
+        "description": "Return merged default + override notification preferences.",
+        "operationId": "get_notification_preferences",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationPreferencesResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Update Notification Preferences",
+        "description": "Upsert the current user's notification preference cells.",
+        "operationId": "update_notification_preferences",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationPreferenceUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/notifications/telegram/connect": {
+      "post": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Connect Telegram",
+        "description": "Create a Telegram deep-link URL for the current user.\n\nReturns 400 if no Telegram bot username is configured.",
+        "operationId": "connect_telegram",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelegramConnectResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/notifications/telegram/status": {
+      "get": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Get Telegram Status",
+        "description": "Return the current user's Telegram linkage status.",
+        "operationId": "get_telegram_status",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelegramStatusResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/notifications/telegram": {
+      "delete": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Unlink Telegram",
+        "description": "Remove the current user's Telegram linkage.",
+        "operationId": "unlink_telegram",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
           }
         },
         "security": [
@@ -15762,8 +16815,58 @@
           "System Admin"
         ],
         "summary": "Download Seed File",
-        "description": "Download the current seed_data.json file.",
+        "description": "Download the current seed_data.json file (backward compatibility).",
         "operationId": "download_seed_file",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/system/seed-file/system-config": {
+      "get": {
+        "tags": [
+          "System Admin"
+        ],
+        "summary": "Download Seed File System Config",
+        "description": "Download the seed_system_config.json file.",
+        "operationId": "download_seed_file_system_config",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/system/seed-file/projects": {
+      "get": {
+        "tags": [
+          "System Admin"
+        ],
+        "summary": "Download Seed File Projects",
+        "description": "Download the seed_projects.json file.",
+        "operationId": "download_seed_file_projects",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -15865,7 +16968,7 @@
               }
             ],
             "title": "Supervisor Prompt",
-            "description": "Custom supervisor prompt template for main agents. Use {specialist_section} for dynamic specialist list."
+            "description": "Custom supervisor prompt template for main agents. Use {specialist_section} for dynamic specialist list, {plan_section} for dynamic plan steps."
           },
           "temperature": {
             "anyOf": [
@@ -15906,6 +17009,20 @@
             ],
             "title": "Recursion Limit",
             "description": "LangGraph recursion limit (maximum steps in agent execution loop)"
+          },
+          "max_supervisor_iterations": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 20.0,
+                "minimum": 2.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Supervisor Iterations",
+            "description": "Maximum supervisor delegation cycles per request (main agent only). Default: 5."
           },
           "default_role": {
             "anyOf": [
@@ -16063,7 +17180,7 @@
               }
             ],
             "title": "Supervisor Prompt",
-            "description": "Custom supervisor prompt template for main agents. Use {specialist_section} for dynamic specialist list."
+            "description": "Custom supervisor prompt template for main agents. Use {specialist_section} for dynamic specialist list, {plan_section} for dynamic plan steps."
           },
           "temperature": {
             "anyOf": [
@@ -16104,6 +17221,20 @@
             ],
             "title": "Recursion Limit",
             "description": "LangGraph recursion limit (maximum steps in agent execution loop)"
+          },
+          "max_supervisor_iterations": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 20.0,
+                "minimum": 2.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Supervisor Iterations",
+            "description": "Maximum supervisor delegation cycles per request (main agent only). Default: 5."
           },
           "default_role": {
             "anyOf": [
@@ -16272,7 +17403,7 @@
               }
             ],
             "title": "Supervisor Prompt",
-            "description": "Custom supervisor prompt template for main agents."
+            "description": "Custom supervisor prompt template. Supports {specialist_section} and {plan_section} placeholders."
           },
           "temperature": {
             "anyOf": [
@@ -16312,6 +17443,19 @@
               }
             ],
             "title": "Recursion Limit"
+          },
+          "max_supervisor_iterations": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 20.0,
+                "minimum": 2.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Supervisor Iterations"
           },
           "default_role": {
             "anyOf": [
@@ -16628,6 +17772,38 @@
             "type": "array",
             "title": "Briefing Specialists",
             "description": "Names of specialists that contributed to the briefing"
+          },
+          "briefing_data": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Briefing Data",
+            "description": "Full structured briefing document with specialist findings and follow-ups"
+          },
+          "plan_data": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan Data",
+            "description": "Serialized PlanDocument with execution steps and progress"
+          },
+          "can_resume": {
+            "type": "boolean",
+            "title": "Can Resume",
+            "description": "True when the latest execution was stopped with incomplete plan steps",
+            "default": false
           },
           "created_at": {
             "type": "string",
@@ -17069,6 +18245,186 @@
         "title": "AIToolPublic",
         "description": "Schema for returning AI tool metadata."
       },
+      "AgentExecutionHistoryContext": {
+        "properties": {
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
+          "branch_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch Id"
+          }
+        },
+        "type": "object",
+        "title": "AgentExecutionHistoryContext",
+        "description": "Context block for an Agents History list item.\n\nDerived from the conversation session's ``context`` JSONB plus the\nsession's optional project / branch scope."
+      },
+      "AgentExecutionHistoryItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "execution_mode": {
+            "type": "string",
+            "title": "Execution Mode"
+          },
+          "run_in_background": {
+            "type": "boolean",
+            "title": "Run In Background"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Started At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "session_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Session Id"
+          },
+          "context": {
+            "$ref": "#/components/schemas/AgentExecutionHistoryContext"
+          },
+          "assistant_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assistant Name"
+          },
+          "total_tokens": {
+            "type": "integer",
+            "title": "Total Tokens",
+            "default": 0
+          },
+          "tool_calls_count": {
+            "type": "integer",
+            "title": "Tool Calls Count",
+            "default": 0
+          },
+          "schedule_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schedule Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "execution_mode",
+          "run_in_background",
+          "started_at",
+          "session_id",
+          "context"
+        ],
+        "title": "AgentExecutionHistoryItem",
+        "description": "A single row in the Agents History page.\n\nJoins :class:`AIAgentExecution` with its conversation session (for\nownership + context) and the assistant config (for the display name)."
+      },
+      "AgentExecutionHistoryPaginated": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AgentExecutionHistoryItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "has_more": {
+            "type": "boolean",
+            "title": "Has More"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "has_more"
+        ],
+        "title": "AgentExecutionHistoryPaginated",
+        "description": "Paginated response for the Agents History page."
+      },
       "AgentExecutionPublic": {
         "properties": {
           "id": {
@@ -17149,6 +18505,406 @@
         ],
         "title": "AgentExecutionPublic",
         "description": "Schema for reading agent execution records."
+      },
+      "AgentExecutionRunningCount": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count"
+        ],
+        "title": "AgentExecutionRunningCount",
+        "description": "Count of a user's currently-active executions (menu badge)."
+      },
+      "AgentScheduleCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "prompt": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Prompt"
+          },
+          "assistant_config_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Assistant Config Id"
+          },
+          "execution_mode": {
+            "type": "string",
+            "enum": [
+              "safe",
+              "standard",
+              "expert"
+            ],
+            "title": "Execution Mode",
+            "default": "standard"
+          },
+          "cron_expr": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Cron Expr"
+          },
+          "timezone": {
+            "type": "string",
+            "title": "Timezone",
+            "default": "UTC"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active",
+            "default": true
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
+          "branch_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch Id"
+          },
+          "context": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "prompt",
+          "assistant_config_id",
+          "cron_expr"
+        ],
+        "title": "AgentScheduleCreate",
+        "description": "Schema for creating an agent schedule."
+      },
+      "AgentScheduleRead": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "prompt": {
+            "type": "string",
+            "title": "Prompt"
+          },
+          "assistant_config_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Assistant Config Id"
+          },
+          "execution_mode": {
+            "type": "string",
+            "title": "Execution Mode"
+          },
+          "cron_expr": {
+            "type": "string",
+            "title": "Cron Expr"
+          },
+          "timezone": {
+            "type": "string",
+            "title": "Timezone"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
+          "branch_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch Id"
+          },
+          "context": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context"
+          },
+          "owner_user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Owner User Id"
+          },
+          "last_run_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Run At"
+          },
+          "last_execution_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Execution Id"
+          },
+          "next_run_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Run At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "prompt",
+          "assistant_config_id",
+          "execution_mode",
+          "cron_expr",
+          "timezone",
+          "is_active",
+          "project_id",
+          "branch_id",
+          "context",
+          "owner_user_id",
+          "last_run_at",
+          "last_execution_id",
+          "next_run_at",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "AgentScheduleRead",
+        "description": "Schema for reading an agent schedule."
+      },
+      "AgentScheduleTriggerResponse": {
+        "properties": {
+          "execution_id": {
+            "type": "string",
+            "title": "Execution Id"
+          },
+          "session_id": {
+            "type": "string",
+            "title": "Session Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "execution_id",
+          "session_id"
+        ],
+        "title": "AgentScheduleTriggerResponse",
+        "description": "Response from the schedule trigger endpoint."
+      },
+      "AgentScheduleUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "prompt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt"
+          },
+          "assistant_config_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assistant Config Id"
+          },
+          "execution_mode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "safe",
+                  "standard",
+                  "expert"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Mode"
+          },
+          "cron_expr": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cron Expr"
+          },
+          "timezone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timezone"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
+          "branch_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch Id"
+          },
+          "context": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "title": "AgentScheduleUpdate",
+        "description": "Schema for patching an agent schedule (all fields optional)."
       },
       "AgingChangeOrder": {
         "properties": {
@@ -22857,6 +24613,14 @@
               }
             ],
             "title": "Project End"
+          },
+          "dependencies": {
+            "items": {
+              "$ref": "#/components/schemas/GanttDependencyLink"
+            },
+            "type": "array",
+            "title": "Dependencies",
+            "default": []
           }
         },
         "type": "object",
@@ -22865,6 +24629,43 @@
         ],
         "title": "GanttDataResponse",
         "description": "Response containing all Gantt data for a project."
+      },
+      "GanttDependencyLink": {
+        "properties": {
+          "dependency_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Dependency Id"
+          },
+          "predecessor_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Predecessor Id"
+          },
+          "successor_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Successor Id"
+          },
+          "dependency_type": {
+            "type": "string",
+            "title": "Dependency Type"
+          },
+          "lag_days": {
+            "type": "integer",
+            "title": "Lag Days"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dependency_id",
+          "predecessor_id",
+          "successor_id",
+          "dependency_type",
+          "lag_days"
+        ],
+        "title": "GanttDependencyLink",
+        "description": "A dependency arrow between two schedule bars in the Gantt chart."
       },
       "GanttItem": {
         "properties": {
@@ -22987,7 +24788,7 @@
           "wbe_level"
         ],
         "title": "GanttItem",
-        "description": "A single item in the Gantt chart (cost element with schedule).\n\nSupports WBEs without cost elements - cost element fields will be null."
+        "description": "A single item in the Gantt chart (work package with schedule).\n\nSupports WBEs without work packages - work package fields will be null."
       },
       "GlobalSearchResponse": {
         "properties": {
@@ -23755,6 +25556,95 @@
         "title": "MergeRequest",
         "description": "Schema for merge operation request.\n\nAll fields are optional."
       },
+      "NotificationCategoryPreferences": {
+        "properties": {
+          "category": {
+            "type": "string",
+            "title": "Category",
+            "description": "Category identifier (e.g. 'change_order')"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "Human-readable category label"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/NotificationPreferenceEntry"
+            },
+            "type": "array",
+            "title": "Entries",
+            "description": "Per-(event_type, channel) entries"
+          }
+        },
+        "type": "object",
+        "required": [
+          "category",
+          "label"
+        ],
+        "title": "NotificationCategoryPreferences",
+        "description": "Preferences grouped under a single bell-tab category."
+      },
+      "NotificationPreferenceEntry": {
+        "properties": {
+          "event_type": {
+            "type": "string",
+            "title": "Event Type",
+            "description": "Registered event code or '*' wildcard"
+          },
+          "channel": {
+            "type": "string",
+            "title": "Channel",
+            "description": "Delivery channel (e.g. 'in_app', 'telegram')"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "description": "Whether delivery on this channel is enabled"
+          }
+        },
+        "type": "object",
+        "required": [
+          "event_type",
+          "channel",
+          "enabled"
+        ],
+        "title": "NotificationPreferenceEntry",
+        "description": "A single per-user (event_type, channel, enabled) preference cell."
+      },
+      "NotificationPreferenceUpdateRequest": {
+        "properties": {
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/NotificationPreferenceEntry"
+            },
+            "type": "array",
+            "title": "Changes",
+            "description": "Cells to upsert (insert or update enabled flag)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "changes"
+        ],
+        "title": "NotificationPreferenceUpdateRequest",
+        "description": "Bulk upsert of preference cells for the current user."
+      },
+      "NotificationPreferencesResponse": {
+        "properties": {
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/NotificationCategoryPreferences"
+            },
+            "type": "array",
+            "title": "Categories",
+            "description": "Preferences grouped by category"
+          }
+        },
+        "type": "object",
+        "title": "NotificationPreferencesResponse",
+        "description": "Merged default + override preferences for the current user."
+      },
       "NotificationResponse": {
         "properties": {
           "id": {
@@ -23772,7 +25662,7 @@
           "event_type": {
             "type": "string",
             "title": "Event Type",
-            "description": "Event category (e.g. 'co_submitted')"
+            "description": "Dotted event code (e.g. 'co.submitted', up to 64 chars)"
           },
           "title": {
             "type": "string",
@@ -23808,6 +25698,62 @@
             ],
             "title": "Resource Id",
             "description": "Related entity UUID"
+          },
+          "severity": {
+            "type": "string",
+            "title": "Severity",
+            "description": "Severity ('info'|'notice'|'warning'|'urgent')",
+            "default": "info"
+          },
+          "actor_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Type",
+            "description": "Originator type ('user'|'agent'|'system')"
+          },
+          "actor_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Id",
+            "description": "Originating actor UUID"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id",
+            "description": "Optional project scope UUID"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category",
+            "description": "Bell-tab category derived from event_type"
           },
           "read_at": {
             "anyOf": [
@@ -25734,6 +27680,151 @@
         "title": "ScheduleBaselineUpdate",
         "description": "Properties that can be updated on a Schedule Baseline."
       },
+      "ScheduleDependencyCreate": {
+        "properties": {
+          "predecessor_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Predecessor Id",
+            "description": "Schedule Baseline ID of predecessor"
+          },
+          "successor_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Successor Id",
+            "description": "Schedule Baseline ID of successor"
+          },
+          "dependency_type": {
+            "type": "string",
+            "title": "Dependency Type",
+            "description": "Dependency type (FS, SS, FF, SF)",
+            "default": "FS"
+          },
+          "lag_days": {
+            "type": "integer",
+            "title": "Lag Days",
+            "description": "Lag in days between predecessor and successor",
+            "default": 0
+          },
+          "project_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Project Id",
+            "description": "Project root ID"
+          },
+          "branch": {
+            "type": "string",
+            "title": "Branch",
+            "description": "Branch name (defaults to main)",
+            "default": "main"
+          }
+        },
+        "type": "object",
+        "required": [
+          "predecessor_id",
+          "successor_id",
+          "project_id"
+        ],
+        "title": "ScheduleDependencyCreate",
+        "description": "Schema for creating a new Schedule Dependency."
+      },
+      "ScheduleDependencyRead": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "schedule_dependency_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Schedule Dependency Id"
+          },
+          "predecessor_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Predecessor Id"
+          },
+          "successor_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Successor Id"
+          },
+          "dependency_type": {
+            "type": "string",
+            "title": "Dependency Type"
+          },
+          "lag_days": {
+            "type": "integer",
+            "title": "Lag Days"
+          },
+          "branch": {
+            "type": "string",
+            "title": "Branch"
+          },
+          "project_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Project Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "schedule_dependency_id",
+          "predecessor_id",
+          "successor_id",
+          "dependency_type",
+          "lag_days",
+          "branch",
+          "project_id",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ScheduleDependencyRead",
+        "description": "Schema for reading Schedule Dependency data."
+      },
+      "ScheduleDependencyUpdate": {
+        "properties": {
+          "dependency_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dependency Type",
+            "description": "Dependency type (FS, SS, FF, SF)"
+          },
+          "lag_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lag Days",
+            "description": "Lag in days between predecessor and successor"
+          }
+        },
+        "type": "object",
+        "title": "ScheduleDependencyUpdate",
+        "description": "Schema for updating an existing Schedule Dependency."
+      },
       "ScopeType": {
         "type": "string",
         "enum": [
@@ -25957,7 +28048,8 @@
               "general",
               "project",
               "wbe",
-              "cost_element"
+              "cost_element",
+              "work_package"
             ],
             "title": "Type",
             "description": "Context type discriminator"
@@ -26029,6 +28121,66 @@
         ],
         "title": "StorageStatsPublic",
         "description": "Storage usage statistics for a project."
+      },
+      "TelegramConnectResponse": {
+        "properties": {
+          "bot_username": {
+            "type": "string",
+            "title": "Bot Username",
+            "description": "Telegram bot username"
+          },
+          "connect_url": {
+            "type": "string",
+            "title": "Connect Url",
+            "description": "https://t.me/<bot>?start=<token> URL"
+          }
+        },
+        "type": "object",
+        "required": [
+          "bot_username",
+          "connect_url"
+        ],
+        "title": "TelegramConnectResponse",
+        "description": "Deep-link URL the user opens in Telegram to connect their account."
+      },
+      "TelegramStatusResponse": {
+        "properties": {
+          "linked": {
+            "type": "boolean",
+            "title": "Linked",
+            "description": "Whether a TelegramAccount row exists"
+          },
+          "verified": {
+            "type": "boolean",
+            "title": "Verified",
+            "description": "Whether the /start handshake completed"
+          },
+          "chat_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chat Id",
+            "description": "Telegram chat id once verified"
+          },
+          "available": {
+            "type": "boolean",
+            "title": "Available",
+            "description": "Whether Telegram is configured and enabled server-side"
+          }
+        },
+        "type": "object",
+        "required": [
+          "linked",
+          "verified",
+          "available"
+        ],
+        "title": "TelegramStatusResponse",
+        "description": "Current Telegram linkage status for the user."
       },
       "TimeSeriesData": {
         "properties": {

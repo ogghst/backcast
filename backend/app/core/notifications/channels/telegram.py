@@ -274,12 +274,18 @@ class TelegramUpdatePoller:
                         logger.warning("Telegram getUpdates not ok: %s", payload)
                         await asyncio.sleep(5)
                         continue
-                    for update in payload.get("result", []):
+                    updates = payload.get("result", [])
+                    for update in updates:
                         self._offset = int(update["update_id"]) + 1
                         try:
                             await self._on_update(update)
                         except Exception:
                             logger.exception("Telegram poller on_update handler failed")
+                    logger.info(
+                        "Telegram getUpdates poll ok: offset=%s updates=%d",
+                        self._offset,
+                        len(updates),
+                    )
                 except asyncio.CancelledError:
                     raise
                 except Exception:

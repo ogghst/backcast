@@ -24,6 +24,7 @@ import {
   ControlOutlined,
   DatabaseOutlined,
   HistoryOutlined,
+  ClockCircleOutlined,
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -130,6 +131,15 @@ export const UserProfile: React.FC = () => {
         icon: <CloudServerOutlined />,
         label: "MCP Servers",
         onClick: () => navigate("/admin/mcp-servers"),
+      });
+    }
+
+    if (can("agent-schedule-manage")) {
+      adminItems.push({
+        key: "/admin/agent-schedules",
+        icon: <ClockCircleOutlined />,
+        label: "Agent Schedules",
+        onClick: () => navigate("/admin/agent-schedules"),
       });
     }
 

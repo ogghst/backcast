@@ -13,6 +13,7 @@ Provides:
 """
 
 from typing import TYPE_CHECKING, Any
+from uuid import UUID
 
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
@@ -67,7 +68,7 @@ class AIProviderConfig(SimpleEntityBase):
 
     __tablename__ = "ai_provider_configs"
 
-    provider_id: Mapped[str] = mapped_column(
+    provider_id: Mapped[UUID] = mapped_column(
         PG_UUID,
         ForeignKey("ai_providers.id", ondelete="CASCADE"),
         nullable=False,
@@ -94,7 +95,7 @@ class AIModel(SimpleEntityBase):
 
     __tablename__ = "ai_models"
 
-    provider_id: Mapped[str] = mapped_column(
+    provider_id: Mapped[UUID] = mapped_column(
         PG_UUID,
         ForeignKey("ai_providers.id", ondelete="CASCADE"),
         nullable=False,
@@ -133,7 +134,7 @@ class AIAssistantConfig(SimpleEntityBase):
         nullable=True,
         comment="Text injected into planner/supervisor/handoff prompts to describe this specialist's capabilities. Specialist-only.",
     )
-    model_id: Mapped[str | None] = mapped_column(
+    model_id: Mapped[UUID | None] = mapped_column(
         PG_UUID,
         ForeignKey("ai_models.id", ondelete="RESTRICT"),
         nullable=True,
@@ -208,18 +209,18 @@ class AIConversationSession(SimpleEntityBase):
 
     __tablename__ = "ai_conversation_sessions"
 
-    user_id: Mapped[str] = mapped_column(PG_UUID, nullable=False, index=True)
-    assistant_config_id: Mapped[str] = mapped_column(
+    user_id: Mapped[UUID] = mapped_column(PG_UUID, nullable=False, index=True)
+    assistant_config_id: Mapped[UUID] = mapped_column(
         PG_UUID,
         ForeignKey("ai_assistant_configs.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     title: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    project_id: Mapped[str | None] = mapped_column(
+    project_id: Mapped[UUID | None] = mapped_column(
         PG_UUID, nullable=True, index=True, comment="Optional project context"
     )
-    branch_id: Mapped[str | None] = mapped_column(
+    branch_id: Mapped[UUID | None] = mapped_column(
         PG_UUID,
         nullable=True,
         index=True,
@@ -231,7 +232,7 @@ class AIConversationSession(SimpleEntityBase):
         default={"type": "general"},
         comment="Session context (type, id, name)",
     )
-    active_execution_id: Mapped[str | None] = mapped_column(
+    active_execution_id: Mapped[UUID | None] = mapped_column(
         PG_UUID,
         nullable=True,
         comment="Reference to the currently running or last agent execution",
@@ -285,7 +286,7 @@ class AIConversationMessage(SimpleEntityBase):
 
     __tablename__ = "ai_conversation_messages"
 
-    session_id: Mapped[str] = mapped_column(
+    session_id: Mapped[UUID] = mapped_column(
         PG_UUID,
         ForeignKey("ai_conversation_sessions.id", ondelete="CASCADE"),
         nullable=False,
@@ -324,7 +325,7 @@ class AIConversationAttachment(SimpleEntityBase):
 
     __tablename__ = "ai_conversation_attachments"
 
-    message_id: Mapped[str] = mapped_column(
+    message_id: Mapped[UUID] = mapped_column(
         PG_UUID,
         ForeignKey("ai_conversation_messages.id", ondelete="CASCADE"),
         nullable=False,
@@ -359,7 +360,7 @@ class AIAgentExecution(SimpleEntityBase):
 
     __tablename__ = "ai_agent_executions"
 
-    session_id: Mapped[str] = mapped_column(
+    session_id: Mapped[UUID] = mapped_column(
         PG_UUID,
         ForeignKey("ai_conversation_sessions.id", ondelete="CASCADE"),
         nullable=False,
@@ -387,6 +388,15 @@ class AIAgentExecution(SimpleEntityBase):
     # Prompt-derived display name for the Agents History page (the user's
     # message truncated to 255 chars).  NULLable so pre-existing rows are valid.
     name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Originating ai_agent_schedules.id when this run was launched by a
+    # schedule trigger (NULL for interactive WS/REST runs).  Used by the
+    # overlap guard to detect a still-active scheduled run.
+    schedule_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID,
+        nullable=True,
+        index=True,
+        comment="Originating ai_agent_schedules.id, if this run was scheduled",
+    )
 
     # Relationships
     session: Mapped["AIConversationSession"] = relationship(

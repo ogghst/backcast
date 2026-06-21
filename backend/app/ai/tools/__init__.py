@@ -160,6 +160,7 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
         briefing_tools,
         context_tools,
         document_tools,
+        notification_tools,
         project_tools,
         temporal_tools,
     )
@@ -320,6 +321,7 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
     # --- Category: "interaction" (user-facing features) ---
     interaction_tools = [
         ask_user_module.ask_user,
+        notification_tools.send_notification,
         diagram_template.generate_mermaid_diagram,
     ]
     tools.extend(interaction_tools)

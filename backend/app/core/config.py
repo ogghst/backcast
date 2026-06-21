@@ -174,5 +174,10 @@ class Settings(BaseSettings):
     # Unified Notifications
     NOTIFICATION_DELIVERY_RETENTION_DAYS: int = 30
 
+    # Agent Scheduling (in-process scheduler loop in the API server lifespan)
+    SCHEDULER_POLL_INTERVAL_SECONDS: int = 60
+    SCHEDULER_MAX_CONCURRENCY: int = 5
+    SCHEDULER_MISFIRE_GRACE_SECONDS: int = 120
+
 
 settings = Settings()

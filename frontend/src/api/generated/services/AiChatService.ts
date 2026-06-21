@@ -2,7 +2,9 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { AgentExecutionHistoryPaginated } from '../models/AgentExecutionHistoryPaginated';
 import type { AgentExecutionPublic } from '../models/AgentExecutionPublic';
+import type { AgentExecutionRunningCount } from '../models/AgentExecutionRunningCount';
 import type { AIConversationMessagePublic } from '../models/AIConversationMessagePublic';
 import type { AIConversationSessionPaginated } from '../models/AIConversationSessionPaginated';
 import type { AIConversationSessionPublic } from '../models/AIConversationSessionPublic';
@@ -191,6 +193,86 @@ export class AiChatService {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/api/v1/ai/chat/executions/{execution_id}/status',
+            path: {
+                'execution_id': executionId,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * List Agent Executions
+     * List the current user's agent executions for the Agents History page.
+     *
+     * Returns executions newest-first, optionally filtered by status, joined
+     * with the owning conversation session (for ownership + context) and the
+     * assistant config (for the display name). ``schedule_id`` +
+     * ``started_from``/``started_to`` scope the "See runs" view of a schedule.
+     * @param status Filter by execution status (running, completed, ...)
+     * @param scheduleId Filter to one schedule's runs (the 'See runs' view)
+     * @param startedFrom ISO datetime: runs started at or after this time
+     * @param startedTo ISO datetime: runs started at or before this time
+     * @param limit Page size (max 50)
+     * @param offset Page offset
+     * @returns AgentExecutionHistoryPaginated Successful Response
+     * @throws ApiError
+     */
+    public static listAgentExecutions(
+        status?: (string | null),
+        scheduleId?: (string | null),
+        startedFrom?: (string | null),
+        startedTo?: (string | null),
+        limit: number = 20,
+        offset?: number,
+    ): CancelablePromise<AgentExecutionHistoryPaginated> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/ai/chat/executions',
+            query: {
+                'status': status,
+                'schedule_id': scheduleId,
+                'started_from': startedFrom,
+                'started_to': startedTo,
+                'limit': limit,
+                'offset': offset,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Count Running Agent Executions
+     * Count the user's currently-active executions (running or awaiting approval).
+     *
+     * Lightweight endpoint for the Agents History menu badge.
+     * @returns AgentExecutionRunningCount Successful Response
+     * @throws ApiError
+     */
+    public static countRunningAgentExecutions(): CancelablePromise<AgentExecutionRunningCount> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/ai/chat/executions/running-count',
+        });
+    }
+    /**
+     * Stop Agent Execution
+     * Stop a running agent execution (the Agents History Stop button).
+     *
+     * Verifies ownership by checking the execution's session belongs to the
+     * current user.  Returns 404 (not 403) for unknown / other-user executions
+     * to avoid leaking existence, mirroring :func:`get_execution_status`.
+     * @param executionId
+     * @returns void
+     * @throws ApiError
+     */
+    public static stopAgentExecution(
+        executionId: string,
+    ): CancelablePromise<void> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/ai/chat/executions/{execution_id}/stop',
             path: {
                 'execution_id': executionId,
             },

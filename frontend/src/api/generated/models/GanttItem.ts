@@ -3,9 +3,9 @@
 /* tslint:disable */
 /* eslint-disable */
 /**
- * A single item in the Gantt chart (cost element with schedule).
+ * A single item in the Gantt chart (work package with schedule).
  *
- * Supports WBEs without cost elements - cost element fields will be null.
+ * Supports WBEs without work packages - work package fields will be null.
  */
 export type GanttItem = {
     cost_element_id?: (string | null);

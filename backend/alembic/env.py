@@ -14,6 +14,7 @@ from app.core.config import settings
 # Import all models to ensure they are attached to Base.metadata
 from app.models.domain import (  # noqa: F401
     ai,
+    ai_agent_schedule,
     branch,
     change_order,
     change_order_audit_log,

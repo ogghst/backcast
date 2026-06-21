@@ -89,14 +89,33 @@ class StorageService:
             raise
 
     async def generate_presigned_url(
-        self, key: str, expiry_seconds: int | None = None
+        self,
+        key: str,
+        expiry_seconds: int | None = None,
+        filename: str | None = None,
     ) -> str:
-        """Generate a presigned download URL."""
+        """Generate a presigned download URL.
+
+        Args:
+            key: Object key in the bucket.
+            expiry_seconds: URL lifetime; falls back to settings default.
+            filename: If provided, forces a ``Content-Disposition:
+                attachment; filename="<escaped>"`` response header via the S3
+                ``ResponseContentDisposition`` presign param. ``"`` and ``\\``
+                are replaced with ``_`` to keep the header value valid. When
+                ``None``, behavior is unchanged (no attachment header).
+        """
         expiry = expiry_seconds or settings.RUSTFS_PRESIGNED_URL_EXPIRY_SECONDS
+        params: dict[str, Any] = {"Bucket": self._bucket, "Key": key}
+        if filename:
+            escaped = filename.replace('"', "_").replace("\\", "_")
+            params["ResponseContentDisposition"] = (
+                f'attachment; filename="{escaped}"'
+            )
         return await asyncio.to_thread(
             self._presign_client.generate_presigned_url,
             "get_object",
-            Params={"Bucket": self._bucket, "Key": key},
+            Params=params,
             ExpiresIn=expiry,
         )
 

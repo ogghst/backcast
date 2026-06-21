@@ -227,6 +227,15 @@ REGISTRY: dict[str, NotificationTypeDef] = {
         (ChannelKind.IN_APP,),
         "agent_execution",
     ),
+    "agent.notify": _def(
+        "agent.notify",
+        "Agent notification",
+        NotificationCategory.AGENT,
+        Severity.NOTICE,
+        _USER_AGENT,
+        (ChannelKind.IN_APP, ChannelKind.TELEGRAM),
+        None,
+    ),
     # ---- Project / budget ----
     "budget.threshold": _def(
         "budget.threshold",
@@ -313,6 +322,7 @@ class NotificationType(StrEnum):
     AGENT_APPROVAL_REQ = "agent.approval_req"
     AGENT_STOPPED = "agent.stopped"
     AGENT_MESSAGE = "agent.message"
+    AGENT_NOTIFY = "agent.notify"
     BUDGET_THRESHOLD = "budget.threshold"
     DOCUMENT_LOCKED = "document.locked"
     BRANCH_MERGE_CONFLICT = "branch.merge_conflict"

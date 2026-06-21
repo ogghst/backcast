@@ -7,10 +7,12 @@
  */
 
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { App, Button, Empty, Grid, Popconfirm, Segmented, Space, Spin, Table, Tag, Tooltip, Typography, theme } from "antd";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { App, Button, DatePicker, Empty, Grid, Popconfirm, Segmented, Space, Spin, Table, Tag, Tooltip, Typography, theme } from "antd";
 import type { ColumnType } from "antd/es/table";
+import dayjs, { type Dayjs } from "dayjs";
 import {
+  ArrowLeftOutlined,
   StopOutlined,
   MessageOutlined,
 } from "@ant-design/icons";
@@ -22,6 +24,7 @@ import {
   useStopExecution,
   type AgentExecutionHistoryItem,
 } from "@/features/ai/chat/api/useAgentExecutions";
+import { useAgentSchedule } from "@/features/ai/schedules/api/useAgentSchedules";
 
 const { Title } = Typography;
 
@@ -87,9 +90,17 @@ export const AgentsHistory = () => {
   const { token } = theme.useToken();
   const { spacing } = useThemeTokens();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { message } = App.useApp();
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md; // md breakpoint = 768px
+
+  // URL-driven filters: `schedule` (= schedule_id), `from` / `to` (ISO datetimes).
+  const scheduleId = searchParams.get("schedule") ?? undefined;
+  const fromIso = searchParams.get("from") ?? undefined;
+  const toIso = searchParams.get("to") ?? undefined;
+  const isScoped = !!scheduleId;
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
@@ -97,17 +108,56 @@ export const AgentsHistory = () => {
     status: statusFilter,
     limit: 50,
     offset: 0,
+    scheduleId,
+    startedFrom: fromIso,
+    startedTo: toIso,
   });
+
+  // When scoped, fetch the schedule's name for the title. Falls back to a
+  // generic label while loading / on error.
+  const scheduleQuery = useAgentSchedule(scheduleId ?? "");
+  const scheduleName = isScoped
+    ? scheduleQuery.data?.name ?? "Schedule runs"
+    : null;
+
   const stopExecution = useStopExecution({
     onSuccess: () => message.success("Agent stop requested"),
   });
+
+  // RangePicker value derives from the `from`/`to` search params.
+  const rangeValue: [Dayjs | null, Dayjs | null] | null = useMemo(() => {
+    if (!fromIso && !toIso) return null;
+    const start = fromIso ? dayjs(fromIso) : null;
+    const end = toIso ? dayjs(toIso) : null;
+    return [start, end];
+  }, [fromIso, toIso]);
+
+  const handleRangeChange = (
+    range: [Dayjs | null, Dayjs | null] | null,
+  ) => {
+    const next = new URLSearchParams(searchParams);
+    if (range && range[0] && range[1]) {
+      next.set("from", range[0].startOf("day").toISOString());
+      next.set("to", range[1].endOf("day").toISOString());
+    } else {
+      next.delete("from");
+      next.delete("to");
+    }
+    setSearchParams(next, { replace: true });
+  };
+
+  // When scoped, returning from chat re-enters the filtered view (preserve the
+  // full path + current filters). Unscoped keeps the original behaviour.
+  const returnTo = isScoped
+    ? `${location.pathname}${location.search}`
+    : "/agents-history";
 
   const handleOpenChat = (item: AgentExecutionHistoryItem) => {
     navigate("/chat?ctx=general", {
       state: {
         sessionId: item.session_id,
         executionId: item.id,
-        returnTo: "/agents-history",
+        returnTo,
       },
     });
   };
@@ -161,7 +211,12 @@ export const AgentsHistory = () => {
         title: "Name",
         dataIndex: "name",
         key: "name",
-        render: (_, record) => deriveName(record),
+        render: (_, record) => (
+          <Space size={spacing.xs}>
+            <span>{deriveName(record)}</span>
+            {record.schedule_id ? <Tag color="blue">scheduled</Tag> : null}
+          </Space>
+        ),
         ellipsis: true,
       },
       {
@@ -218,9 +273,12 @@ export const AgentsHistory = () => {
     <EntityCard
       title={deriveName(record)}
       badge={
-        <Tag color={STATUS_COLOR[record.status] ?? "default"}>
-          {record.status.replace(/_/g, " ")}
-        </Tag>
+        <Space size={spacing.xs}>
+          <Tag color={STATUS_COLOR[record.status] ?? "default"}>
+            {record.status.replace(/_/g, " ")}
+          </Tag>
+          {record.schedule_id ? <Tag color="blue">scheduled</Tag> : null}
+        </Space>
       }
       meta={
         <div
@@ -263,23 +321,50 @@ export const AgentsHistory = () => {
           flexWrap: "wrap",
         }}
       >
-        <Title level={2} style={{ margin: 0 }}>
-          Agents History
-        </Title>
-        <Segmented<StatusFilter>
-          value={statusFilter}
-          onChange={(val) => setStatusFilter(val)}
-          // On narrow phones the 5 options would clip; let it take the full row
+        <Space size={spacing.sm} align="center">
+          {isScoped ? (
+            <Tooltip title="Back to schedules">
+              <Button
+                icon={<ArrowLeftOutlined />}
+                onClick={() => navigate("/admin/agent-schedules")}
+                aria-label="Back to schedules"
+              />
+            </Tooltip>
+          ) : null}
+          <Title level={2} style={{ margin: 0 }}>
+            {isScoped ? `Runs — ${scheduleName}` : "Agents History"}
+          </Title>
+        </Space>
+        <Space
+          size={spacing.sm}
+          // On narrow phones the filters would clip; let them take the full row
           // below the title. Desktop layout is unchanged.
           style={isMobile ? { width: "100%" } : undefined}
-          options={[
-            { label: "All", value: "all" },
-            { label: "Running", value: "running" },
-            { label: "Completed", value: "completed" },
-            { label: "Error", value: "error" },
-            { label: "Stopped", value: "stopped" },
-          ]}
-        />
+          wrap
+        >
+          <DatePicker.RangePicker
+            value={rangeValue}
+            onChange={(range) =>
+              handleRangeChange(
+                range as [Dayjs | null, Dayjs | null] | null,
+              )
+            }
+            style={isMobile ? { width: "100%" } : undefined}
+            aria-label="Filter by date range"
+          />
+          <Segmented<StatusFilter>
+            value={statusFilter}
+            onChange={(val) => setStatusFilter(val)}
+            style={isMobile ? { width: "100%" } : undefined}
+            options={[
+              { label: "All", value: "all" },
+              { label: "Running", value: "running" },
+              { label: "Completed", value: "completed" },
+              { label: "Error", value: "error" },
+              { label: "Stopped", value: "stopped" },
+            ]}
+          />
+        </Space>
       </div>
 
       {isMobile ? (

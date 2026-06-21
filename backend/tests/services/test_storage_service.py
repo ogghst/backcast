@@ -52,3 +52,37 @@ async def test_presigned_url_falls_back_to_endpoint_url(
 
     assert url.startswith("http://localhost:9000/")
     assert "another/key" in url
+
+
+@pytest.mark.asyncio
+async def test_presigned_url_with_filename_sets_content_disposition(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Passing ``filename`` injects a ResponseContentDisposition presign param."""
+    monkeypatch.setattr(
+        "app.services.storage_service.settings.RUSTFS_PUBLIC_URL",
+        "https://storage.example.com",
+    )
+
+    svc = StorageService()
+    url = await svc.generate_presigned_url("some/key", filename='weird".md')
+
+    assert "response-content-disposition" in url
+    assert "attachment" in url
+    assert "filename%3D%22weird_.md%22" in url or 'filename="weird_.md"' in url
+
+
+@pytest.mark.asyncio
+async def test_presigned_url_without_filename_omits_content_disposition(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Omitting ``filename`` leaves existing behavior unchanged."""
+    monkeypatch.setattr(
+        "app.services.storage_service.settings.RUSTFS_PUBLIC_URL",
+        "https://storage.example.com",
+    )
+
+    svc = StorageService()
+    url = await svc.generate_presigned_url("some/key")
+
+    assert "response-content-disposition" not in url

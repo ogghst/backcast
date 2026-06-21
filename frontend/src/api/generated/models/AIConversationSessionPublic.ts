@@ -36,6 +36,18 @@ export type AIConversationSessionPublic = {
      * Names of specialists that contributed to the briefing
      */
     briefing_specialists?: Array<string>;
+    /**
+     * Full structured briefing document with specialist findings and follow-ups
+     */
+    briefing_data?: (Record<string, any> | null);
+    /**
+     * Serialized PlanDocument with execution steps and progress
+     */
+    plan_data?: (Record<string, any> | null);
+    /**
+     * True when the latest execution was stopped with incomplete plan steps
+     */
+    can_resume?: boolean;
     created_at: string;
     updated_at: string;
 };

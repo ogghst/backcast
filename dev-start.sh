@@ -42,7 +42,7 @@ echo "✅ Backend started (PID: $BACKEND_PID) - http://localhost:8020"
 # Wait a moment for backend to initialize
 sleep 2
 
-# 5. Start frontend
+# 5. Start frontend (the agent scheduler runs in-process inside the backend)
 echo "🎨 Starting frontend server..."
 cd ../frontend
 npm run dev &

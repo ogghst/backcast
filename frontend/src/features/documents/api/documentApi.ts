@@ -31,7 +31,14 @@ import type {
 // Base URL helper
 // ---------------------------------------------------------------------------
 
+// Relative path used by the OpenAPI-generated DocumentsService calls below
+// (the generated client prepends OpenAPI.BASE = VITE_API_URL to these).
 const BASE = "/api/v1";
+
+// Raw fetch() calls (upload, download) bypass the generated client, so they need
+// the full API origin resolved explicitly. In prod VITE_API_URL is the api host;
+// in dev the Vite proxy makes a relative path work, hence the origin fallback.
+const API_ORIGIN = import.meta.env.VITE_API_URL || window.location.origin;
 
 // ---------------------------------------------------------------------------
 // Query hooks
@@ -228,7 +235,7 @@ export const useUploadDocument = (
       if (description) formData.append("description", description);
 
       const token = useAuthStore.getState().token;
-      const url = `${BASE}/${projectId}/documents/upload`;
+      const url = `${API_ORIGIN}${BASE}/${projectId}/documents/upload`;
 
       const response = await fetch(url, {
         method: "POST",
@@ -275,7 +282,7 @@ export const useUploadVersion = (
       formData.append("file", file);
 
       const token = useAuthStore.getState().token;
-      const url = `${BASE}/${projectId}/documents/upload-version/${documentId}`;
+      const url = `${API_ORIGIN}${BASE}/${projectId}/documents/upload-version/${documentId}`;
 
       const response = await fetch(url, {
         method: "POST",
@@ -540,7 +547,7 @@ export const downloadDocument = async (
   filename: string,
 ) => {
   const token = useAuthStore.getState().token;
-  const url = `${BASE}/${projectId}/documents/${documentId}/download`;
+  const url = `${API_ORIGIN}${BASE}/${projectId}/documents/${documentId}/download`;
 
   const response = await fetch(url, {
     method: "GET",
