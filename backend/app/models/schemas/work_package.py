@@ -43,25 +43,27 @@ class WorkPackageCreate(WorkPackageBase):
     control_date: datetime | None = Field(
         None, description="Optional control date for creation (valid_time start)"
     )
-    # Optional schedule baseline creation params
+    # Schedule baseline params (a baseline is always created per WP)
     schedule_start_date: datetime | None = Field(
-        None, description="Optional start date for the auto-created schedule baseline"
+        None,
+        description="Start date for the WP's schedule baseline (defaults to control_date if omitted)",
     )
     schedule_end_date: datetime | None = Field(
-        None, description="Optional end date for the auto-created schedule baseline"
+        None,
+        description="End date for the WP's schedule baseline (defaults to start + 90 days if omitted)",
     )
     schedule_progression_type: str | None = Field(
         None,
-        description="Optional progression type for the schedule (LINEAR, GAUSSIAN, LOGARITHMIC)",
+        description="Progression type for the schedule baseline (LINEAR, GAUSSIAN, LOGARITHMIC)",
     )
-    # Forecast creation params (auto-created with defaults if not provided)
+    # Forecast params (a forecast is always created per WP)
     eac_amount: Decimal | None = Field(
         None,
-        description="Optional EAC amount for auto-created forecast (defaults to budget_amount)",
+        description="EAC amount for the WP's forecast (defaults to budget_amount if omitted)",
     )
     basis_of_estimate: str | None = Field(
         None,
-        description="Optional basis of estimate for auto-created forecast (defaults to 'Initial forecast')",
+        description="Basis of estimate for the WP's forecast (defaults to 'Initial forecast')",
     )
 
 

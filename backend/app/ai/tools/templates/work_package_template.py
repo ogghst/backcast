@@ -186,7 +186,13 @@ async def find_work_packages(
 
 @ai_tool(
     name="create_work_package",
-    description="Create PMI work package under a control account with budget.",
+    description=(
+        "Create PMI work package under a control account with budget. "
+        "A schedule baseline and forecast are auto-created for every WP; "
+        "pass start_date, end_date (and progression_type) for the schedule "
+        "and eac_amount for the forecast so they reflect the real plan "
+        "instead of defaults."
+    ),
     permissions=["work-package-create"],
     category="work-tracking",
     risk_level=RiskLevel.HIGH,
@@ -299,7 +305,11 @@ async def create_work_package(
 
 @ai_tool(
     name="update_work_package",
-    description="Update work package fields.",
+    description=(
+        "Update work package fields. Pass schedule_start_date/schedule_end_date "
+        "and eac_amount to keep the WP's schedule baseline and forecast current "
+        "(every WP must have both)."
+    ),
     permissions=["work-package-update"],
     category="work-tracking",
     risk_level=RiskLevel.HIGH,
@@ -542,7 +552,12 @@ async def get_work_package_budget_status(
 
 @ai_tool(
     name="batch_create_work_packages",
-    description="Batch create work packages under a control account. Max 50 items.",
+    description=(
+        "Batch create work packages under a control account. Max 50 items. "
+        "Each WP gets an auto-created schedule baseline and forecast; include "
+        "start_date, end_date, and eac_amount per item when known so they "
+        "reflect the real plan instead of defaults."
+    ),
     permissions=["work-package-create"],
     category="work-tracking",
     risk_level=RiskLevel.HIGH,

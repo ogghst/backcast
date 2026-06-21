@@ -118,7 +118,7 @@ class WorkPackageService(BranchableService[WorkPackage]):  # type: ignore[type-v
             control_date=control_date,
             **wp_data,
         )
-        wp = await cmd.execute(self.session)
+        await cmd.execute(self.session)
 
         # Always auto-create schedule baseline
         from app.services.schedule_baseline_service import ScheduleBaselineService
@@ -151,7 +151,24 @@ class WorkPackageService(BranchableService[WorkPackage]):  # type: ignore[type-v
             control_date=control_date,
         )
 
-        return wp
+        # The schedule-baseline + forecast creation above each ran an
+        # UpdateCommand that produced a newer WP version carrying the links;
+        # the `wp` captured at creation is therefore stale (null links).
+        # Re-read the current version so the caller sees the linked entity, and
+        # enforce the invariant that every WP carries both links.
+        wp_current = await self.get_as_of(
+            entity_id=root_id, as_of=None, branch=data.branch
+        )
+        if (
+            wp_current is None
+            or wp_current.schedule_baseline_id is None
+            or wp_current.forecast_id is None
+        ):
+            raise ValueError(
+                f"Work package {root_id} was created without a schedule "
+                "baseline or forecast link; both are required."
+            )
+        return wp_current
 
     async def update_work_package(
         self,
