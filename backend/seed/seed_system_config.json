@@ -103,7 +103,8 @@
         "change-order-workflow-config-override",
         "change-order-escalate",
         "temporal-write",
-        "system-dump-reseed"
+        "system-dump-reseed",
+        "notifications-send"
       ]
     },
     "manager": {
@@ -171,7 +172,8 @@
         "evm-delete",
         "ai-chat",
         "project-budget-settings-read",
-        "project-budget-settings-write"
+        "project-budget-settings-write",
+        "notifications-send"
       ]
     },
     "viewer": {
@@ -286,7 +288,8 @@
         "user-read",
         "organizational-unit-read",
         "project-delete",
-        "temporal-write"
+        "temporal-write",
+        "notifications-send"
       ]
     },
     "ai-admin": {
@@ -378,7 +381,8 @@
         "project-budget-settings-write",
         "change-order-workflow-config-manage",
         "change-order-workflow-config-override",
-        "temporal-write"
+        "temporal-write",
+        "notifications-send"
       ]
     }
   },
@@ -533,7 +537,8 @@
           "get_project_context",
           "get_project_structure",
           "global_search",
-          "set_project_context"
+          "set_project_context",
+          "send_notification"
         ],
         "allowed_specialists": [
           "evm_analyst",
@@ -565,7 +570,8 @@
         "direct_tools": [
           "ask_user",
           "get_project_context",
-          "set_project_context"
+          "set_project_context",
+          "send_notification"
         ],
         "allowed_specialists": [
           "project_manager",
@@ -602,7 +608,8 @@
           "get_project_context",
           "get_project_structure",
           "global_search",
-          "set_project_context"
+          "set_project_context",
+          "send_notification"
         ],
         "allowed_specialists": [
           "user_admin",
