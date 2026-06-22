@@ -3,13 +3,21 @@
  *
  * Mobile returns `null` (the `MobileSidebarDrawer` handles `< md`). On desktop:
  *   - `expanded === true`  → antd `Layout.Sider width={260}` rendering
- *     `<SidebarContent/>` plus a bottom collapse chevron. The flyout is forced
- *     off (an effect clears it) — expanded mode shows everything inline.
+ *     `<SidebarContent/>` (brand + primary/entity nav + chat + account footer).
+ *     The flyout is forced off (an effect clears it) — expanded mode shows
+ *     everything inline.
  *   - `expanded === false` → a 56px fixed rail of icon buttons:
  *       brand glyph (top) → Dashboard, Projects, [entity icon if on an entity
- *       route], Chat, spacer, Account (avatar), expand chevron (bottom).
+ *       route], Chat, spacer, Account (avatar) pinned at the bottom.
  *     Dashboard/Projects/entity-tab icons navigate immediately (rail stays).
- *     Chat/Account/entity icons toggle the inline `SidebarFlyout`.
+ *     Chat/entity icons toggle the inline `SidebarFlyout`; the Account avatar
+ *     EXPANDS the sidebar (the account menu is then the avatar dropdown in
+ *     expanded mode).
+ *
+ * Expand/collapse is owned by the header toggle in `AppLayout`, so there is
+ * exactly ONE expand affordance and nothing sits under the account avatar.
+ * Pinned to the viewport via `position:sticky; height:100dvh` — `dvh` accounts
+ * for mobile/tablet browser chrome, so the account never falls below the fold.
  *
  * Craft: ≥44px touch targets on every rail icon, antd `Tooltip` labels, active
  * highlight via theme tokens, smooth width transition.
@@ -20,10 +28,8 @@ import { Button, Grid, Layout, Tooltip, theme } from "antd";
 import {
   AppstoreOutlined,
   HomeOutlined,
-  MenuFoldOutlined,
   MessageOutlined,
   ProjectOutlined,
-  RightOutlined,
   ThunderboltOutlined,
   UserOutlined,
 } from "@ant-design/icons";
@@ -35,7 +41,6 @@ import { useEntityNav } from "@/components/navigation/useEntityNav";
 import type { NavFlyout } from "@/stores/useNavigationStore";
 import { useNavigationStore } from "@/stores/useNavigationStore";
 import { usePermission } from "@/hooks/usePermission";
-import { useThemeTokens } from "@/hooks/useThemeTokens";
 
 const { Sider } = Layout;
 
@@ -103,7 +108,6 @@ function isPrimaryActive(pathname: string, path: string): boolean {
 
 export function AppSidebar(): React.JSX.Element | null {
   const { token } = theme.useToken();
-  const { spacing } = useThemeTokens();
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
 
@@ -139,13 +143,15 @@ export function AppSidebar(): React.JSX.Element | null {
         width={EXPANDED_WIDTH}
         collapsedWidth={0}
         // Smooth transition when toggling between rail and expanded.
-        // Pin to the viewport (sticky + 100vh + alignSelf:flex-start so it
-        // doesn't stretch to page height) so the account menu at the bottom is
+        // Pin to the viewport (sticky + 100dvh + alignSelf:flex-start so it
+        // doesn't stretch to page height) so the account footer at the bottom is
         // always within reach on long pages — the inner nav scrolls on its own.
+        // `dvh` (not `vh`) so mobile/tablet browser chrome doesn't push the
+        // account below the fold.
         style={{
           position: "sticky",
           top: 0,
-          height: "100vh",
+          height: "100dvh",
           alignSelf: "flex-start",
           background: token.colorBgContainer,
           borderRight: `1px solid ${token.colorBorderSecondary}`,
@@ -153,36 +159,8 @@ export function AppSidebar(): React.JSX.Element | null {
           transition: "all 200ms ease",
         }}
       >
-        <div
-          style={{
-            position: "relative",
-            height: "100%",
-            display: "flex",
-            flexDirection: "column",
-          }}
-        >
-          <div style={{ flex: "1 1 auto", minHeight: 0 }}>
-            <SidebarContent onNavigate={() => {}} />
-          </div>
-          <div
-            style={{
-              flex: "0 0 auto",
-              display: "flex",
-              justifyContent: "flex-end",
-              padding: spacing.xs,
-              borderTop: `1px solid ${token.colorBorderSecondary}`,
-            }}
-          >
-            <Tooltip title="Collapse to rail" placement="right">
-              <Button
-                type="text"
-                icon={<MenuFoldOutlined />}
-                onClick={toggleExpanded}
-                aria-label="Collapse sidebar"
-                style={{ height: 40 }}
-              />
-            </Tooltip>
-          </div>
+        <div style={{ height: "100%" }}>
+          <SidebarContent onNavigate={() => {}} />
         </div>
       </Sider>
     );
@@ -198,7 +176,7 @@ export function AppSidebar(): React.JSX.Element | null {
           alignSelf: "flex-start",
           width: RAIL_WIDTH,
           flexShrink: 0,
-          height: "100vh",
+          height: "100dvh",
           background: token.colorBgContainer,
           borderRight: `1px solid ${token.colorBorderSecondary}`,
           display: "flex",
@@ -271,39 +249,16 @@ export function AppSidebar(): React.JSX.Element | null {
         {/* Spacer */}
         <div style={{ flex: "1 1 auto" }} />
 
-        {/* Account */}
+        {/* Account avatar — pinned at the bottom of the rail. In collapsed/rail
+            mode clicking it EXPANDS the sidebar (revealing the account menu via
+            the avatar dropdown in expanded mode), rather than opening a flyout.
+            Expand/collapse otherwise lives in the header, so nothing sits under
+            the avatar. */}
         <RailButton
           label="Account"
           icon={<UserOutlined />}
-          active={flyout === "account"}
-          stopsMouseDown
-          onClick={() => toggleFlyout("account")}
+          onClick={toggleExpanded}
         />
-
-        {/* Expand chevron */}
-        <Tooltip title="Expand sidebar" placement="right">
-          <Button
-            type="text"
-            aria-label="Expand sidebar"
-            onClick={toggleExpanded}
-            style={{
-              height: 44,
-              width: RAIL_WIDTH,
-              borderRadius: 0,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: token.colorTextSecondary,
-            }}
-            icon={
-              <span
-                style={{ fontSize: token.fontSizeLG, display: "inline-flex" }}
-              >
-                <RightOutlined />
-              </span>
-            }
-          />
-        </Tooltip>
       </div>
 
       {/* Flyout panel — reads `flyout` from the store itself. */}

@@ -57,7 +57,6 @@ const AppLayout: React.FC = () => {
       colorBgContainer,
       colorBgLayout,
       colorBorder,
-      borderRadiusLG,
       paddingSM,
       paddingMD,
       paddingLG,
@@ -116,7 +115,11 @@ const AppLayout: React.FC = () => {
     <Layout
       hasSider
       style={{
-        minHeight: "100vh",
+        // `dvh` (not `vh`): on mobile/tablet the browser address-bar chrome makes
+        // `100vh` taller than the visible area, which forced a vertical page
+        // scroll and dropped the sidebar's account below the fold. `dvh` tracks
+        // the real visible height.
+        minHeight: "100dvh",
         background: colorBgLayout,
         position: "relative",
       }}
@@ -254,11 +257,8 @@ const AppLayout: React.FC = () => {
                     padding: 0,
                   }
                 : {
-                    padding: 2,
                     minHeight: 360,
-                    background: colorBgContainer,
-                    borderRadius: borderRadiusLG,
-                    margin: 2,
+                    background: "transparent",
                   }
             }
           >

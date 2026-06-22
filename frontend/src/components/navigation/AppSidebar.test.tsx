@@ -140,11 +140,28 @@ describe("AppSidebar", () => {
       expect(setFlyout).toHaveBeenCalledWith("chat");
     });
 
-    it("expand chevron calls toggleExpanded", async () => {
+    // NOTE: there is intentionally NO in-sidebar expand/collapse control —
+    // expand/collapse is owned by the header toggle in `AppLayout`, so nothing
+    // sits under the account avatar. The Account rail button is the last rail
+    // element (verified below).
+
+    it("Account is the last rail button (no expand chevron under the avatar)", () => {
+      render(<AppSidebar />);
+      // No in-sidebar expand/collapse affordance exists.
+      expect(screen.queryByRole("button", { name: "Expand sidebar" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Collapse sidebar" })).toBeNull();
+      // …but the Account button is present (the bottom rail element).
+      expect(screen.getByRole("button", { name: "Account" })).toBeInTheDocument();
+    });
+
+    it("clicking the Account avatar expands the sidebar (not a flyout)", async () => {
       const user = userEvent.setup();
       render(<AppSidebar />);
-      await user.click(screen.getByRole("button", { name: "Expand sidebar" }));
+      await user.click(screen.getByRole("button", { name: "Account" }));
+      // Expands the sidebar…
       expect(toggleExpanded).toHaveBeenCalled();
+      // …and does NOT open an account flyout.
+      expect(setFlyout).not.toHaveBeenCalled();
     });
 
     it("Dashboard button highlights when active (/)", () => {
