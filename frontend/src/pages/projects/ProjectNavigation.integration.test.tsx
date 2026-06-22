@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ConfigProvider } from "antd";
@@ -75,22 +74,20 @@ vi.mock("@/contexts/TimeMachineContext", () => ({
 
 describe("Project Navigation Integration", () => {
   /**
-   * T-Integration-001: test_full_navigation_flow_with_tab_clicking
-   *
-   * Acceptance Criterion:
-   * - User clicks tab → URL updates → content changes
+   * T-Integration-001: test_overview_route_renders_project_content
    *
    * Purpose:
-   * Verify the complete navigation flow when user clicks on tabs.
+   * Verify the index route renders ProjectOverview content via the layout
+   * Outlet. Entity-detail navigation is sidebar-owned (Phase 3 nav redesign),
+   * so there is no in-page tab strip to click; this test asserts the Outlet
+   * wiring still delivers the correct child content per route.
    *
    * Expected Behavior:
-   * - Starting on overview tab
-   * - Clicking Change Orders tab navigates to /projects/123/change-orders
-   * - Page content changes to change orders view
+   * - On /projects/123, ProjectOverview content renders
+   * - No in-page navigation tabs are present
    */
-  it("test_full_navigation_flow_with_tab_clicking", async () => {
+  it("test_overview_route_renders_project_content", async () => {
     // Arrange
-    const user = userEvent.setup();
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
@@ -111,38 +108,28 @@ describe("Project Navigation Integration", () => {
       </QueryClientProvider>
     );
 
-    // Wait for initial render
+    // Assert - overview content renders via the Outlet
     await waitFor(() => {
-      // "Project Details" appears as both breadcrumb crumb and PageHeader title
       expect(screen.getAllByText("Project Details").length).toBeGreaterThan(0);
     });
 
-    // Click on Change Orders tab
-    const changeOrdersTab = screen.getByRole("tab", { name: "Change Orders" });
-    await user.click(changeOrdersTab);
-
-    // Assert - Navigation occurred and content changed
-    await waitFor(() => {
-      expect(screen.getAllByText("Change Orders").length).toBeGreaterThan(0);
-      expect(screen.getByTestId("change-order-list")).toBeInTheDocument();
-    });
+    // Assert - no in-page tab strip (nav is sidebar-owned)
+    expect(screen.queryByRole("tab", { name: "Change Orders" })).not.toBeInTheDocument();
   });
 
   /**
-   * T-Integration-002: test_direct_url_navigation_shows_correct_tab
-   *
-   * Acceptance Criterion:
-   * - Direct URL navigation shows correct active tab
+   * T-Integration-002: test_direct_url_navigation_renders_correct_content
    *
    * Purpose:
-   * Verify that navigating directly to a URL activates the correct tab.
+   * Verify that navigating directly to a child URL renders the correct child
+   * content via the layout Outlet.
    *
    * Expected Behavior:
    * - When navigating directly to /projects/123/change-orders
-   * - Change Orders tab is active
    * - Change Orders content is shown
+   * - No in-page tab strip is present
    */
-  it("test_direct_url_navigation_shows_correct_tab", async () => {
+  it("test_direct_url_navigation_renders_correct_content", async () => {
     // Arrange & Act - Navigate directly to change orders page
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
@@ -163,15 +150,12 @@ describe("Project Navigation Integration", () => {
       </QueryClientProvider>
     );
 
-    // Assert - Change Orders tab should be active
+    // Assert - change orders content rendered via the Outlet
     await waitFor(() => {
-      const changeOrdersTab = screen.getByRole("tab", { name: "Change Orders" });
-      expect(changeOrdersTab).toHaveAttribute("aria-selected", "true");
-
-      const overviewTab = screen.getByRole("tab", { name: "Overview" });
-      expect(overviewTab).toHaveAttribute("aria-selected", "false");
-
       expect(screen.getByTestId("change-order-list")).toBeInTheDocument();
     });
+
+    // Assert - no in-page tab strip (nav is sidebar-owned)
+    expect(screen.queryByRole("tab", { name: "Change Orders" })).not.toBeInTheDocument();
   });
 });

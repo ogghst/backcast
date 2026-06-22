@@ -5,7 +5,6 @@
 import { lazy } from "react";
 import { createBrowserRouter, Navigate } from "react-router-dom";
 import AppLayout from "@/layouts/AppLayout";
-import ChatLayout from "@/layouts/ChatLayout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Can } from "@/components/auth/Can";
 import Login from "@/pages/Login";
@@ -293,20 +292,6 @@ export const router = createBrowserRouter([
     path: "/login",
     element: <Login />,
   },
-  {
-    // Dedicated chat shell — sibling of AppLayout (not nested inside it).
-    // Slim collapsible header + full-viewport outlet. Re-mounts the
-    // notification stream (see ChatLayout).
-    path: "/chat",
-    element: (
-      <ProtectedRoute>
-        <Can permission="ai-chat" fallback={<Navigate to="/" replace />}>
-          <ChatLayout />
-        </Can>
-      </ProtectedRoute>
-    ),
-    children: [{ index: true, element: <ChatInterfacePage /> }],
-  },
   // Old entity-scoped chat URL redirects (bookmark back-compat → /chat?ctx=…).
   // Registered as top-level routes so existing bookmarks resolve.
   {
@@ -340,6 +325,17 @@ export const router = createBrowserRouter([
       {
         path: "/",
         element: <Home />,
+      },
+      {
+        // Unified chat view — now a child of AppLayout so the global sidebar
+        // (chat history, entity nav, account menu) is present. Parent
+        // ProtectedRoute already gates auth; Can gates the ai-chat permission.
+        path: "/chat",
+        element: (
+          <Can permission="ai-chat" fallback={<Navigate to="/" replace />}>
+            <ChatInterfacePage />
+          </Can>
+        ),
       },
       {
         path: "/projects",

@@ -18,7 +18,6 @@ import { CostElementUpdate } from "@/api/generated";
 import { CostElementModal } from "@/features/cost-elements/components/CostElementModal";
 import { Can } from "@/components/auth/Can";
 import { useEntityDetailActions } from "@/hooks/useEntityDetailActions";
-import { PageNavigation } from "@/components/navigation";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { PageShell } from "@/components/layout/PageShell";
 import { NotFoundState } from "@/components/layout/NotFoundState";
@@ -38,25 +37,6 @@ export const CostElementLayout: React.FC = () => {
     id!,
   );
   const { data: breadcrumb, isLoading: breadcrumbLoading } = useCostElementBreadcrumb(id);
-
-  const navItems = [
-    { key: "overview", label: "Overview", path: `/cost-elements/${id}` },
-    {
-      key: "cost-registrations",
-      label: "Cost Registrations",
-      path: `/cost-elements/${id}/cost-registrations`,
-    },
-    {
-      key: "cost-history",
-      label: "Cost History",
-      path: `/cost-elements/${id}/cost-history`,
-    },
-    {
-      key: "documents",
-      label: "Documents",
-      path: `/cost-elements/${id}/documents`,
-    },
-  ];
 
   // Project root id from the breadcrumb (may be undefined while loading).
   const projectId = breadcrumb?.project?.project_id;
@@ -126,8 +106,6 @@ export const CostElementLayout: React.FC = () => {
 
   return (
     <PageWrapper>
-      <PageNavigation items={navItems} />
-
       <PageShell
         breadcrumb={
           breadcrumb

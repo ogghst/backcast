@@ -19,7 +19,7 @@ import { WorkPackageUpdate } from "@/api/generated";
 import { WorkPackageModal } from "@/features/work-packages/components/WorkPackageModal";
 import { Can } from "@/components/auth/Can";
 import { useEntityDetailActions } from "@/hooks/useEntityDetailActions";
-import { PageNavigation } from "@/components/navigation";
+import { workPackageNavItems } from "@/components/navigation/entityNavItems";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { PageShell } from "@/components/layout/PageShell";
 import { NotFoundState } from "@/components/layout/NotFoundState";
@@ -38,31 +38,10 @@ export const WorkPackageLayout: React.FC = () => {
     ? `/projects/${projectId}/work-packages/${id}`
     : `/work-packages/${id}`;
 
-  const navItems = [
-    { key: "overview", label: "Overview", path: basePath },
-    {
-      key: "cost-registrations",
-      label: "Cost Registrations",
-      path: `${basePath}/cost-registrations`,
-    },
-    {
-      key: "cost-history",
-      label: "Cost History",
-      path: `${basePath}/cost-history`,
-    },
-    {
-      key: "evm-analysis",
-      label: "EVM Analysis",
-      path: `${basePath}/evm-analysis`,
-    },
-    {
-      key: "documents",
-      label: "Documents",
-      path: `${basePath}/documents`,
-    },
-  ];
-
+  // Resolve the active section label from the shared nav builder (sidebar is
+  // the single home for the tab strip; this only feeds the breadcrumb/title).
   const location = useLocation();
+  const navItems = workPackageNavItems(id!, projectId);
   const activeSection = navItems.find((i) => location.pathname === i.path)?.label ?? navItems[0].label;
 
   const handleOpenChat = () => {
@@ -131,8 +110,6 @@ export const WorkPackageLayout: React.FC = () => {
 
   return (
     <PageWrapper>
-      <PageNavigation items={navItems} />
-
       <PageShell
         breadcrumb={
           breadcrumb
