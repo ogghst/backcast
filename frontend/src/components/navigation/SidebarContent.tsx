@@ -20,7 +20,7 @@ import { Suspense, lazy, useState } from "react";
 import {
   Avatar,
   Divider,
-  Menu,
+  Dropdown,
   Spin,
   Typography,
   theme,
@@ -239,94 +239,11 @@ function ChatSectionHeader({
   );
 }
 
-/**
- * Collapsible account section header. Shows the avatar + name + role ONCE (the
- * menu's redundant `user-info` item is omitted in the sidebar) with a chevron;
- * click/Enter/Space toggles the account menu — a hamburger-style disclosure.
- */
-function AccountSectionHeader({
-  user,
-  open,
-  onToggle,
-}: {
-  user: { full_name?: string; email?: string; role?: string } | null;
-  open: boolean;
-  onToggle: () => void;
-}) {
-  const { token } = theme.useToken();
-  const { spacing } = useThemeTokens();
-  const initials = (user?.full_name || user?.email || "U")
-    .split(/\s+/)
-    .map((s) => s[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-  return (
-    <div
-      role="button"
-      tabIndex={0}
-      aria-expanded={open}
-      aria-label="Account menu"
-      onClick={onToggle}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onToggle();
-        }
-      }}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: spacing.sm,
-        minHeight: 44, // ≥44px touch target
-        padding: `${spacing.sm}px ${spacing.md}px`,
-        cursor: "pointer",
-        transition: "background-color 120ms ease",
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.background = token.colorBgTextHover;
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = "transparent";
-      }}
-    >
-      <Avatar
-        size={32}
-        icon={<UserOutlined />}
-        style={{ backgroundColor: token.colorPrimary, flexShrink: 0 }}
-      >
-        {initials}
-      </Avatar>
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <Text strong ellipsis style={{ display: "block", fontSize: token.fontSize }}>
-          {user?.full_name || "User"}
-        </Text>
-        <Text
-          type="secondary"
-          style={{ fontSize: token.fontSizeSM, textTransform: "capitalize" }}
-        >
-          {user?.role || "viewer"}
-        </Text>
-      </div>
-      {open ? (
-        <DownOutlined
-          style={{ fontSize: token.fontSizeSM, color: token.colorTextSecondary }}
-        />
-      ) : (
-        <RightOutlined
-          style={{ fontSize: token.fontSizeSM, color: token.colorTextSecondary }}
-        />
-      )}
-    </div>
-  );
-}
-
 export function SidebarContent({
   onNavigate,
 }: SidebarContentProps): React.JSX.Element {
   const { token } = theme.useToken();
-  const { spacing, borderRadius } = useThemeTokens();
+  const { spacing } = useThemeTokens();
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
@@ -336,13 +253,19 @@ export function SidebarContent({
 
   // Chat history is collapsed by default so it doesn't dominate the sidebar.
   const [chatOpen, setChatOpen] = useState(false);
-  // Account menu is a collapsible (hamburger) section — collapsed by default.
-  const [accountOpen, setAccountOpen] = useState(false);
 
   const go = (path: string) => {
     navigate(path);
     onNavigate?.();
   };
+
+  const initials = (user?.full_name || user?.email || "U")
+    .split(/\s+/)
+    .map((s) => s[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
 
   return (
     <nav
@@ -352,14 +275,20 @@ export function SidebarContent({
         height: "100%",
         background: token.colorBgContainer,
         borderRight: `1px solid ${token.colorBorderSecondary}`,
-        // Scroll the whole sidebar when content overflows (e.g. chat expanded,
-        // a long entity nav, or the account admin submenu open) so the account
-        // section at the bottom is always reachable — including on mobile.
-        overflowY: "auto",
-        overflowX: "hidden",
+        overflow: "hidden",
       }}
       aria-label="Primary"
     >
+      {/* Scrollable region: brand, primary nav, entity nav, chat. Scrolls on
+          its own when chat is expanded so the account footer below stays put. */}
+      <div
+        style={{
+          flex: "1 1 auto",
+          minHeight: 0,
+          overflowY: "auto",
+          overflowX: "hidden",
+        }}
+      >
       {/* Brand */}
       <button
         type="button"
@@ -475,40 +404,58 @@ export function SidebarContent({
           </div>
         )}
       </Can>
+      </div>
 
-      {/* Flex spacer pins the account section to the bottom when content is
-          short, and collapses to 0 when content overflows (the nav then
-          scrolls). Same behavior for the desktop sider and the mobile drawer. */}
-      <div style={{ flex: "1 1 auto", minHeight: 0 }} />
-
-      {/* Account section — collapsible (hamburger) so the menu doesn't crowd the
-          sidebar bottom and the user is shown only once (no double label).
-          Collapsed by default; click the header to reveal the menu. */}
+      {/* Account footer — pinned at the bottom, OUTSIDE the scroll region, so
+          the avatar is always visible. Click opens the account menu as a
+          dropdown (no chevron: the sidebar expands only via the Expand button). */}
       <div
         style={{
           flex: "0 0 auto",
           borderTop: `1px solid ${token.colorBorderSecondary}`,
         }}
       >
-        <AccountSectionHeader
-          user={user}
-          open={accountOpen}
-          onToggle={() => setAccountOpen((o) => !o)}
-        />
-        {accountOpen && (
-          <Menu
-            // Inline mode keeps the menu visually native to the sidebar (not a
-            // floating dropdown). selectedKeys reflect the active route.
-            mode="inline"
-            items={accountItems}
-            selectedKeys={[location.pathname]}
+        <Dropdown menu={{ items: accountItems }} trigger={["click"]} placement="top">
+          <div
+            role="button"
+            tabIndex={0}
+            aria-label="Account menu"
             style={{
-              border: "none",
-              background: "transparent",
-              borderRadius: borderRadius.md,
+              display: "flex",
+              alignItems: "center",
+              gap: spacing.sm,
+              minHeight: 44,
+              padding: `${spacing.sm}px ${spacing.md}px`,
+              cursor: "pointer",
+              transition: "background-color 120ms ease",
             }}
-          />
-        )}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = token.colorBgTextHover;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "transparent";
+            }}
+          >
+            <Avatar
+              size={32}
+              icon={<UserOutlined />}
+              style={{ backgroundColor: token.colorPrimary, flexShrink: 0 }}
+            >
+              {initials}
+            </Avatar>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <Text strong ellipsis style={{ display: "block", fontSize: token.fontSize }}>
+                {user?.full_name || "User"}
+              </Text>
+              <Text
+                type="secondary"
+                style={{ fontSize: token.fontSizeSM, textTransform: "capitalize" }}
+              >
+                {user?.role || "viewer"}
+              </Text>
+            </div>
+          </div>
+        </Dropdown>
       </div>
     </nav>
   );

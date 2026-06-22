@@ -58,6 +58,7 @@ const AppLayout: React.FC = () => {
       colorBgLayout,
       colorBorder,
       borderRadiusLG,
+      paddingSM,
       paddingMD,
       paddingLG,
       paddingXL,
@@ -127,15 +128,15 @@ const AppLayout: React.FC = () => {
           style={{
             position: "relative",
             zIndex: 1,
+            // Size to the content: no forced minHeight, vertical padding from
+            // the theme's small spacing token so the header hugs its controls.
             padding: isMobile
-              ? `${paddingMD}px ${paddingMD}px`
-              : `${paddingMD}px ${paddingLG}px`,
+              ? `${paddingSM}px ${paddingMD}px`
+              : `${paddingSM}px ${paddingLG}px`,
             background: colorBgContainer,
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
-            height: "auto",
-            minHeight: isMobile ? 56 : 64,
             borderBottom: `1px solid ${colorBorder}`,
             gap: isMobile ? paddingMD : paddingLG,
           }}
