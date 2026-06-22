@@ -139,7 +139,14 @@ export function AppSidebar(): React.JSX.Element | null {
         width={EXPANDED_WIDTH}
         collapsedWidth={0}
         // Smooth transition when toggling between rail and expanded.
+        // Pin to the viewport (sticky + 100vh + alignSelf:flex-start so it
+        // doesn't stretch to page height) so the account menu at the bottom is
+        // always within reach on long pages — the inner nav scrolls on its own.
         style={{
+          position: "sticky",
+          top: 0,
+          height: "100vh",
+          alignSelf: "flex-start",
           background: token.colorBgContainer,
           borderRight: `1px solid ${token.colorBorderSecondary}`,
           overflow: "hidden",
@@ -186,7 +193,9 @@ export function AppSidebar(): React.JSX.Element | null {
     <>
       <div
         style={{
-          position: "relative",
+          position: "sticky",
+          top: 0,
+          alignSelf: "flex-start",
           width: RAIL_WIDTH,
           flexShrink: 0,
           height: "100vh",

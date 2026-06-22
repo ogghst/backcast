@@ -49,7 +49,16 @@ const { Text } = Typography;
  *     permission-gated children
  *   - Logout
  */
-export function useAccountMenuItems(): MenuProps["items"] {
+export function useAccountMenuItems({
+  includeUserInfo = true,
+}: {
+  /**
+   * The sidebar's account section shows the user in its own collapsible header,
+   * so the menu's redundant disabled `user-info` item is omitted there. The
+   * header `UserProfile` dropdown has no other name display, so it keeps it.
+   */
+  includeUserInfo?: boolean;
+} = {}): MenuProps["items"] {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { themeMode, toggleTheme } = useUserPreferencesStore();
@@ -180,22 +189,24 @@ export function useAccountMenuItems(): MenuProps["items"] {
   };
 
   const items: MenuProps["items"] = [
-    {
-      key: "user-info",
-      label: (
-        <Space orientation="vertical" size={0} style={{ padding: "4px 0" }}>
-          <Text strong>{user?.full_name || "User"}</Text>
-          <Text type="secondary" style={{ fontSize: "12px" }}>
-            {user?.role || "viewer"}
-          </Text>
-        </Space>
-      ),
-      disabled: true,
-      style: { cursor: "default" },
-    },
-    {
-      type: "divider",
-    },
+    ...(includeUserInfo
+      ? [
+          {
+            key: "user-info",
+            label: (
+              <Space orientation="vertical" size={0} style={{ padding: "4px 0" }}>
+                <Text strong>{user?.full_name || "User"}</Text>
+                <Text type="secondary" style={{ fontSize: "12px" }}>
+                  {user?.role || "viewer"}
+                </Text>
+              </Space>
+            ),
+            disabled: true,
+            style: { cursor: "default" },
+          },
+          { type: "divider" as const },
+        ]
+      : []),
     {
       key: "theme-switch",
       label: (

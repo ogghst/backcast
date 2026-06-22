@@ -16,7 +16,7 @@
  * active states use `token.colorBgTextHover` / `token.colorPrimaryBg`.
  */
 
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useState } from "react";
 import {
   Avatar,
   Divider,
@@ -27,7 +27,10 @@ import {
 } from "antd";
 import {
   AppstoreOutlined,
+  DownOutlined,
   HomeOutlined,
+  MessageOutlined,
+  RightOutlined,
   ThunderboltOutlined,
   UserOutlined,
 } from "@ant-design/icons";
@@ -40,7 +43,6 @@ import {
 import { useEntityNav } from "@/components/navigation/useEntityNav";
 import type { NavigationItem } from "@/components/navigation";
 import { useAuth } from "@/hooks/useAuth";
-import { usePermission } from "@/hooks/usePermission";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 
 // Code-split the chat feature out of the sidebar chunk.
@@ -168,6 +170,158 @@ function NavRow({
   );
 }
 
+/**
+ * Collapsible "Chat" section header. Click/Enter/Space toggles the chat history
+ * list. Styled like a nav row with a chevron that indicates expand state.
+ */
+function ChatSectionHeader({
+  open,
+  onToggle,
+}: {
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const { token } = theme.useToken();
+  const { spacing, borderRadius, typography } = useThemeTokens();
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-expanded={open}
+      aria-label="Chat history"
+      onClick={onToggle}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onToggle();
+        }
+      }}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: spacing.sm + 2,
+        minHeight: 44, // ≥44px touch target
+        padding: `${spacing.sm}px ${spacing.md}px`,
+        marginLeft: spacing.xs,
+        marginRight: spacing.xs,
+        marginTop: 2,
+        marginBottom: 2,
+        borderRadius: borderRadius.md,
+        cursor: "pointer",
+        color: token.colorTextSecondary,
+        transition: "background-color 120ms ease",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = token.colorBgTextHover;
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = "transparent";
+      }}
+    >
+      <span style={{ fontSize: token.fontSizeLG, display: "inline-flex" }}>
+        <MessageOutlined />
+      </span>
+      <span
+        style={{
+          flex: 1,
+          fontSize: token.fontSize,
+          fontWeight: typography.weights.medium,
+        }}
+      >
+        Chat
+      </span>
+      {open ? (
+        <DownOutlined style={{ fontSize: token.fontSizeSM }} />
+      ) : (
+        <RightOutlined style={{ fontSize: token.fontSizeSM }} />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Collapsible account section header. Shows the avatar + name + role ONCE (the
+ * menu's redundant `user-info` item is omitted in the sidebar) with a chevron;
+ * click/Enter/Space toggles the account menu — a hamburger-style disclosure.
+ */
+function AccountSectionHeader({
+  user,
+  open,
+  onToggle,
+}: {
+  user: { full_name?: string; email?: string; role?: string } | null;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const { token } = theme.useToken();
+  const { spacing } = useThemeTokens();
+  const initials = (user?.full_name || user?.email || "U")
+    .split(/\s+/)
+    .map((s) => s[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-expanded={open}
+      aria-label="Account menu"
+      onClick={onToggle}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onToggle();
+        }
+      }}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: spacing.sm,
+        minHeight: 44, // ≥44px touch target
+        padding: `${spacing.sm}px ${spacing.md}px`,
+        cursor: "pointer",
+        transition: "background-color 120ms ease",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = token.colorBgTextHover;
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = "transparent";
+      }}
+    >
+      <Avatar
+        size={32}
+        icon={<UserOutlined />}
+        style={{ backgroundColor: token.colorPrimary, flexShrink: 0 }}
+      >
+        {initials}
+      </Avatar>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <Text strong ellipsis style={{ display: "block", fontSize: token.fontSize }}>
+          {user?.full_name || "User"}
+        </Text>
+        <Text
+          type="secondary"
+          style={{ fontSize: token.fontSizeSM, textTransform: "capitalize" }}
+        >
+          {user?.role || "viewer"}
+        </Text>
+      </div>
+      {open ? (
+        <DownOutlined
+          style={{ fontSize: token.fontSizeSM, color: token.colorTextSecondary }}
+        />
+      ) : (
+        <RightOutlined
+          style={{ fontSize: token.fontSizeSM, color: token.colorTextSecondary }}
+        />
+      )}
+    </div>
+  );
+}
+
 export function SidebarContent({
   onNavigate,
 }: SidebarContentProps): React.JSX.Element {
@@ -178,22 +332,17 @@ export function SidebarContent({
   const { user } = useAuth();
 
   const entityNav = useEntityNav();
-  const accountItems = useAccountMenuItems();
-  const { can } = usePermission();
-  const canChat = can("ai-chat");
+  const accountItems = useAccountMenuItems({ includeUserInfo: false });
+
+  // Chat history is collapsed by default so it doesn't dominate the sidebar.
+  const [chatOpen, setChatOpen] = useState(false);
+  // Account menu is a collapsible (hamburger) section — collapsed by default.
+  const [accountOpen, setAccountOpen] = useState(false);
 
   const go = (path: string) => {
     navigate(path);
     onNavigate?.();
   };
-
-  const initials = (user?.full_name || user?.email || "U")
-    .split(/\s+/)
-    .map((s) => s[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
 
   return (
     <nav
@@ -203,7 +352,11 @@ export function SidebarContent({
         height: "100%",
         background: token.colorBgContainer,
         borderRight: `1px solid ${token.colorBorderSecondary}`,
-        overflow: "hidden",
+        // Scroll the whole sidebar when content overflows (e.g. chat expanded,
+        // a long entity nav, or the account admin submenu open) so the account
+        // section at the bottom is always reachable — including on mobile.
+        overflowY: "auto",
+        overflowX: "hidden",
       }}
       aria-label="Primary"
     >
@@ -289,7 +442,8 @@ export function SidebarContent({
         </>
       )}
 
-      {/* Chat history (gated). React.lazy → chat deps stay code-split. */}
+      {/* Chat history (gated), collapsible — collapsed by default so it doesn't
+          dominate the sidebar. Expand the header to browse/start sessions. */}
       <Can permission="ai-chat">
         <Divider
           style={{
@@ -297,85 +451,64 @@ export function SidebarContent({
             borderColor: token.colorBorderSecondary,
           }}
         />
-        <div
-          style={{
-            flex: "1 1 auto",
-            minHeight: 0,
-            display: "flex",
-            flexDirection: "column",
-          }}
-        >
-          <Suspense
-            fallback={
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "center",
-                  padding: spacing.lg,
-                }}
-              >
-                <Spin />
-              </div>
-            }
-          >
-            <SidebarChatHistory showHeader />
-          </Suspense>
-        </div>
+        <ChatSectionHeader
+          open={chatOpen}
+          onToggle={() => setChatOpen((o) => !o)}
+        />
+        {chatOpen && (
+          <div style={{ flex: "0 0 auto" }}>
+            <Suspense
+              fallback={
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "center",
+                    padding: spacing.lg,
+                  }}
+                >
+                  <Spin />
+                </div>
+              }
+            >
+              <SidebarChatHistory />
+            </Suspense>
+          </div>
+        )}
       </Can>
 
-      {/* When the chat section is absent (no ai-chat permission) a flex spacer
-          keeps the account section pinned to the bottom. The chat section owns
-          the flex:1 spacer when it renders. */}
-      {!canChat && <div style={{ flex: "1 1 auto" }} />}
+      {/* Flex spacer pins the account section to the bottom when content is
+          short, and collapses to 0 when content overflows (the nav then
+          scrolls). Same behavior for the desktop sider and the mobile drawer. */}
+      <div style={{ flex: "1 1 auto", minHeight: 0 }} />
 
-      {/* Account section */}
+      {/* Account section — collapsible (hamburger) so the menu doesn't crowd the
+          sidebar bottom and the user is shown only once (no double label).
+          Collapsed by default; click the header to reveal the menu. */}
       <div
         style={{
           flex: "0 0 auto",
           borderTop: `1px solid ${token.colorBorderSecondary}`,
-          padding: spacing.sm,
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: spacing.sm,
-            padding: `${spacing.xs}px ${spacing.sm}px ${spacing.sm}px`,
-          }}
-        >
-          <Avatar
-            size={32}
-            icon={<UserOutlined />}
-            style={{ backgroundColor: token.colorPrimary, flexShrink: 0 }}
-          >
-            {initials}
-          </Avatar>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <Text strong ellipsis style={{ display: "block", fontSize: token.fontSize }}>
-              {user?.full_name || "User"}
-            </Text>
-            <Text
-              type="secondary"
-              style={{ fontSize: token.fontSizeSM, textTransform: "capitalize" }}
-            >
-              {user?.role || "viewer"}
-            </Text>
-          </div>
-        </div>
-        <Menu
-          // Inline mode keeps the menu visually native to the sidebar (not a
-          // floating dropdown). selectedKeys are derived from the active path
-          // so the menu reflects the current route.
-          mode="inline"
-          items={accountItems}
-          selectedKeys={[location.pathname]}
-          style={{
-            border: "none",
-            background: "transparent",
-            borderRadius: borderRadius.md,
-          }}
+        <AccountSectionHeader
+          user={user}
+          open={accountOpen}
+          onToggle={() => setAccountOpen((o) => !o)}
         />
+        {accountOpen && (
+          <Menu
+            // Inline mode keeps the menu visually native to the sidebar (not a
+            // floating dropdown). selectedKeys reflect the active route.
+            mode="inline"
+            items={accountItems}
+            selectedKeys={[location.pathname]}
+            style={{
+              border: "none",
+              background: "transparent",
+              borderRadius: borderRadius.md,
+            }}
+          />
+        )}
       </div>
     </nav>
   );
