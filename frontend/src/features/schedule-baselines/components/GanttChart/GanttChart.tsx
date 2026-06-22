@@ -1,102 +1,63 @@
 /**
- * GanttChart Component
+ * GanttChart Component (page wrapper)
  *
- * Main component that fetches Gantt data, transforms it, builds ECharts options,
- * and renders the chart. Y-axis labels are rendered by a React panel independent
- * of ECharts, so they stay fixed when the separator is dragged.
+ * Public entry point: `<GanttChart projectId={...}/>`. Fetches Gantt data,
+ * drives the viewport via {@link useScheduleViewport}, and renders the page
+ * chrome (React y-axis label panel + draggable vertical separator + toolbar)
+ * AROUND the presentational {@link ScheduleTimeline}.
+ *
+ * The label panel renders collapse triangles and click-to-navigate
+ * independently of ECharts so it stays fixed when the separator is dragged.
+ * The presentational core owns the chart options + live instance.
  *
  * @module features/schedule-baselines/components/GanttChart
  */
 
-import React, { useState, useMemo, useCallback, useRef, useEffect } from "react";
+import React, {
+  useMemo,
+  useCallback,
+  useRef,
+  useEffect,
+} from "react";
 import { theme } from "antd";
 import { useNavigate } from "react-router-dom";
-import { EChartsBaseChart } from "@/features/evm/components/charts/EChartsBaseChart";
 import { useEChartsTheme } from "@/features/evm/utils/echartsTheme";
 import { useGanttData } from "../../api/useGanttData";
-import { transformGanttData, buildScheduleBaselineIndex, type GanttRow } from "./GanttDataTransformer";
-import { buildGanttOptions, TIME_LEGEND_HEIGHT, CHART_BOTTOM_PADDING } from "./GanttChartOptions";
 import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
+import { ScheduleTimeline } from "./ScheduleTimeline";
+import { GanttToolbar } from "./GanttToolbar";
+import { useScheduleViewport } from "./useScheduleViewport";
+import {
+  defaultFullConfig,
+  type GanttChartConfig,
+} from "./config";
+import {
+  transformGanttData,
+  computeCollapseToLevel,
+  type GanttRow,
+} from "./GanttDataTransformer";
+import type { GanttItem } from "../../api/useGanttData";
 
-/** Row height in pixels for each Gantt row. */
-const ROW_HEIGHT = 32;
-/** Minimum chart height in pixels. */
+/** Resizable task-panel bounds (px). */
+const GRID_LEFT_MIN = 300;
+const GRID_LEFT_MAX = 600;
+/** Height math constants — kept here to lay out the React label panel. */
 const MIN_HEIGHT = 200;
-/** Maximum chart height in pixels. */
 const MAX_HEIGHT = 1200;
-/** Combined height of time legend header and bottom padding. */
-const HEADER_FOOTER = TIME_LEGEND_HEIGHT + CHART_BOTTOM_PADDING;
+const FALLBACK_ROW_HEIGHT = 32;
 
 interface GanttChartProps {
   projectId: string;
 }
 
-/** ECharts click event params shape for custom series. */
-interface ChartClickParams {
-  data?: [number, number, number, GanttRow] | unknown[];
-}
-
-export const GanttChart: React.FC<GanttChartProps> = ({
-  projectId,
-}) => {
+export const GanttChart: React.FC<GanttChartProps> = ({ projectId }) => {
   const navigate = useNavigate();
   const { token } = theme.useToken();
   const { data, isLoading, isError } = useGanttData(projectId);
   const { colors, tooltipConfig } = useEChartsTheme();
   const currency = useProjectCurrency(projectId);
 
-  // Resizable panel: left grid width
-  const GRID_LEFT_MIN = 300;
-  const GRID_LEFT_MAX = 600;
-  const GRID_LEFT_DEFAULT = 300;
-  const [gridLeft, setGridLeft] = useState(GRID_LEFT_DEFAULT);
-
-  // Refs for stale closure prevention in drag handler
-  const containerRef = useRef<HTMLDivElement>(null);
-  const isDraggingRef = useRef(false);
-  const gridLeftRef = useRef(gridLeft);
-  useEffect(() => {
-    gridLeftRef.current = gridLeft;
-  }, [gridLeft]);
-
-  // Collapse state for WBE groups
-  const [collapsedWbeIds, setCollapsedWbeIds] = useState<Set<string>>(new Set());
-
-  const toggleWbeCollapse = useCallback((wbsElementId: string) => {
-    setCollapsedWbeIds(prev => {
-      const next = new Set(prev);
-      if (next.has(wbsElementId)) {
-        next.delete(wbsElementId);
-      } else {
-        next.add(wbsElementId);
-      }
-      return next;
-    });
-  }, []);
-
-  // Transform flat API data into display rows
-  const rows = useMemo(
-    () => transformGanttData(data?.items ?? [], collapsedWbeIds),
-    [data, collapsedWbeIds],
-  );
-
-  // Build schedule baseline index for dependency arrow coordinate resolution
-  const scheduleIndex = useMemo(
-    () => buildScheduleBaselineIndex(rows),
-    [rows],
-  );
-
-  // Dynamic height computation based on visible row count
-  const chartHeight = useMemo(() => {
-    const visibleRows = rows.length;
-    return Math.max(MIN_HEIGHT, Math.min(visibleRows * ROW_HEIGHT + HEADER_FOOTER, MAX_HEIGHT));
-  }, [rows.length]);
-
-  // Grid height and per-row height for the React y-axis panel
-  const gridHeight = chartHeight - TIME_LEGEND_HEIGHT - CHART_BOTTOM_PADDING;
-  const rowHeight = rows.length > 0 ? gridHeight / rows.length : ROW_HEIGHT;
-
-  // Parse project dates
+  // Parse project dates (also feed the viewport hook for framing clamps)
   const projectStart = useMemo(
     () => (data?.project_start ? new Date(data.project_start) : null),
     [data],
@@ -106,29 +67,90 @@ export const GanttChart: React.FC<GanttChartProps> = ({
     [data],
   );
 
-  // Build ECharts options (y-axis labels hidden — rendered by React panel)
-  const chartOption = useMemo(
-    () => buildGanttOptions(
-      rows, projectStart, projectEnd, colors, tooltipConfig, gridLeft, currency,
-      data?.dependencies ?? [],
-      scheduleIndex,
-    ),
-    [rows, projectStart, projectEnd, colors, tooltipConfig, gridLeft, currency, data?.dependencies, scheduleIndex],
+  const viewport = useScheduleViewport({ projectStart, projectEnd });
+  const {
+    zoom,
+    gridLeft,
+    setGridLeft,
+    density,
+    collapsedWbeIds,
+    toggleWbe,
+    collapseAll,
+    expandAll,
+    chartRef,
+  } = viewport;
+
+  // Row height derived from the density toggle (comfortable=32, compact=22).
+  const rowHeightPx = density === "comfortable" ? 32 : 22;
+
+  // Build the active full-mode config from the live viewport state. A new
+  // object identity only when zoom/gridLeft/density change → options recompute.
+  const config: GanttChartConfig = useMemo(
+    () => ({
+      ...defaultFullConfig,
+      zoom,
+      gridLeft,
+      density: {
+        ...defaultFullConfig.density,
+        rowHeight: rowHeightPx,
+      },
+    }),
+    [zoom, gridLeft, rowHeightPx],
   );
 
-  // Handle bar clicks for cost element navigation only (WBE collapse handled by React panel)
-  // Dependency arrows have 7-element data arrays — skip them explicitly
-  const handleEvents = useMemo(() => ({
-    click: (params: ChartClickParams) => {
-      if (!params.data || params.data.length !== 4) return;
-      const row = params.data[3] as GanttRow;
-      if (!row.isWbe && row.costElementId) {
-        navigate(`/cost-elements/${row.costElementId}`);
-      }
-    },
-  }), [navigate]);
+  // Tree controls for the toolbar: distinct WBE ids + max outline level, plus
+  // collapse-to-level wired through the pure helper. Depends on `data` (stable
+  // from TanStack Query), not a per-render rawItems array.
+  const treeControls = useMemo(() => {
+    const rawItems = data?.items ?? [];
+    const allWbeIds = Array.from(
+      new Set(rawItems.map((i: GanttItem) => i.wbs_element_id)),
+    );
+    const maxLevel = rawItems.reduce(
+      (m: number, i: GanttItem) => Math.max(m, i.wbe_level),
+      0,
+    );
+    return {
+      allWbeIds,
+      maxLevel,
+      expandAll,
+      collapseAll,
+      collapseToLevel: (level: number) =>
+        collapseAll(computeCollapseToLevel(rawItems, level)),
+    };
+  }, [data, expandAll, collapseAll]);
 
-  // Vertical separator drag handler
+  // Rows are needed by the React label panel (ScheduleTimeline transforms its
+  // own copy; both read the same collapsedWbeIds so they stay in sync).
+  const rows = useMemo(
+    () => transformGanttData(data?.items ?? [], collapsedWbeIds),
+    [data, collapsedWbeIds],
+  );
+
+  // Height math — mirrors ScheduleTimeline so the label panel aligns exactly.
+  const headerFooter =
+    config.density.headerHeight + config.density.bottomPadding;
+  const chartHeight = useMemo(() => {
+    const visibleRows = rows.length;
+    const rowH = config.density.rowHeight || FALLBACK_ROW_HEIGHT;
+    return Math.max(
+      MIN_HEIGHT,
+      Math.min(visibleRows * rowH + headerFooter, MAX_HEIGHT),
+    );
+  }, [rows.length, config.density.rowHeight, headerFooter]);
+
+  const gridHeight = chartHeight - headerFooter;
+  const rowHeight =
+    rows.length > 0 ? gridHeight / rows.length : config.density.rowHeight;
+
+  // Drag separator handlers (unchanged behaviour, refs prevent stale closures)
+  const containerRef = useRef<HTMLDivElement>(null);
+  const isDraggingRef = useRef(false);
+  const gridLeftRef = useRef(gridLeft);
+  useEffect(() => {
+    gridLeftRef.current = gridLeft;
+  }, [gridLeft]);
+
   const handleSeparatorMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     isDraggingRef.current = true;
@@ -137,7 +159,9 @@ export const GanttChart: React.FC<GanttChartProps> = ({
       if (!isDraggingRef.current || !containerRef.current) return;
       const containerRect = containerRef.current.getBoundingClientRect();
       const newLeft = ev.clientX - containerRect.left;
-      setGridLeft(Math.max(GRID_LEFT_MIN, Math.min(newLeft, GRID_LEFT_MAX)));
+      setGridLeft(
+        Math.max(GRID_LEFT_MIN, Math.min(newLeft, GRID_LEFT_MAX)),
+      );
     };
 
     const handleMouseUp = () => {
@@ -152,19 +176,31 @@ export const GanttChart: React.FC<GanttChartProps> = ({
     document.addEventListener("mouseup", handleMouseUp);
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
-  }, []);
+  }, [setGridLeft]);
 
-  // Memoize separator style
-  const separatorStyle = useMemo<React.CSSProperties>(() => ({
-    position: "absolute",
-    left: gridLeft - 2,
-    top: 0,
-    bottom: 0,
-    width: 4,
-    cursor: "col-resize",
-    zIndex: 10,
-    backgroundColor: "transparent",
-  }), [gridLeft]);
+  const separatorStyle = useMemo<React.CSSProperties>(
+    () => ({
+      position: "absolute",
+      left: gridLeft - 2,
+      top: 0,
+      bottom: 0,
+      width: 4,
+      cursor: "col-resize",
+      zIndex: 10,
+      backgroundColor: "transparent",
+    }),
+    [gridLeft],
+  );
+
+  // Cost-element bar click → navigate (WBE collapse handled by the React panel)
+  const handleBarClick = useCallback(
+    (row: GanttRow) => {
+      if (!row.isWbe && row.costElementId) {
+        navigate(`/cost-elements/${row.costElementId}`);
+      }
+    },
+    [navigate],
+  );
 
   if (isError) {
     return (
@@ -174,95 +210,115 @@ export const GanttChart: React.FC<GanttChartProps> = ({
     );
   }
 
+  const labelPanelTop = config.density.headerHeight;
+
   return (
-    <div ref={containerRef} style={{ position: "relative", width: "100%" }}>
-      {/* Y-axis label panel - renders labels independently from ECharts */}
-      <div style={{
-        position: "absolute",
-        left: 0,
-        top: TIME_LEGEND_HEIGHT,
-        width: gridLeft,
-        height: gridHeight,
-        background: token.colorBgLayout,
-        borderRight: `1px solid ${token.colorBorderSecondary}`,
-        overflow: "hidden",
-        zIndex: 2,
-      }}>
-        {rows.map((row, index) => {
-          const indent = Math.max(0, row.level - 1) * 35 + 8;
-          const isHoverable = row.isWbe;
-          return (
-            <div
-              key={`${row.wbsElementId}-${row.costElementId ?? 'wbs_element'}-${index}`}
-              onClick={() => {
-                if (row.isWbe) toggleWbeCollapse(row.wbsElementId);
-                else if (row.costElementId) navigate(`/cost-elements/${row.costElementId}`);
-              }}
-              style={{
-                height: rowHeight,
-                lineHeight: `${rowHeight}px`,
-                paddingLeft: indent,
-                paddingRight: 8,
-                boxSizing: "border-box",
-                cursor: isHoverable ? "pointer" : row.costElementId ? "pointer" : "default",
-                fontWeight: row.isWbe ? 600 : 400,
-                fontSize: 11,
-                color: row.isWbe ? token.colorText : token.colorTextSecondary,
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                userSelect: "none",
-              }}
-              title={row.name}
-            >
-              {row.isWbe && (
-                <span style={{ fontSize: 10, marginRight: 4, fontFamily: "monospace" }}>
-                  {row.collapsed ? "\u25B6" : "\u25BC"}
-                </span>
-              )}
-              {row.name}
-            </div>
-          );
-        })}
-      </div>
-      {/* Chart area elevated background */}
-      <div style={{
-        position: "absolute",
-        left: gridLeft,
-        top: 0,
-        right: 0,
-        bottom: 0,
-        background: token.colorBgElevated,
-        boxShadow: `-2px 0 6px rgba(0, 0, 0, 0.06)`,
-        zIndex: 0,
-        pointerEvents: "none",
-      }} />
-      <EChartsBaseChart
-        option={chartOption}
-        height={chartHeight}
-        loading={isLoading}
-        showWhenEmpty={false}
-        emptyDescription="No schedule data available"
-        onEvents={handleEvents}
-        style={{ width: "100%", position: "relative", zIndex: 1 }}
-      />
-      {/* Vertical separator for resizing task panel vs chart area */}
+    <div style={{ width: "100%" }}>
       <div
-        style={separatorStyle}
-        onMouseDown={handleSeparatorMouseDown}
-        onMouseEnter={(e) => {
-          if (!isDraggingRef.current) {
-            (e.currentTarget as HTMLDivElement).style.backgroundColor =
-              "rgba(0, 0, 0, 0.15)";
-          }
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          marginBottom: token.marginSM,
         }}
-        onMouseLeave={(e) => {
-          if (!isDraggingRef.current) {
-            (e.currentTarget as HTMLDivElement).style.backgroundColor =
-              "transparent";
-          }
-        }}
-      />
+      >
+        <GanttToolbar viewport={viewport} tree={treeControls} />
+      </div>
+      <div ref={containerRef} style={{ position: "relative", width: "100%" }}>
+        {/* Y-axis label panel - renders labels independently from ECharts */}
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            top: labelPanelTop,
+            width: gridLeft,
+            height: gridHeight,
+            background: token.colorBgLayout,
+            borderRight: `1px solid ${token.colorBorderSecondary}`,
+            overflow: "hidden",
+            zIndex: 2,
+          }}
+        >
+          {rows.map((row, index) => {
+            const indent = Math.max(0, row.level - 1) * 35 + 8;
+            const isHoverable = row.isWbe;
+            return (
+              <div
+                key={`${row.wbsElementId}-${row.costElementId ?? "wbs_element"}-${index}`}
+                onClick={() => {
+                  if (row.isWbe) toggleWbe(row.wbsElementId);
+                  else if (row.costElementId) navigate(`/cost-elements/${row.costElementId}`);
+                }}
+                style={{
+                  height: rowHeight,
+                  lineHeight: `${rowHeight}px`,
+                  paddingLeft: indent,
+                  paddingRight: 8,
+                  boxSizing: "border-box",
+                  cursor: isHoverable ? "pointer" : row.costElementId ? "pointer" : "default",
+                  fontWeight: row.isWbe ? 600 : 400,
+                  fontSize: 11,
+                  color: row.isWbe ? token.colorText : token.colorTextSecondary,
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  userSelect: "none",
+                } as React.CSSProperties}
+                title={row.name}
+              >
+                {row.isWbe && (
+                  <span style={{ fontSize: 10, marginRight: 4, fontFamily: "monospace" }}>
+                    {row.collapsed ? "▶" : "▼"}
+                  </span>
+                )}
+                {row.name}
+              </div>
+            );
+          })}
+        </div>
+        {/* Chart area elevated background */}
+        <div
+          style={{
+            position: "absolute",
+            left: gridLeft,
+            top: 0,
+            right: 0,
+            bottom: 0,
+            background: token.colorBgElevated,
+            boxShadow: `-2px 0 6px rgba(0, 0, 0, 0.06)`,
+            zIndex: 0,
+            pointerEvents: "none",
+          }}
+        />
+        <ScheduleTimeline
+          data={data ?? { items: [], project_start: null, project_end: null, dependencies: [] }}
+          currency={currency}
+          colors={colors}
+          tooltipConfig={tooltipConfig}
+          config={config}
+          collapsedWbeIds={collapsedWbeIds}
+          chartRef={chartRef}
+          onBarClick={handleBarClick}
+          height={chartHeight}
+          loading={isLoading}
+        />
+        {/* Vertical separator for resizing task panel vs chart area */}
+        <div
+          style={separatorStyle}
+          onMouseDown={handleSeparatorMouseDown}
+          onMouseEnter={(e) => {
+            if (!isDraggingRef.current) {
+              (e.currentTarget as HTMLDivElement).style.backgroundColor =
+                "rgba(0, 0, 0, 0.15)";
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!isDraggingRef.current) {
+              (e.currentTarget as HTMLDivElement).style.backgroundColor =
+                "transparent";
+            }
+          }}
+        />
+      </div>
     </div>
   );
 };
