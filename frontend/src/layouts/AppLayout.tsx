@@ -5,14 +5,11 @@ import {
   MenuOutlined,
   MenuUnfoldOutlined,
   MenuFoldOutlined,
-  MessageOutlined,
 } from "@ant-design/icons";
-import { Outlet, useParams, useNavigate, useLocation } from "react-router-dom";
+import { Outlet, useParams, useLocation } from "react-router-dom";
 
-import { UserProfile } from "@/components/UserProfile";
 import { AppSidebar } from "@/components/navigation/AppSidebar";
 import { MobileSidebarDrawer } from "@/components/navigation/MobileSidebarDrawer";
-import { Can } from "@/components/auth/Can";
 import { WaveBackground } from "@/components/common/WaveBackground";
 import { SearchDialog, useSearchShortcut } from "@/features/search";
 import { NotificationBell, useNotificationStream } from "@/features/notifications";
@@ -72,7 +69,6 @@ const AppLayout: React.FC = () => {
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
 
-  const navigate = useNavigate();
   const location = useLocation();
 
   // Extract projectId from URL if on project pages, or use store context
@@ -188,28 +184,11 @@ const AppLayout: React.FC = () => {
             <TimeMachineCompact projectId={projectId ?? undefined} />
           </div>
 
-          {/* Right: AI-Chat launcher + NotificationBell + UserProfile */}
+          {/* Right: NotificationBell only — AI chat and the user account now
+              live in the sidebar (rail icons + expanded sections), so the
+              header chat launcher and avatar are redundant. */}
           <Space size="small" align="center">
-            <Can permission="ai-chat">
-              {!onChat && (
-                <Tooltip title="AI Chat">
-                  <Button
-                    type="text"
-                    aria-label="AI Chat"
-                    icon={<MessageOutlined />}
-                    onClick={() =>
-                      navigate("/chat", {
-                        state: {
-                          returnTo: location.pathname + location.search,
-                        },
-                      })
-                    }
-                  />
-                </Tooltip>
-              )}
-            </Can>
             <NotificationBell />
-            <UserProfile />
           </Space>
         </Header>
 
