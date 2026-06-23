@@ -24,6 +24,7 @@ import { Menu, Typography, theme } from "antd";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import { useAccountMenuItems } from "@/components/navigation/accountMenuItems";
+import { useAdminNavItems } from "@/components/navigation/adminNavItems";
 import { useEntityNav } from "@/components/navigation/useEntityNav";
 import type { NavFlyout } from "@/stores/useNavigationStore";
 import { useNavigationStore } from "@/stores/useNavigationStore";
@@ -115,12 +116,61 @@ function EntityPanel({ onClose }: { onClose: () => void }) {
   );
 }
 
+function AdminPanel({ onClose }: { onClose: () => void }) {
+  const { token } = theme.useToken();
+  const { spacing } = useThemeTokens();
+  const adminItems = useAdminNavItems();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  if (adminItems.length === 0) {
+    return (
+      <div style={{ padding: spacing.md }}>
+        <Text type="secondary">No admin pages available.</Text>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div style={{ padding: `${spacing.xs}px ${spacing.md}px` }}>
+        <Text
+          type="secondary"
+          style={{
+            fontSize: token.fontSizeSM,
+            textTransform: "uppercase",
+            letterSpacing: "0.04em",
+          }}
+        >
+          Admin
+        </Text>
+      </div>
+      <Menu
+        mode="inline"
+        selectedKeys={[location.pathname]}
+        onClick={(info) => {
+          navigate(info.key);
+          onClose();
+        }}
+        items={adminItems.map((i) => ({
+          key: i.path,
+          icon: i.icon,
+          label: i.label,
+        }))}
+        style={{ border: "none", background: "transparent" }}
+      />
+    </div>
+  );
+}
+
 function panelContent(flyout: Exclude<NavFlyout, null>, onClose: () => void) {
   switch (flyout) {
     case "account":
       return <AccountPanel onClose={onClose} />;
     case "entity":
       return <EntityPanel onClose={onClose} />;
+    case "admin":
+      return <AdminPanel onClose={onClose} />;
   }
 }
 

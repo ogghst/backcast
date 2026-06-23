@@ -31,11 +31,13 @@ import {
   MessageOutlined,
   ProjectOutlined,
   RobotOutlined,
+  SettingOutlined,
   ThunderboltOutlined,
   UserOutlined,
 } from "@ant-design/icons";
 import { useLocation, useNavigate } from "react-router-dom";
 
+import { useAdminNavItems } from "@/components/navigation/adminNavItems";
 import { SidebarContent } from "@/components/navigation/SidebarContent";
 import { SidebarFlyout } from "@/components/navigation/SidebarFlyout";
 import { useEntityNav } from "@/components/navigation/useEntityNav";
@@ -132,7 +134,7 @@ export function AppSidebar(): React.JSX.Element | null {
 
   const effectiveCtx = useEffectiveChatContext();
 
-  const { can, canAny } = usePermission();
+  const { can, canAny, hasRole } = usePermission();
   const canChat = can("ai-chat");
   const canAgents = canAny(["ai-chat", "agent-schedule-manage"]);
   const agentsDest = can("agent-schedule-manage")
@@ -145,6 +147,9 @@ export function AppSidebar(): React.JSX.Element | null {
   // never show a badge. TanStack stops polling when the component unmounts.
   const runningCountQuery = useRunningExecutionsCount();
   const runningCount = canAgents ? (runningCountQuery.data ?? 0) : 0;
+
+  const adminItems = useAdminNavItems();
+  const showAdmin = hasRole("admin") && adminItems.length > 0;
 
   const expanded = useNavigationStore((s) => s.expanded);
   const flyout = useNavigationStore((s) => s.flyout);
@@ -297,6 +302,18 @@ export function AppSidebar(): React.JSX.Element | null {
             active={agentsActive}
             onClick={() => navigate(agentsDest)}
             badge={runningCount > 0 ? runningCount : undefined}
+          />
+        )}
+
+        {/* Admin — opens a flyout of the permission-gated admin pages (mirrors the
+            entity rail→flyout). Admin-only; expanded mode shows the inline section. */}
+        {showAdmin && (
+          <RailButton
+            label="Admin"
+            icon={<SettingOutlined />}
+            active={flyout === "admin"}
+            stopsMouseDown
+            onClick={() => toggleFlyout("admin")}
           />
         )}
 
