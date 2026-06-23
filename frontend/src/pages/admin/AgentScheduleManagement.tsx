@@ -302,16 +302,21 @@ export const AgentScheduleManagement = () => {
         title="Agent Schedules"
         style={{ marginBottom: token.marginMD }}
         extra={
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => {
-              setSelected(null);
-              setModalOpen(true);
-            }}
-          >
-            New schedule
-          </Button>
+          <Space>
+            <Button icon={<HistoryOutlined />} onClick={() => navigate("/agents-history")}>
+              History
+            </Button>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => {
+                setSelected(null);
+                setModalOpen(true);
+              }}
+            >
+              New schedule
+            </Button>
+          </Space>
         }
       >
         <StandardTable<AgentScheduleRead>

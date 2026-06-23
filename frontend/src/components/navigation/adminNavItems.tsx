@@ -26,7 +26,6 @@
 
 import {
   ApiOutlined,
-  ClockCircleOutlined,
   CloudServerOutlined,
   ControlOutlined,
   DatabaseOutlined,
@@ -122,15 +121,6 @@ export function useAdminNavItems(): NavigationItem[] {
         icon: <CloudServerOutlined />,
       },
       gate: can("ai-config-read"),
-    },
-    {
-      item: {
-        key: "/admin/agent-schedules",
-        label: "Agent Schedules",
-        path: "/admin/agent-schedules",
-        icon: <ClockCircleOutlined />,
-      },
-      gate: can("agent-schedule-manage"),
     },
     {
       item: {

@@ -25,6 +25,7 @@
 import { Suspense, lazy, useState } from "react";
 import {
   Avatar,
+  Badge,
   Divider,
   Dropdown,
   Spin,
@@ -37,6 +38,7 @@ import {
   HomeOutlined,
   MessageOutlined,
   RightOutlined,
+  RobotOutlined,
   SettingOutlined,
   ThunderboltOutlined,
   UserOutlined,
@@ -52,6 +54,7 @@ import { useEntityNav } from "@/components/navigation/useEntityNav";
 import type { NavigationItem } from "@/components/navigation";
 import { serializeCtx } from "@/hooks/navigation/useChatContextFromUrl";
 import { useEffectiveChatContext } from "@/hooks/navigation/useEffectiveChatContext";
+import { useRunningExecutionsCount } from "@/features/ai/chat/api/useAgentExecutions";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermission } from "@/hooks/usePermission";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
@@ -114,12 +117,14 @@ function NavRow({
   onClick,
   indent,
   trailing,
+  badge,
 }: {
   item: PrimaryNavItem | NavigationItem;
   active: boolean;
   onClick: () => void;
   indent: number;
   trailing?: React.ReactNode;
+  badge?: React.ReactNode;
 }) {
   const { token } = theme.useToken();
   const { spacing, borderRadius, typography } = useThemeTokens();
@@ -183,6 +188,7 @@ function NavRow({
       >
         {item.label}
       </span>
+      {badge && <span style={{ display: "inline-flex", alignItems: "center" }}>{badge}</span>}
       {trailing && (
         <span
           style={{
@@ -240,7 +246,18 @@ export function SidebarContent({
   const [adminOpen, setAdminOpen] = useState(false);
 
   const effectiveCtx = useEffectiveChatContext();
-  const { hasRole } = usePermission();
+  const { can, canAny, hasRole } = usePermission();
+  const canAgents = canAny(["ai-chat", "agent-schedule-manage"]);
+  const agentsDest = can("agent-schedule-manage")
+    ? "/admin/agent-schedules"
+    : "/agents-history";
+  const agentsActive =
+    isPrimaryActive(location.pathname, "/admin/agent-schedules") ||
+    isPrimaryActive(location.pathname, "/agents-history");
+  // Poll unconditionally (Rules of Hooks); gate the value so unauthorized users
+  // never show a badge. TanStack stops polling when the component unmounts.
+  const runningCountQuery = useRunningExecutionsCount();
+  const runningCount = canAgents ? (runningCountQuery.data ?? 0) : 0;
   const adminItems = useAdminNavItems();
   // Section-level gate: admin role AND at least one visible item. Per-item
   // gating lives in `useAdminNavItems`; the section-level admin-role guard
@@ -453,6 +470,31 @@ export function SidebarContent({
             </Suspense>
           </div>
         )}
+      </Can>
+
+      {/* Agents — a single nav row directly below Chat. Managers
+          (agent-schedule-manage) land on Schedules; chat-only users land on
+          History. Badged with the running-executions count. Active on either
+          destination route. */}
+      <Can permission={["ai-chat", "agent-schedule-manage"]}>
+        <Divider
+          style={{
+            margin: `${spacing.sm}px ${spacing.md}px`,
+            borderColor: token.colorBorderSecondary,
+          }}
+        />
+        <NavRow
+          item={{
+            key: "agents",
+            label: "Agents",
+            path: agentsDest,
+            icon: <RobotOutlined />,
+          }}
+          active={agentsActive}
+          onClick={() => go(agentsDest)}
+          indent={spacing.xs}
+          badge={runningCount > 0 ? <Badge count={runningCount} size="small" /> : undefined}
+        />
       </Can>
 
       {/* Admin — admin-gated collapsible section, collapsed by default. The

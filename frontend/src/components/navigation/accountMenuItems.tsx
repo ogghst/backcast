@@ -5,25 +5,17 @@
  * the sidebar and `UserProfile` avatar dropdown always have RBAC parity.
  *
  * Exported as a hook (`useAccountMenuItems`) because the items embed `onClick`
- * navigations, RBAC checks (`usePermission`), the running-executions badge
- * (`useRunningExecutionsCount`), the theme switch (`useUserPreferencesStore`),
- * and the logout action (`useAuth`) — all of which are hook-driven.
+ * navigations, the theme switch (`useUserPreferencesStore`), and the logout
+ * action (`useAuth`) — all of which are hook-driven.
  */
 
 import type { MenuProps } from "antd";
-import { Badge, Space, Switch, Typography } from "antd";
-import {
-  BulbOutlined,
-  HistoryOutlined,
-  LogoutOutlined,
-  UserOutlined,
-} from "@ant-design/icons";
+import { Space, Switch, Typography } from "antd";
+import { BulbOutlined, LogoutOutlined, UserOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 
 import { useAuth } from "@/hooks/useAuth";
-import { usePermission } from "@/hooks/usePermission";
 import { useUserPreferencesStore } from "@/stores/useUserPreferencesStore";
-import { useRunningExecutionsCount } from "@/features/ai/chat/api/useAgentExecutions";
 
 const { Text } = Typography;
 
@@ -34,7 +26,6 @@ const { Text } = Typography;
  *   - user-info header (disabled, no click)
  *   - Dark Mode `Switch` (stopPropagation so it doesn't close the dropdown)
  *   - Profile (`/profile`)
- *   - Agents History (gated `ai-chat`, badge = running executions)
  *   - Logout
  *
  * Admin pages live in their own first-class sidebar section
@@ -53,12 +44,6 @@ export function useAccountMenuItems({
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { themeMode, toggleTheme } = useUserPreferencesStore();
-  const { can } = usePermission();
-
-  // Poll running agent executions for the Agents History badge. Only shown when
-  // the user can use AI chat (mirrors UserProfile).
-  const runningCountQuery = useRunningExecutionsCount();
-  const runningCount = can("ai-chat") ? runningCountQuery.data ?? 0 : 0;
 
   const handleLogout = () => {
     logout();
@@ -110,21 +95,6 @@ export function useAccountMenuItems({
       label: "Profile",
       onClick: () => navigate("/profile"),
     },
-    // Agents History (background runs + execution history) — gated by ai-chat
-    ...(can("ai-chat")
-      ? [
-          {
-            key: "/agents-history",
-            icon: <HistoryOutlined />,
-            label: (
-              <Badge count={runningCount} size="small" offset={[6, 0]}>
-                Agents History
-              </Badge>
-            ),
-            onClick: () => navigate("/agents-history"),
-          },
-        ]
-      : []),
     {
       key: "logout",
       icon: <LogoutOutlined />,

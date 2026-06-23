@@ -383,7 +383,11 @@ export const router = createBrowserRouter([
       },
       {
         path: "/admin/agent-schedules",
-        element: <AgentScheduleManagement />,
+        element: (
+          <Can permission="agent-schedule-manage" fallback={<Navigate to="/agents-history" replace />}>
+            <AgentScheduleManagement />
+          </Can>
+        ),
       },
       {
         path: "/admin/rbac",
