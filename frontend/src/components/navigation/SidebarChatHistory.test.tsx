@@ -23,9 +23,18 @@ vi.mock("@/hooks/navigation/useEffectiveChatContext", () => ({
   useEffectiveChatContext: () => mockCtx,
 }));
 
-vi.mock("@/hooks/navigation/useChatContextFromUrl", () => ({
-  useChatContextFromUrl: () => ({ context: mockCtx, sessionId: mockSessionId }),
-}));
+vi.mock("@/hooks/navigation/useChatContextFromUrl", async () => {
+  const actual = await vi.importActual<
+    typeof import("@/hooks/navigation/useChatContextFromUrl")
+  >("@/hooks/navigation/useChatContextFromUrl");
+  return {
+    ...actual, // keep the REAL serializeCtx (its behavior is under test below)
+    useChatContextFromUrl: () => ({
+      context: mockCtx,
+      sessionId: mockSessionId,
+    }),
+  };
+});
 
 const mockMutate = vi.fn();
 vi.mock("@/features/ai/chat/api/useChatSessions", () => ({
@@ -48,9 +57,8 @@ vi.mock("@/features/ai/chat/api/useChatSessionsPaginated", () => ({
   }),
 }));
 
-import SidebarChatHistory, {
-  serializeCtx,
-} from "./SidebarChatHistory";
+import SidebarChatHistory from "./SidebarChatHistory";
+import { serializeCtx } from "@/hooks/navigation/useChatContextFromUrl";
 
 function resetState() {
   mockNavigate.mockClear();
@@ -87,6 +95,12 @@ describe("serializeCtx", () => {
     expect(
       serializeCtx({ type: "wbe", id: "w1", project_id: "p1" }),
     ).toBe("ctx=wbe:w1&p=p1");
+  });
+
+  it("work_package → 'ctx=work_package:<id>&p=<project_id>'", () => {
+    expect(
+      serializeCtx({ type: "work_package", id: "wp1", project_id: "p1" }),
+    ).toBe("ctx=work_package:wp1&p=p1");
   });
 
   it("cost_element with project_id → includes &p", () => {

@@ -28,9 +28,10 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useChatMessages } from "../api/useChatSessions";
 import { useChatSessionsPaginated } from "../api/useChatSessionsPaginated";
 import { useStreamingChat } from "../api/useStreamingChat";
-import { useChatContextFromUrl } from "@/hooks/navigation/useChatContextFromUrl";
-import { serializeCtx } from "@/components/navigation/SidebarChatHistory";
-import { useLockBodyScroll } from "@/hooks/navigation/useLockBodyScroll";
+import {
+  serializeCtx,
+  useChatContextFromUrl,
+} from "@/hooks/navigation/useChatContextFromUrl";
 import { AssistantSelector } from "./AssistantSelector";
 import { MessageList } from "./MessageList";
 import { MessageInput, type PendingAttachment } from "./MessageInput";
@@ -1432,11 +1433,6 @@ export const ChatInterface = ({
       state: state?.returnTo ? { returnTo: state.returnTo } : undefined,
     });
   }, [location.state, navigate, context]);
-
-  // Lock the document scroll while the chat view is mounted (mobile-keyboard
-  // scroll fix). Cleanup on unmount restores overflow. Survived the move out
-  // of the retired ChatLayout.
-  useLockBodyScroll(true);
 
   // Handle attachment changes from MessageInput
   const handleAttachmentsChange = useCallback((attachments: PendingAttachment[]) => {

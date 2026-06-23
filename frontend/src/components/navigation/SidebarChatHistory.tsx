@@ -21,40 +21,16 @@
 import { SessionList } from "@/features/ai/chat/components/SessionList";
 import { useDeleteSession } from "@/features/ai/chat/api/useChatSessions";
 import { useChatSessionsPaginated } from "@/features/ai/chat/api/useChatSessionsPaginated";
-import type { SessionContext } from "@/features/ai/types";
-import { useChatContextFromUrl } from "@/hooks/navigation/useChatContextFromUrl";
+import {
+  serializeCtx,
+  useChatContextFromUrl,
+} from "@/hooks/navigation/useChatContextFromUrl";
 import { useEffectiveChatContext } from "@/hooks/navigation/useEffectiveChatContext";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { Typography, theme } from "antd";
 import { useLocation, useNavigate } from "react-router-dom";
 
 const { Text } = Typography;
-
-/**
- * Serialize a `SessionContext` into the `?ctx=` URL fragment.
- *
- * Mirrors the inverse of `parseChatContext`:
- *   - `general`         → `"general"`
- *   - any typed context → `"${type}:${id ?? ""}"`
- * and appends `&p=${project_id}` whenever the context is NOT a bare project
- * (project self-references its own id, so `p` is redundant there) but a
- * `project_id` is present. Returns the full `ctx=…&p=…` query string fragment
- * WITHOUT the leading `?`.
- */
-export function serializeCtx(ctx: SessionContext): string {
-  let qs: string;
-  if (ctx.type === "general") {
-    qs = "ctx=general";
-  } else {
-    qs = `ctx=${ctx.type}:${ctx.id ?? ""}`;
-  }
-
-  if (ctx.type !== "project" && ctx.project_id) {
-    qs += `&p=${ctx.project_id}`;
-  }
-
-  return qs;
-}
 
 interface SidebarChatHistoryProps {
   /** Render a small "Chat" section header above the list (inline expanded view). */
@@ -122,7 +98,7 @@ function SidebarChatHistory({
               letterSpacing: "0.04em",
             }}
           >
-            Chat
+            Chat history
           </Text>
         </div>
       )}

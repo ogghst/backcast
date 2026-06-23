@@ -6,7 +6,6 @@
  * flush against the 56px rail (absolute, left: 56px) carrying the selected
  * content section:
  *
- *   - "chat"   → `SidebarChatHistory` (React.lazy, code-split)
  *   - "account"→ account menu (reuses `useAccountMenuItems`)
  *   - "entity" → entity nav items (reuses `useEntityNav`)
  *
@@ -20,8 +19,8 @@
  * off the token so a custom theme still wins.
  */
 
-import { Suspense, lazy, useCallback, useEffect, useRef } from "react";
-import { Menu, Spin, Typography, theme } from "antd";
+import { useCallback, useEffect, useRef } from "react";
+import { Menu, Typography, theme } from "antd";
 import { useLocation } from "react-router-dom";
 
 import { useAccountMenuItems } from "@/components/navigation/accountMenuItems";
@@ -29,12 +28,6 @@ import { useEntityNav } from "@/components/navigation/useEntityNav";
 import type { NavFlyout } from "@/stores/useNavigationStore";
 import { useNavigationStore } from "@/stores/useNavigationStore";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
-
-const SidebarChatHistory = lazy(() =>
-  import("@/components/navigation/SidebarChatHistory").then((m) => ({
-    default: m.default,
-  })),
-);
 
 const { Text } = Typography;
 
@@ -114,30 +107,8 @@ function EntityPanel({ onClose }: { onClose: () => void }) {
   );
 }
 
-function ChatPanel() {
-  return (
-    <Suspense
-      fallback={
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            padding: 24,
-          }}
-        >
-          <Spin />
-        </div>
-      }
-    >
-      <SidebarChatHistory showHeader />
-    </Suspense>
-  );
-}
-
 function panelContent(flyout: Exclude<NavFlyout, null>, onClose: () => void) {
   switch (flyout) {
-    case "chat":
-      return <ChatPanel />;
     case "account":
       return <AccountPanel onClose={onClose} />;
     case "entity":

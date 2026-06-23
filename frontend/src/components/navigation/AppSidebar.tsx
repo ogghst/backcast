@@ -9,10 +9,10 @@
  *   - `expanded === false` → a 56px fixed rail of icon buttons:
  *       brand glyph (top) → Dashboard, Projects, [entity icon if on an entity
  *       route], Chat, spacer, Account (avatar) pinned at the bottom.
- *     Dashboard/Projects/entity-tab icons navigate immediately (rail stays).
- *     Chat/entity icons toggle the inline `SidebarFlyout`; the Account avatar
- *     EXPANDS the sidebar (the account menu is then the avatar dropdown in
- *     expanded mode).
+ *     Dashboard/Projects/Chat icons navigate immediately (rail stays) — Chat
+ *     goes to `/chat`. The entity icon toggles the inline `SidebarFlyout`; the
+ *     Account avatar EXPANDS the sidebar (the account menu is then the avatar
+ *     dropdown in expanded mode).
  *
  * Expand/collapse is owned by the header toggle in `AppLayout`, so there is
  * exactly ONE expand affordance and nothing sits under the account avatar.
@@ -38,6 +38,8 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { SidebarContent } from "@/components/navigation/SidebarContent";
 import { SidebarFlyout } from "@/components/navigation/SidebarFlyout";
 import { useEntityNav } from "@/components/navigation/useEntityNav";
+import { serializeCtx } from "@/hooks/navigation/useChatContextFromUrl";
+import { useEffectiveChatContext } from "@/hooks/navigation/useEffectiveChatContext";
 import type { NavFlyout } from "@/stores/useNavigationStore";
 import { useNavigationStore } from "@/stores/useNavigationStore";
 import { usePermission } from "@/hooks/usePermission";
@@ -52,8 +54,8 @@ const EXPANDED_WIDTH = 260;
  * shown on hover/focus. The `active` prop paints the icon in primary and gives
  * the row a primary-tinted background.
  *
- * `stopsMouseDown` (opt-in): for buttons that TOGGLE the flyout (Chat/Account/
- * entity), stopping mousedown propagation prevents the SidebarFlyout
+ * `stopsMouseDown` (opt-in): for buttons that TOGGLE the flyout (the entity
+ * icon), stopping mousedown propagation prevents the SidebarFlyout
  * outside-click listener from firing on the button's own mousedown and closing
  * the flyout before the subsequent click reopens it (the double-toggle bug).
  */
@@ -114,6 +116,8 @@ export function AppSidebar(): React.JSX.Element | null {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const effectiveCtx = useEffectiveChatContext();
+
   const { can } = usePermission();
   const canChat = can("ai-chat");
 
@@ -135,6 +139,17 @@ export function AppSidebar(): React.JSX.Element | null {
   // same section is already open.
   const toggleFlyout = (key: Exclude<NavFlyout, null>) => {
     setFlyout(flyout === key ? null : key);
+  };
+
+  // Open the chat page directly. No-op when already on /chat so an active
+  // conversation isn't reset. The current effective context is serialized into
+  // the `?ctx=` URL contract so project/scope is preserved across the nav.
+  // returnTo lets the in-chat Back button return here.
+  const handleChatNav = () => {
+    if (location.pathname === "/chat") return;
+    navigate(`/chat?${serializeCtx(effectiveCtx)}`, {
+      state: { returnTo: location.pathname + location.search },
+    });
   };
 
   if (expanded) {
@@ -235,14 +250,15 @@ export function AppSidebar(): React.JSX.Element | null {
           />
         )}
 
-        {/* Chat */}
+        {/* Chat — navigates to the chat page (does not open a history flyout).
+            Chat history is shown inline only in expanded mode, so the rail has
+            no separate history button. */}
         {canChat && (
           <RailButton
             label="Chat"
             icon={<MessageOutlined />}
-            active={flyout === "chat"}
-            stopsMouseDown
-            onClick={() => toggleFlyout("chat")}
+            active={isPrimaryActive(location.pathname, "/chat")}
+            onClick={handleChatNav}
           />
         )}
 

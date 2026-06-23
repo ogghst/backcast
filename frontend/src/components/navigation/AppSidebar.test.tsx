@@ -37,19 +37,30 @@ vi.mock("@/hooks/usePermission", () => ({
   usePermission: () => ({ can: mockCan, hasRole: () => false }),
 }));
 
+// The effective chat context is serialized into the /chat nav URL. Default to
+// general; per-test overrides scope it (e.g. to a project).
+let mockEffectiveCtx: {
+  type: "general" | "project" | "wbe" | "cost_element" | "work_package";
+  id?: string;
+  project_id?: string;
+} = { type: "general" };
+vi.mock("@/hooks/navigation/useEffectiveChatContext", () => ({
+  useEffectiveChatContext: () => mockEffectiveCtx,
+}));
+
 // Mock the nav store with mutable state. The store must expose state AND
 // actions via the selector pattern (the component reads actions like
 // `useNavigationStore((s) => s.setFlyout)`).
 let storeState: {
   expanded: boolean;
-  flyout: "chat" | "account" | "entity" | null;
+  flyout: "account" | "entity" | null;
   toggleExpanded: () => void;
-  setFlyout: (f: "chat" | "account" | "entity" | null) => void;
+  setFlyout: (f: "account" | "entity" | null) => void;
 };
 const toggleExpanded = vi.fn(() => {
   storeState = { ...storeState, expanded: !storeState.expanded };
 });
-const setFlyout = vi.fn((f: "chat" | "account" | "entity" | null) => {
+const setFlyout = vi.fn((f: "account" | "entity" | null) => {
   storeState = { ...storeState, flyout: f };
 });
 storeState = { expanded: false, flyout: null, toggleExpanded, setFlyout };
@@ -82,6 +93,7 @@ function resetState() {
   mockCan = () => true;
   storeState = { expanded: false, flyout: null, toggleExpanded, setFlyout };
   mockEntityNav = null;
+  mockEffectiveCtx = { type: "general" };
 }
 
 describe("AppSidebar", () => {
@@ -133,11 +145,56 @@ describe("AppSidebar", () => {
       ).toBeInTheDocument();
     });
 
-    it("toggling the Chat flyout calls setFlyout (opens when closed)", async () => {
+    it("clicking Chat navigates to /chat with the serialized ctx and returnTo state", async () => {
       const user = userEvent.setup();
       render(<AppSidebar />);
       await user.click(screen.getByRole("button", { name: "Chat" }));
-      expect(setFlyout).toHaveBeenCalledWith("chat");
+      expect(mockNavigate).toHaveBeenCalledWith("/chat?ctx=general", {
+        state: { returnTo: "/" },
+      });
+      expect(setFlyout).not.toHaveBeenCalled();
+    });
+
+    it("clicking Chat on a project route carries the project ctx in the URL", async () => {
+      mockPathname = "/projects/p1";
+      mockEffectiveCtx = { type: "project", id: "p1", project_id: "p1" };
+      const user = userEvent.setup();
+      render(<AppSidebar />);
+      await user.click(screen.getByRole("button", { name: "Chat" }));
+      expect(mockNavigate).toHaveBeenCalledWith("/chat?ctx=project:p1", {
+        state: { returnTo: "/projects/p1" },
+      });
+    });
+
+    it("clicking Chat on a wbs-element route carries the wbe ctx in the URL", async () => {
+      mockPathname = "/projects/p1/wbs-elements/w1";
+      mockEffectiveCtx = { type: "wbe", id: "w1", project_id: "p1" };
+      const user = userEvent.setup();
+      render(<AppSidebar />);
+      await user.click(screen.getByRole("button", { name: "Chat" }));
+      expect(mockNavigate).toHaveBeenCalledWith("/chat?ctx=wbe:w1&p=p1", {
+        state: { returnTo: "/projects/p1/wbs-elements/w1" },
+      });
+    });
+
+    it("clicking Chat on a work-package route carries the work_package ctx in the URL", async () => {
+      mockPathname = "/projects/p1/work-packages/wp1";
+      mockEffectiveCtx = { type: "work_package", id: "wp1", project_id: "p1" };
+      const user = userEvent.setup();
+      render(<AppSidebar />);
+      await user.click(screen.getByRole("button", { name: "Chat" }));
+      expect(mockNavigate).toHaveBeenCalledWith(
+        "/chat?ctx=work_package:wp1&p=p1",
+        { state: { returnTo: "/projects/p1/work-packages/wp1" } },
+      );
+    });
+
+    it("clicking Chat while already on /chat is a no-op", async () => {
+      mockPathname = "/chat";
+      const user = userEvent.setup();
+      render(<AppSidebar />);
+      await user.click(screen.getByRole("button", { name: "Chat" }));
+      expect(mockNavigate).not.toHaveBeenCalled();
     });
 
     // NOTE: there is intentionally NO in-sidebar expand/collapse control —

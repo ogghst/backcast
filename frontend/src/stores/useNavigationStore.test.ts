@@ -42,12 +42,12 @@ describe("useNavigationStore", () => {
     it("does not touch mobileOpen / flyout", () => {
       act(() => {
         useNavigationStore.getState().setMobileOpen(true);
-        useNavigationStore.getState().setFlyout("chat");
+        useNavigationStore.getState().setFlyout("entity");
         useNavigationStore.getState().toggleExpanded();
       });
       const state = useNavigationStore.getState();
       expect(state.mobileOpen).toBe(true);
-      expect(state.flyout).toBe("chat");
+      expect(state.flyout).toBe("entity");
     });
   });
 
@@ -66,7 +66,7 @@ describe("useNavigationStore", () => {
   });
 
   describe("setFlyout", () => {
-    it.each(["chat", "account", "entity"] as const)(
+    it.each(["account", "entity"] as const)(
       "sets flyout to %s",
       (f) => {
         act(() => {
@@ -91,7 +91,7 @@ describe("useNavigationStore", () => {
       act(() => {
         useNavigationStore.getState().toggleExpanded(); // expanded = true
         useNavigationStore.getState().setMobileOpen(true);
-        useNavigationStore.getState().setFlyout("chat");
+        useNavigationStore.getState().setFlyout("entity");
       });
 
       // The persist middleware exposes its config on the store's internals.

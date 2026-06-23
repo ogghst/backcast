@@ -7,8 +7,9 @@
  *   2. Primary nav (Dashboard, Projects) with active highlighting.
  *   3. Entity section (only when `useEntityNav()` is non-null) — a static label
  *      heading + the route-derived nav items, indented under primary nav.
- *   4. Chat history (gated `ai-chat`), React.lazy-imported so chat deps stay
- *      code-split.
+ *   4. Chat (gated `ai-chat`) — a primary nav row that navigates to `/chat`
+ *      followed by the always-visible chat-history list (sessions + new chat).
+ *      The history list is React.lazy-imported so chat deps stay code-split.
  *   5. Account section (bottom) — user avatar + name + role and the shared
  *      RBAC-gated account menu (`useAccountMenuItems`).
  *
@@ -16,7 +17,7 @@
  * active states use `token.colorBgTextHover` / `token.colorPrimaryBg`.
  */
 
-import { Suspense, lazy, useState } from "react";
+import { Suspense, lazy } from "react";
 import {
   Avatar,
   Divider,
@@ -27,10 +28,8 @@ import {
 } from "antd";
 import {
   AppstoreOutlined,
-  DownOutlined,
   HomeOutlined,
   MessageOutlined,
-  RightOutlined,
   ThunderboltOutlined,
   UserOutlined,
 } from "@ant-design/icons";
@@ -42,8 +41,11 @@ import {
 } from "@/components/navigation/accountMenuItems";
 import { useEntityNav } from "@/components/navigation/useEntityNav";
 import type { NavigationItem } from "@/components/navigation";
+import { serializeCtx } from "@/hooks/navigation/useChatContextFromUrl";
+import { useEffectiveChatContext } from "@/hooks/navigation/useEffectiveChatContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
+import type { SessionContext } from "@/features/ai/types";
 
 // Code-split the chat feature out of the sidebar chunk.
 const SidebarChatHistory = lazy(() =>
@@ -171,72 +173,26 @@ function NavRow({
 }
 
 /**
- * Collapsible "Chat" section header. Click/Enter/Space toggles the chat history
- * list. Styled like a nav row with a chevron that indicates expand state.
+ * Open the chat page directly. No-op when already on /chat so an active
+ * conversation isn't reset. The current effective context is serialized into
+ * the `?ctx=` URL contract so project/scope is preserved across the nav.
+ * returnTo lets the in-chat Back button return here. Mirrors
+ * `AppSidebar.handleChatNav` so rail and expanded behave identically.
  */
-function ChatSectionHeader({
-  open,
-  onToggle,
-}: {
-  open: boolean;
-  onToggle: () => void;
-}) {
-  const { token } = theme.useToken();
-  const { spacing, borderRadius, typography } = useThemeTokens();
-  return (
-    <div
-      role="button"
-      tabIndex={0}
-      aria-expanded={open}
-      aria-label="Chat history"
-      onClick={onToggle}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onToggle();
-        }
-      }}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: spacing.sm + 2,
-        minHeight: 44, // ≥44px touch target
-        padding: `${spacing.sm}px ${spacing.md}px`,
-        marginLeft: spacing.xs,
-        marginRight: spacing.xs,
-        marginTop: 2,
-        marginBottom: 2,
-        borderRadius: borderRadius.md,
-        cursor: "pointer",
-        color: token.colorTextSecondary,
-        transition: "background-color 120ms ease",
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.background = token.colorBgTextHover;
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = "transparent";
-      }}
-    >
-      <span style={{ fontSize: token.fontSizeLG, display: "inline-flex" }}>
-        <MessageOutlined />
-      </span>
-      <span
-        style={{
-          flex: 1,
-          fontSize: token.fontSize,
-          fontWeight: typography.weights.medium,
-        }}
-      >
-        Chat
-      </span>
-      {open ? (
-        <DownOutlined style={{ fontSize: token.fontSizeSM }} />
-      ) : (
-        <RightOutlined style={{ fontSize: token.fontSizeSM }} />
-      )}
-    </div>
-  );
+function useChatNav(
+  navigate: (path: string, opts?: { state?: unknown }) => void,
+  pathname: string,
+  search: string,
+  ctx: SessionContext,
+  onNavigate?: () => void,
+) {
+  return () => {
+    if (pathname === "/chat") return;
+    navigate(`/chat?${serializeCtx(ctx)}`, {
+      state: { returnTo: pathname + search },
+    });
+    onNavigate?.();
+  };
 }
 
 export function SidebarContent({
@@ -248,11 +204,18 @@ export function SidebarContent({
   const location = useLocation();
   const { user } = useAuth();
 
+  const effectiveCtx = useEffectiveChatContext();
+
   const entityNav = useEntityNav();
   const accountItems = useAccountMenuItems({ includeUserInfo: false });
 
-  // Chat history is collapsed by default so it doesn't dominate the sidebar.
-  const [chatOpen, setChatOpen] = useState(false);
+  const handleChatNav = useChatNav(
+    navigate,
+    location.pathname,
+    location.search,
+    effectiveCtx,
+    onNavigate,
+  );
 
   const go = (path: string) => {
     navigate(path);
@@ -371,8 +334,11 @@ export function SidebarContent({
         </>
       )}
 
-      {/* Chat history (gated), collapsible — collapsed by default so it doesn't
-          dominate the sidebar. Expand the header to browse/start sessions. */}
+      {/* Chat — a primary nav row that navigates to /chat (NOT a toggle),
+          followed by the always-visible chat-history list (sessions + the
+          SessionList "New Chat" button). No section header: the SessionList
+          renders its own affordances, so a redundant "Chat history" label is
+          unnecessary. */}
       <Can permission="ai-chat">
         <Divider
           style={{
@@ -380,29 +346,34 @@ export function SidebarContent({
             borderColor: token.colorBorderSecondary,
           }}
         />
-        <ChatSectionHeader
-          open={chatOpen}
-          onToggle={() => setChatOpen((o) => !o)}
+        <NavRow
+          item={{
+            key: "chat",
+            label: "Chat",
+            path: "/chat",
+            icon: <MessageOutlined />,
+          }}
+          active={isPrimaryActive(location.pathname, "/chat")}
+          onClick={handleChatNav}
+          indent={spacing.xs}
         />
-        {chatOpen && (
-          <div style={{ flex: "0 0 auto" }}>
-            <Suspense
-              fallback={
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "center",
-                    padding: spacing.lg,
-                  }}
-                >
-                  <Spin />
-                </div>
-              }
-            >
-              <SidebarChatHistory />
-            </Suspense>
-          </div>
-        )}
+        <div style={{ flex: "0 0 auto" }}>
+          <Suspense
+            fallback={
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "center",
+                  padding: spacing.lg,
+                }}
+              >
+                <Spin />
+              </div>
+            }
+          >
+            <SidebarChatHistory />
+          </Suspense>
+        </div>
       </Can>
       </div>
 
