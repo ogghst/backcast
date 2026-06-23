@@ -23,7 +23,7 @@
 
 ### What are Work Packages?
 
-Work Packages are the lowest-level budget holders in Backcast's ANSI-748 Work Breakdown Structure. Each Work Package sits under a Control Account and holds an allocated budget (`budget_amount`) along with optional schedule baseline and forecast references. Work Packages contain Cost Elements, against which actual costs (Cost Registrations) are tracked.
+Work Packages are the lowest-level budget holders in Backcast's ANSI-748 Work Breakdown Structure. Each Work Package sits under a Control Account and holds an allocated budget (`budget_amount`). Every Work Package is created with a linked **Schedule Baseline** (planned-value curve) and a **Forecast** (Estimate at Complete); the creation parameters set their values, and sensible defaults are applied when they are omitted. Work Packages contain Cost Elements, against which actual costs (Cost Registrations) are tracked.
 
 The hierarchy is:
 
@@ -38,8 +38,8 @@ Control Accounts represent the intersection of *what* (WBS Element) and *who* (O
 In ANSI-748/EVM systems, the Work Package is the fundamental unit of planning and control:
 
 - **Budget allocation**: Each Work Package holds a specific budget amount, enabling granular cost control
-- **Schedule baseline**: Work Packages can reference a Schedule Baseline defining the planned value curve (linear, Gaussian, or logarithmic progression)
-- **Forecasting**: Work Packages can reference a Forecast (Estimate at Complete) for projected final cost
+- **Schedule baseline**: Every Work Package has a Schedule Baseline defining the planned value curve (linear, Gaussian, or logarithmic progression) — created automatically with the work package
+- **Forecasting**: Every Work Package has a Forecast (Estimate at Complete) for projected final cost — created automatically with the work package
 - **EVM computation**: Cost Performance Index (CPI) and Schedule Performance Index (SPI) are computed at the Work Package level from its Cost Elements and their Cost Registrations
 - **Progress tracking**: Progress Entries record physical percent complete against Work Packages
 
@@ -75,8 +75,8 @@ WorkPackage [Tier 3: Branchable] (ANSI-748 budget holder under ControlAccount)
   |-- budget_amount           --> Allocated budget (DECIMAL 15,2, required, default 0)
   |-- description             --> Optional details about the package
   |-- status                  --> Lifecycle state, default "open"
-  |-- schedule_baseline_id    --> 1:1 reference to schedule baseline (optional)
-  |-- forecast_id             --> 1:1 reference to forecast (optional)
+  |-- schedule_baseline_id    --> 1:1 reference to schedule baseline (always linked)
+  |-- forecast_id             --> 1:1 reference to forecast (always linked)
   +-- [branchable]            --> Full EVCS bitemporal versioning with change order branching
 
 CostElement [Tier 2: Versionable] (child of WorkPackage)
@@ -148,9 +148,9 @@ The status field (`String(20)`, default `open`) can be extended via migration if
 
 5. **Add Cost Elements**: After creation, add Cost Elements to break down the budget by cost type (labor, material, subcontract, etc.). Each Cost Element references a Cost Element Type and has an allocated amount.
 
-6. **Optionally attach a Schedule Baseline**: A schedule baseline defines the planned value curve for the work package (start/end dates and progression type: linear, Gaussian, or logarithmic).
+6. **Schedule Baseline (created automatically)**: A schedule baseline is created with the work package and defines the planned value curve (start/end dates and progression type: linear, Gaussian, or logarithmic). Provide start/end dates at creation to control it; defaults (control date as start, start + 90 days as end) are used otherwise.
 
-7. **Optionally attach a Forecast**: A forecast defines the Estimate at Complete (EAC) with a basis of estimate and optional approval.
+7. **Forecast (created automatically)**: A forecast is created with the work package and defines the Estimate at Complete (EAC) with a basis of estimate. Provide `eac_amount` at creation to control it; it defaults to the work package's `budget_amount` otherwise.
 
 ### Editing Work Packages
 

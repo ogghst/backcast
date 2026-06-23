@@ -5,21 +5,21 @@ import { ProjectLayout } from "./ProjectLayout";
 
 describe("ProjectLayout", () => {
   /**
-   * T-Layout-001: test_project_layout_renders_navigation_and_outlet
+   * T-Layout-001: test_project_layout_renders_outlet
    *
    * Acceptance Criterion:
-   * - Layout renders PageNavigation with configured items
    * - Layout renders Outlet for nested routes
    *
    * Purpose:
-   * Verify that ProjectLayout renders the PageNavigation component
-   * and provides an Outlet for nested route content.
+   * Verify that ProjectLayout renders an Outlet for nested route content.
+   * Entity-detail navigation is sidebar-owned (Phase 3 nav redesign), so the
+   * layout no longer renders an in-page tab strip.
    *
    * Expected Behavior:
-   * - Renders navigation tabs ("Overview", "Change Orders", "EVM Analysis")
    * - Renders child route content via Outlet
+   * - Does NOT render in-page navigation tabs
    */
-  it("test_project_layout_renders_navigation_and_outlet", () => {
+  it("test_project_layout_renders_outlet", () => {
     // Arrange
     const TestChild = () => <div>Test Child Content</div>;
 
@@ -34,41 +34,12 @@ describe("ProjectLayout", () => {
       </MemoryRouter>
     );
 
-    // Assert
-    expect(screen.getByRole("tab", { name: "Overview" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Change Orders" })).toBeInTheDocument();
+    // Assert - child content rendered via Outlet
     expect(screen.getByText("Test Child Content")).toBeInTheDocument();
-  });
 
-  /**
-   * T-001: test_project_layout_renders_evm_analysis_tab
-   *
-   * Acceptance Criterion:
-   * - "EVM Analysis" tab visible in navigation
-   *
-   * Purpose:
-   * Verify that ProjectLayout renders the EVM Analysis navigation tab
-   * allowing users to navigate to the project-level EVM analysis page.
-   *
-   * Expected Behavior:
-   * - Renders "EVM Analysis" tab
-   */
-  it("test_project_layout_renders_evm_analysis_tab", () => {
-    // Arrange
-    const TestChild = () => <div>Test Child Content</div>;
-
-    // Act
-    render(
-      <MemoryRouter initialEntries={["/projects/123"]}>
-        <Routes>
-          <Route path="/projects/:projectId" element={<ProjectLayout />}>
-            <Route index element={<TestChild />} />
-          </Route>
-        </Routes>
-      </MemoryRouter>
-    );
-
-    // Assert
-    expect(screen.getByRole("tab", { name: "EVM Analysis" })).toBeInTheDocument();
+    // Assert - no in-page tab strip (nav is sidebar-owned)
+    expect(screen.queryByRole("tab", { name: "Overview" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Change Orders" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "EVM Analysis" })).not.toBeInTheDocument();
   });
 });

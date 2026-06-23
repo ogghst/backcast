@@ -65,6 +65,12 @@ class NotificationTypeDef:
         default_channels: Channels used when a user has no explicit preference.
         resource_type: Resource type this event relates to, if any.
         broadcast: Whether the event fans out to all users (admin/system scope).
+            Broadcast events bypass per-user preferences entirely.
+        opt_in: Whether the event delivers only to users who have explicitly
+            enabled it via their own notification preferences (default OFF).
+            Opt-in events do no role/group resolution -- purely individual
+            profile configuration. With default prefs (no enabled preference
+            rows), an opt-in event delivers to nobody.
     """
 
     code: str
@@ -75,6 +81,7 @@ class NotificationTypeDef:
     default_channels: tuple[ChannelKind, ...]
     resource_type: str | None = None
     broadcast: bool = False
+    opt_in: bool = False
 
 
 # Actor-type frozensets reused across definitions.
@@ -93,6 +100,7 @@ def _def(
     default_channels: tuple[ChannelKind, ...],
     resource_type: str | None = None,
     broadcast: bool = False,
+    opt_in: bool = False,
 ) -> NotificationTypeDef:
     """Build a :class:`NotificationTypeDef` (keeps the table below compact)."""
     return NotificationTypeDef(
@@ -104,6 +112,7 @@ def _def(
         default_channels=default_channels,
         resource_type=resource_type,
         broadcast=broadcast,
+        opt_in=opt_in,
     )
 
 
@@ -266,16 +275,24 @@ REGISTRY: dict[str, NotificationTypeDef] = {
         (ChannelKind.IN_APP,),
         "branch",
     ),
-    # ---- System (broadcast: admin-only delivery) ----
+    # ---- System events ----
+    # system.startup and system.user_login are opt-in: their recipients are
+    # users who have explicitly enabled the event in their own notification
+    # preferences (default OFF). No role/group resolution -- purely individual
+    # profile configuration. default_channels stays (in_app, telegram) so both
+    # channels remain configurable/shown in the preference UI for opting in.
+    # system.unhandled_exception stays broadcast=True: a crash alert must never
+    # be silenceable, so it always fires to the admin Telegram chat regardless
+    # of any user preference.
     "system.startup": _def(
         "system.startup",
         "System startup",
         NotificationCategory.SYSTEM,
         Severity.INFO,
         _SYSTEM,
-        (ChannelKind.TELEGRAM,),
+        (ChannelKind.IN_APP, ChannelKind.TELEGRAM),
         None,
-        broadcast=True,
+        opt_in=True,
     ),
     "system.unhandled_exception": _def(
         "system.unhandled_exception",
@@ -293,9 +310,9 @@ REGISTRY: dict[str, NotificationTypeDef] = {
         NotificationCategory.SYSTEM,
         Severity.INFO,
         _SYSTEM,
-        (ChannelKind.TELEGRAM,),
+        (ChannelKind.IN_APP, ChannelKind.TELEGRAM),
         None,
-        broadcast=True,
+        opt_in=True,
     ),
 }
 

@@ -221,6 +221,34 @@ export function formatRowLabel(row: GanttRow): string {
 }
 
 /**
+ * Compute the set of WBE ids to collapse so the tree shows only outline
+ * levels `1..level-1` expanded and hides everything deeper.
+ *
+ * Semantics: "collapse to level N" collapses every WBE whose own outline
+ * level is `>= N`, so the outline displays levels `1..N-1` expanded.
+ *   - `level = 1` → only root WBE headers are visible (every WBE collapsed).
+ *   - `level = 2` → roots expanded, their direct-child WBE headers visible.
+ *   - `level = maxLevel + 1` (or beyond) → nothing collapsed → equivalent to
+ *     "Expand All".
+ *
+ * @param items - Raw Gantt items (flat API response)
+ * @param level - Outline level to collapse from (1 = collapse all)
+ * @returns Set of distinct `wbs_element_id` values to collapse
+ */
+export function computeCollapseToLevel(
+  items: GanttItem[],
+  level: number,
+): Set<string> {
+  const ids = new Set<string>();
+  for (const item of items) {
+    if (item.wbe_level >= level) {
+      ids.add(item.wbs_element_id);
+    }
+  }
+  return ids;
+}
+
+/**
  * Build a map from costElementId (which represents work_package_id / schedule_baseline_id)
  * to the y-axis index in the rows array. Used for dependency arrow coordinate resolution.
  *

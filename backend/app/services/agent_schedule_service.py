@@ -11,17 +11,21 @@ import asyncio
 import logging
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID
 
+from sqlalchemy import func as sa_func
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.agent_service import AgentService
 from app.ai.event_types import ExecutionStatus
 from app.ai.tools.types import ExecutionMode
+from app.core.rbac_unified import get_unified_rbac_service, rbac_session
 from app.db.session import async_session_maker
 from app.models.domain.ai import AIAgentExecution
 from app.models.domain.ai_agent_schedule import AIAgentSchedule
+from app.models.domain.wbs_element import WBSElement
 from app.models.schemas.ai_agent_schedule import (
     AgentScheduleCreate,
     AgentScheduleTriggerResponse,
@@ -38,6 +42,52 @@ class AgentScheduleService:
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
+
+    async def _authorize_scope(
+        self,
+        *,
+        owner_user_id: UUID,
+        project_id: UUID | None,
+        context: dict[str, Any] | None,
+    ) -> None:
+        """Authorize the run's context scope (global / project / WBE).
+
+        Global scope (project_id is None) is always allowed. Project scope
+        requires the owner to have access to that project via unified RBAC.
+        WBE scope additionally requires a current, non-deleted WBS Element
+        owned by that project.
+
+        Raises ValueError (surfaces as a 422 from the routes) on denial.
+        """
+        if project_id is None:
+            return  # global scope — nothing to check
+
+        async with rbac_session(self.session):
+            accessible = await get_unified_rbac_service().get_accessible_projects(
+                owner_user_id
+            )
+        if project_id not in accessible:
+            msg = f"No access to project {project_id}"
+            raise ValueError(msg)
+
+        if context is not None and context.get("type") == "wbe":
+            wbe_id = context.get("id")
+            if wbe_id is None:
+                msg = "WBE context requires 'id'"
+                raise ValueError(msg)
+            exists = (
+                await self.session.execute(
+                    select(WBSElement.wbs_element_id)
+                    .where(WBSElement.wbs_element_id == UUID(str(wbe_id)))
+                    .where(WBSElement.project_id == project_id)
+                    .where(sa_func.upper(WBSElement.valid_time).is_(None))
+                    .where(WBSElement.deleted_at.is_(None))
+                    .limit(1)
+                )
+            ).first()
+            if exists is None:
+                msg = f"WBS element {wbe_id} not found in project {project_id}"
+                raise ValueError(msg)
 
     async def list_schedules(
         self,
@@ -74,6 +124,11 @@ class AgentScheduleService:
         Raises ValueError if the cron expression or timezone is invalid.
         """
         next_run_at = compute_next_run(data.cron_expr, data.timezone)
+        await self._authorize_scope(
+            owner_user_id=owner_user_id,
+            project_id=data.project_id,
+            context=data.context,
+        )
         schedule = AIAgentSchedule(
             name=data.name,
             prompt=data.prompt,
@@ -130,6 +185,15 @@ class AgentScheduleService:
             schedule.branch_id = data.branch_id
         if data.context is not None:
             schedule.context = data.context
+            # The schema validator derives project_id from the parsed context;
+            # apply that derived value too (covers the general-scope case where
+            # the derived project_id is None — the guard above would skip None).
+            schedule.project_id = data.project_id
+            await self._authorize_scope(
+                owner_user_id=schedule.owner_user_id,
+                project_id=schedule.project_id,
+                context=schedule.context,
+            )
 
         # Recompute next_run_at when the schedule cadence or active state moves.
         if cron_changed or tz_changed or active_changed:

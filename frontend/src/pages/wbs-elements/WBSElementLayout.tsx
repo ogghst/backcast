@@ -14,7 +14,7 @@ import { Can } from "@/components/auth/Can";
 import { useEntityDetailActions } from "@/hooks/useEntityDetailActions";
 import { useEntityHistory } from "@/hooks/useEntityHistory";
 import { WbsElementsService } from "@/api/generated";
-import { PageNavigation } from "@/components/navigation";
+import { wbeNavItems } from "@/components/navigation/entityNavItems";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { PageShell } from "@/components/layout/PageShell";
 import { NotFoundState } from "@/components/layout/NotFoundState";
@@ -47,15 +47,10 @@ export const WBSElementLayout: React.FC = () => {
   const { data: _breadcrumb, isLoading: breadcrumbLoading } = useWBSElementBreadcrumb(wbsElementId);
   const breadcrumb = _breadcrumb as BreadcrumbData | undefined;
 
-  // Navigation items
-  const navItems = [
-    { key: "overview", label: "Overview", path: `/projects/${projectId}/wbs-elements/${wbsElementId}` },
-    { key: "evm-analysis", label: "EVM Analysis", path: `/projects/${projectId}/wbs-elements/${wbsElementId}/evm-analysis` },
-    { key: "cost-history", label: "Cost History", path: `/projects/${projectId}/wbs-elements/${wbsElementId}/cost-history` },
-    { key: "documents", label: "Documents", path: `/projects/${projectId}/wbs-elements/${wbsElementId}/documents` },
-  ];
-
+  // Resolve the active section label from the shared nav builder (sidebar is
+  // the single home for the tab strip; this only feeds the breadcrumb/title).
   const location = useLocation();
+  const navItems = wbeNavItems(projectId!, wbsElementId!);
   const activeSection = navItems.find((i) => location.pathname === i.path)?.label ?? navItems[0].label;
 
   const handleOpenChat = () => {
@@ -133,8 +128,6 @@ export const WBSElementLayout: React.FC = () => {
 
   return (
     <PageWrapper>
-      <PageNavigation items={navItems} />
-
       {/* Shared header rendered on all sub-pages */}
       <PageShell
         breadcrumb={

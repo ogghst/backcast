@@ -9,12 +9,34 @@ Provides schemas for:
 """
 
 from datetime import UTC, datetime
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, Self
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from croniter import croniter
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+if TYPE_CHECKING:
+    # Imported lazily at runtime (see _parse_schedule_context) to avoid a
+    # circular import: app.models.schemas.ai pulls in the full AI subsystem,
+    # which deep-imports back into this schema module via the route layer.
+    from app.models.schemas.ai import SessionContext
+
+
+def _parse_schedule_context(context: dict[str, Any] | None) -> "SessionContext":
+    """Parse a raw context dict into a validated SessionContext.
+
+    Reuses SessionContext.validate_context_fields, so an invalid shape
+    (e.g. ``{type:"wbe", id:<x>}`` with no project_id) raises ValueError,
+    which FastAPI surfaces as 422.
+
+    SessionContext is imported lazily inside the function to avoid a circular
+    import (app.models.schemas.ai pulls in the full AI subsystem, which
+    deep-imports back into this schema module via the route layer).
+    """
+    from app.models.schemas.ai import SessionContext
+
+    return SessionContext(**(context or {}))
 
 
 class AgentScheduleCreate(BaseModel):
@@ -31,6 +53,26 @@ class AgentScheduleCreate(BaseModel):
     branch_id: UUID | None = None
     context: dict[str, Any] | None = None
 
+    @model_validator(mode="after")
+    def _derive_project_id_from_context(self) -> Self:
+        """Derive project_id from a populated context (mirrors chat scope).
+
+        When context is set, it is the source of truth for the run's scope:
+        the parsed SessionContext determines project_id, overriding any value
+        supplied alongside it. Invalid context shapes raise here (surfaces
+        as a 422).
+        """
+        if self.context is not None:
+            parsed = _parse_schedule_context(self.context)
+            if parsed.type == "general":
+                self.project_id = None
+            elif parsed.type == "project":
+                self.project_id = UUID(str(parsed.id))
+            else:
+                # wbe / cost_element / work_package all carry project_id
+                self.project_id = UUID(str(parsed.project_id))
+        return self
+
 
 class AgentScheduleUpdate(BaseModel):
     """Schema for patching an agent schedule (all fields optional)."""
@@ -45,6 +87,23 @@ class AgentScheduleUpdate(BaseModel):
     project_id: UUID | None = None
     branch_id: UUID | None = None
     context: dict[str, Any] | None = None
+
+    @model_validator(mode="after")
+    def _derive_project_id_from_context(self) -> Self:
+        """When a new context is supplied on a patch, derive project_id.
+
+        Leaving context unset (None) preserves the existing scope — do NOT
+        touch project_id in that case.
+        """
+        if self.context is not None:
+            parsed = _parse_schedule_context(self.context)
+            if parsed.type == "general":
+                self.project_id = None
+            elif parsed.type == "project":
+                self.project_id = UUID(str(parsed.id))
+            else:
+                self.project_id = UUID(str(parsed.project_id))
+        return self
 
 
 class AgentScheduleRead(BaseModel):

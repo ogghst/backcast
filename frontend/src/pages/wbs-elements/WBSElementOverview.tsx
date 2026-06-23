@@ -198,6 +198,8 @@ export const WBSElementOverview = () => {
             wbsElement={wbe}
             loading={wbeLoading}
             actualCosts={(budgetStatus as Record<string, unknown> | undefined)?.total_spend as number | undefined}
+            currency={project?.currency}
+            controlDate={controlDate || undefined}
             extraContent={
               wbsElementId ? (
                 <CostHistoryChart

@@ -24,7 +24,6 @@ import { NotFoundState } from "@/components/layout/NotFoundState";
 import { useEntityDetailActions } from "@/hooks/useEntityDetailActions";
 import { useEntityHistory } from "@/hooks/useEntityHistory";
 import { ControlAccountsService } from "@/api/generated";
-import { PageNavigation } from "@/components/navigation";
 import { getBranchColor } from "@/utils/formatters";
 
 /**
@@ -53,17 +52,6 @@ export const ControlAccountLayout: React.FC = () => {
     requestHeaders: { "X-Silent-Error": "true" },
   });
   const { data: wbsElement } = useWBSElement(ca?.wbs_element_id || "");
-
-  // Navigation items
-  const navItems = [
-    { key: "overview", label: "Overview", path: `/projects/${projectId}/control-accounts/${controlAccountId}` },
-    { key: "evm-analysis", label: "EVM Analysis", path: `/projects/${projectId}/control-accounts/${controlAccountId}/evm-analysis` },
-    { key: "cost-history", label: "Cost History", path: `/projects/${projectId}/control-accounts/${controlAccountId}/cost-history` },
-    { key: "documents", label: "Documents", path: `/projects/${projectId}/control-accounts/${controlAccountId}/documents` },
-    // "AI Chat" tab removed: the entity-scoped chat route was never implemented
-    // (blank Outlet), and `control_account` is not a supported SessionContext
-    // type, so there is no unified /chat?ctx= equivalent to link to.
-  ];
 
   // Modal/drawer state
   const {
@@ -143,8 +131,6 @@ export const ControlAccountLayout: React.FC = () => {
 
   return (
     <PageWrapper>
-      <PageNavigation items={navItems} />
-
       <PageShell
         breadcrumb={breadcrumbEntries}
         breadcrumbLoading={caLoading || !wbsElement}

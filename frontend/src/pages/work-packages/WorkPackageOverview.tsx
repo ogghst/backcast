@@ -29,8 +29,11 @@ import {
 import { ViewModeToggle } from "@/components/common/ViewModeToggle";
 import { useViewMode } from "@/hooks/useViewMode";
 import { CostElementCard } from "@/features/cost-elements/components/CostElementCard";
-import { useWorkPackage, useWorkPackageBudgetStatus } from "@/features/work-packages/api/useWorkPackages";
+import { useWorkPackage, useWorkPackageBudgetStatus, useWorkPackageBreadcrumb } from "@/features/work-packages/api/useWorkPackages";
 import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
+import { useProject } from "@/features/projects/api/useProjects";
+import { WorkPackageHeaderCard } from "@/components/WorkPackages/WorkPackageHeaderCard";
+import { CostHistoryChart } from "@/features/cost-registration/components/CostHistoryChart";
 import { formatCurrency, formatTemporalRange, getCurrencySymbol } from "@/utils/formatters";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
@@ -74,7 +77,14 @@ export const WorkPackageOverview = () => {
   const queryClient = useQueryClient();
   const { modal } = App.useApp();
 
-  const currency = useProjectCurrency(undefined);
+  // Resolve the owning project (for control_date + currency) via breadcrumb.
+  const { data: breadcrumb } = useWorkPackageBreadcrumb(id);
+  const projectId = breadcrumb?.project?.project_id;
+  const { data: wpProject } = useProject(projectId);
+  const controlDate = (wpProject as Record<string, unknown> | undefined)
+    ?.control_date as string | null | undefined;
+
+  const currency = useProjectCurrency(projectId);
   const currencySymbol = getCurrencySymbol(currency);
 
   // Fetch cost elements for this work package
@@ -263,6 +273,27 @@ export const WorkPackageOverview = () => {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: token.marginLG }}>
+      {/* Unified 3-chart header (time donut + budget donut + EV-PV-AC chart) */}
+      <WorkPackageHeaderCard
+        workPackage={workPackage}
+        actualCosts={budgetStatus?.used as number | undefined}
+        scheduleStart={scheduleBaseline?.start_date}
+        scheduleEnd={scheduleBaseline?.end_date}
+        controlDate={controlDate || undefined}
+        currency={currency}
+        extraContent={
+          id ? (
+            <CostHistoryChart
+              entityType="work_package"
+              entityId={id}
+              headless
+              controlDate={controlDate || undefined}
+              projectId={projectId}
+            />
+          ) : undefined
+        }
+      />
+
       {/* Section 1: Work Package Details */}
       <Card size="small">
         <Descriptions column={descColumns} bordered size="small">

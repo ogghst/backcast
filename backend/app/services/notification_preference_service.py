@@ -65,10 +65,12 @@ class NotificationPreferenceService:
         overrides = await self._load_overrides(user_id)
 
         # event_type -> {channel: enabled}, seeded from registry defaults.
+        # Opt-in events seed OFF so users opt in by turning channels on.
         cells: dict[str, dict[str, bool]] = {}
         for code, type_def in REGISTRY.items():
+            default_on = not type_def.opt_in
             channel_map: dict[str, bool] = {
-                channel.value: True for channel in type_def.default_channels
+                channel.value: default_on for channel in type_def.default_channels
             }
             cells[code] = channel_map
 

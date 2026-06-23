@@ -308,6 +308,9 @@ async def test_create_work_package_with_schedule_auto_creation(
     await db.flush()
 
     assert wp.work_package_id is not None
+    # The returned WP must carry both links (no stale-return).
+    assert wp.schedule_baseline_id is not None
+    assert wp.forecast_id is not None
 
     # Verify schedule baseline was created and linked
     from app.services.schedule_baseline_service import ScheduleBaselineService
@@ -316,6 +319,30 @@ async def test_create_work_package_with_schedule_auto_creation(
     baseline = await sb_service.get_for_work_package(wp.work_package_id)
     assert baseline is not None
     assert baseline.progression_type == "LINEAR"
+
+
+@pytest.mark.asyncio
+async def test_create_work_package_links_without_explicit_schedule_forecast(
+    db: AsyncSession, actor_id: UUID, service: WorkPackageService
+) -> None:
+    """create_work_package links a baseline + forecast even with required fields only."""
+    h = await create_full_hierarchy(db, actor_id)
+    await db.commit()
+
+    data = WorkPackageCreate(
+        control_account_id=h["ca"].control_account_id,
+        name="WP Defaults",
+        code="WP-DEF-001",
+        budget_amount=Decimal("45000"),
+        status="open",
+    )
+    wp = await service.create_work_package(data, actor_id)
+    await db.flush()
+
+    assert wp.work_package_id is not None
+    # Invariant holds via defaults: both links must be present.
+    assert wp.schedule_baseline_id is not None
+    assert wp.forecast_id is not None
 
 
 @pytest.mark.asyncio

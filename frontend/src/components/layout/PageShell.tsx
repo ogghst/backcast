@@ -19,13 +19,12 @@ export interface PageShellProps {
  * General page-chrome primitive composing the standard breadcrumb + title(+actions) stack.
  *
  * Renders, in order: EntityBreadcrumb (when `breadcrumb` is provided), PageHeader
- * (when `title` is provided), then `{children}`. Does NOT include PageWrapper or
- * PageNavigation — the caller controls padding and the tab strip.
+ * (when `title` is provided), then `{children}`. Does NOT include PageWrapper —
+ * the caller controls padding. Entity-detail navigation is sidebar-owned.
  *
  * Usage:
  * ```tsx
  * <PageWrapper>
- *   <PageNavigation items={navItems} />
  *   <PageShell breadcrumb={trail} breadcrumbLoading={loading} title="WBS Element Details" actions={actions}>
  *     <Outlet />
  *   </PageShell>

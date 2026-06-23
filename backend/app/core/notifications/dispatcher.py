@@ -88,11 +88,11 @@ class NotificationDispatcher:
             )
             return []
 
-        # Broadcast / system events (system.startup, system.unhandled_exception,
-        # system.user_login) deliver to the broadcast channels (admin Telegram
-        # chat) WITHOUT creating per-user Notification rows. This preserves the
-        # retired notifier's fire-and-forget semantics: no inbox entry, no
-        # NotificationDelivery rows, just an admin alert.
+        # Broadcast events (e.g. system.unhandled_exception) deliver to the
+        # broadcast channels (admin Telegram chat) WITHOUT creating per-user
+        # Notification rows. This preserves the retired notifier's fire-and-
+        # forget semantics: no inbox entry, no NotificationDelivery rows, just
+        # an admin alert.
         if type_def.broadcast:
             self._schedule_broadcast_delivery(event)
             return []
@@ -310,6 +310,9 @@ class NotificationDispatcher:
         if type_def.broadcast:
             return await self._expand_broadcast(event, session)
 
+        if type_def.opt_in:
+            return await self._resolve_opt_in_recipients(event.event_type, session)
+
         return await self._resolve_resource_owner(event, session)
 
     async def _expand_broadcast(
@@ -325,6 +328,29 @@ class NotificationDispatcher:
         channels fire via the broadcast path.
         """
         return []
+
+    async def _resolve_opt_in_recipients(
+        self, event_type: str, session: AsyncSession
+    ) -> list[UUID]:
+        """Recipients who opted into *event_type* via an enabled preference row.
+
+        Opt-in events deliver only to users with at least one enabled
+        preference row for this event (exact code or the ``"*"`` wildcard).
+        No role/group resolution -- purely individual profile configuration.
+        """
+        stmt = (
+            select(UserNotificationPreference.user_id)
+            .where(UserNotificationPreference.event_type.in_([event_type, "*"]))
+            .where(UserNotificationPreference.enabled.is_(True))
+        )
+        result = await session.execute(stmt)
+        seen: set[UUID] = set()
+        out: list[UUID] = []
+        for (uid,) in result.all():
+            if uid not in seen:
+                seen.add(uid)
+                out.append(uid)
+        return out
 
     async def _resolve_resource_owner(
         self,
@@ -420,9 +446,12 @@ class NotificationDispatcher:
 
         overrides = await self._load_channel_overrides(user_id, event_type, session)
         # Start from defaults, then apply any explicit (wildcard or exact) overrides.
-        effective: dict[ChannelKind, bool] = {
-            ch: (ch in default_channels) for ch in ChannelKind
-        }
+        # Opt-in events default OFF: a recipient (found via an enabled row) only
+        # gets the channels they explicitly enabled, never default-on extras.
+        if type_def.opt_in:
+            effective: dict[ChannelKind, bool] = dict.fromkeys(ChannelKind, False)
+        else:
+            effective = {ch: (ch in default_channels) for ch in ChannelKind}
         for kind, enabled in overrides.items():
             effective[kind] = enabled
         return [kind for kind, on in effective.items() if on]

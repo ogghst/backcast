@@ -41,18 +41,16 @@ vi.mock("../../api/useStreamingChat", () => ({
 }));
 
 vi.mock("../../api/useChatSessions", () => ({
-  useChatSessions: () => ({ data: [] }),
   useChatMessages: () => ({ data: [], isLoading: false }),
   useDeleteSession: () => ({ mutateAsync: vi.fn() }),
 }));
 
 vi.mock("../../api/useChatSessionsPaginated", () => ({
   useChatSessionsPaginated: () => ({
-    data: { sessions: [] },
+    data: { sessions: [], has_more: false, total_count: 0 },
     isLoading: false,
     loadMore: vi.fn(),
     hasMore: false,
-    loadingMore: false,
   }),
 }));
 
@@ -132,5 +130,18 @@ describe("ChatInterface terminal-status reset", () => {
       expect(screen.getByRole("button", { name: "Send message" })).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Stop generation" })).not.toBeInTheDocument();
     });
+  });
+});
+
+describe("ChatInterface in-content toolbar", () => {
+  beforeEach(() => {
+    capturedCallbacks = {};
+  });
+
+  it("renders the Back button in the in-content toolbar", () => {
+    // Validates the toolbar surgery: the Back button (ported from the retired
+    // ChatSlimHeader) now renders in-content rather than via a header portal.
+    renderChat();
+    expect(screen.getByRole("button", { name: "Back" })).toBeInTheDocument();
   });
 });

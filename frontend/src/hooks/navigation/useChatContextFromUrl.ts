@@ -82,6 +82,36 @@ export function parseChatContext(
   };
 }
 
+/**
+ * Serialize a `SessionContext` into the `?ctx=` URL fragment.
+ *
+ * Mirrors the inverse of `parseChatContext`:
+ *   - `general`         → `"general"`
+ *   - any typed context → `"${type}:${id ?? ""}"`
+ * and appends `&p=${project_id}` whenever the context is NOT a bare project
+ * (project self-references its own id, so `p` is redundant there) but a
+ * `project_id` is present. Returns the full `ctx=…&p=…` query string fragment
+ * WITHOUT the leading `?`.
+ *
+ * Lives here (the URL-contract module) because it is the pure inverse of
+ * `parseChatContext` above. Pure/type-only deps so importing it adds no
+ * runtime/bundle cost.
+ */
+export function serializeCtx(ctx: SessionContext): string {
+  let qs: string;
+  if (ctx.type === "general") {
+    qs = "ctx=general";
+  } else {
+    qs = `ctx=${ctx.type}:${ctx.id ?? ""}`;
+  }
+
+  if (ctx.type !== "project" && ctx.project_id) {
+    qs += `&p=${ctx.project_id}`;
+  }
+
+  return qs;
+}
+
 interface UseChatContextFromUrlResult {
   context: SessionContext;
   sessionId?: string;
