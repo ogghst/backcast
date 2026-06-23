@@ -11,7 +11,11 @@
  *      AND carries a trailing chevron that toggles a chat-history list
  *      (collapsed by default each mount). The history list is
  *      React.lazy-imported so chat deps stay code-split.
- *   5. Account section (bottom) — user avatar + name + role and the shared
+ *   5. Admin (gated `hasRole("admin")`) — a collapsible section header (NOT a
+ *      navigator; there is no `/admin` index route) whose trailing chevron
+ *      toggles the permission-gated admin-page list (`useAdminNavItems`).
+ *      Collapsed by default each mount. Sub-items navigate via `go()`.
+ *   6. Account section (bottom) — user avatar + name + role and the shared
  *      RBAC-gated account menu (`useAccountMenuItems`).
  *
  * All styling uses Ant Design theme tokens (zero hard-coded colors). Hover and
@@ -33,6 +37,7 @@ import {
   HomeOutlined,
   MessageOutlined,
   RightOutlined,
+  SettingOutlined,
   ThunderboltOutlined,
   UserOutlined,
 } from "@ant-design/icons";
@@ -42,11 +47,13 @@ import { Can } from "@/components/auth/Can";
 import {
   useAccountMenuItems,
 } from "@/components/navigation/accountMenuItems";
+import { useAdminNavItems } from "@/components/navigation/adminNavItems";
 import { useEntityNav } from "@/components/navigation/useEntityNav";
 import type { NavigationItem } from "@/components/navigation";
 import { serializeCtx } from "@/hooks/navigation/useChatContextFromUrl";
 import { useEffectiveChatContext } from "@/hooks/navigation/useEffectiveChatContext";
 import { useAuth } from "@/hooks/useAuth";
+import { usePermission } from "@/hooks/usePermission";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import type { SessionContext } from "@/features/ai/types";
 
@@ -228,7 +235,17 @@ export function SidebarContent({
   // that toggles this. Not persisted — collapses again on each sidebar mount.
   const [chatHistoryOpen, setChatHistoryOpen] = useState(false);
 
+  // Admin section is collapsed by default; its header (a NavRow, NOT a
+  // navigator) toggles this. Not persisted — collapses on each sidebar mount.
+  const [adminOpen, setAdminOpen] = useState(false);
+
   const effectiveCtx = useEffectiveChatContext();
+  const { hasRole } = usePermission();
+  const adminItems = useAdminNavItems();
+  // Section-level gate: admin role AND at least one visible item. Per-item
+  // gating lives in `useAdminNavItems`; the section-level admin-role guard
+  // lives here (the hook does not enforce it).
+  const showAdmin = hasRole("admin") && adminItems.length > 0;
 
   const entityNav = useEntityNav();
   const accountItems = useAccountMenuItems({ includeUserInfo: false });
@@ -437,6 +454,49 @@ export function SidebarContent({
           </div>
         )}
       </Can>
+
+      {/* Admin — admin-gated collapsible section, collapsed by default. The
+          header NavRow TOGGLES (it does NOT navigate: there is no `/admin`
+          index route). The trailing chevron is a pure visual indicator; clicks
+          bubble up to the row and toggle (NO stopPropagation — unlike the Chat
+          chevron, where the row navigates and the chevron must suppress nav).
+          Sub-items are permission-gated admin pages (`useAdminNavItems`) and
+          navigate via `go()`. */}
+      {showAdmin && (
+        <>
+          <Divider
+            style={{
+              margin: `${spacing.sm}px ${spacing.md}px`,
+              borderColor: token.colorBorderSecondary,
+            }}
+          />
+          <NavRow
+            item={{
+              key: "admin",
+              label: "Admin",
+              path: "/admin",
+              icon: <SettingOutlined />,
+            }}
+            active={location.pathname.startsWith("/admin")}
+            onClick={() => setAdminOpen((open) => !open)}
+            indent={spacing.xs}
+            trailing={adminOpen ? <DownOutlined /> : <RightOutlined />}
+          />
+          {adminOpen && (
+            <div style={{ flex: "0 0 auto" }}>
+              {adminItems.map((item) => (
+                <NavRow
+                  key={item.key}
+                  item={item}
+                  active={location.pathname === item.path}
+                  onClick={() => go(item.path)}
+                  indent={spacing.md}
+                />
+              ))}
+            </div>
+          )}
+        </>
+      )}
       </div>
 
       {/* Account footer — pinned at the bottom, OUTSIDE the scroll region, so

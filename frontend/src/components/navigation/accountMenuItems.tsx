@@ -13,19 +13,9 @@
 import type { MenuProps } from "antd";
 import { Badge, Space, Switch, Typography } from "antd";
 import {
-  ApiOutlined,
   BulbOutlined,
-  CloudServerOutlined,
-  ClockCircleOutlined,
-  ControlOutlined,
-  DatabaseOutlined,
   HistoryOutlined,
   LogoutOutlined,
-  RobotOutlined,
-  SafetyOutlined,
-  SettingOutlined,
-  TagsOutlined,
-  TeamOutlined,
   UserOutlined,
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
@@ -45,9 +35,10 @@ const { Text } = Typography;
  *   - Dark Mode `Switch` (stopPropagation so it doesn't close the dropdown)
  *   - Profile (`/profile`)
  *   - Agents History (gated `ai-chat`, badge = running executions)
- *   - Admin submenu (gated `hasRole("admin")` AND ≥1 visible child), with all
- *     permission-gated children
  *   - Logout
+ *
+ * Admin pages live in their own first-class sidebar section
+ * (`useAdminNavItems`), not here.
  */
 export function useAccountMenuItems({
   includeUserInfo = true,
@@ -62,7 +53,7 @@ export function useAccountMenuItems({
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { themeMode, toggleTheme } = useUserPreferencesStore();
-  const { can, hasRole } = usePermission();
+  const { can } = usePermission();
 
   // Poll running agent executions for the Agents History badge. Only shown when
   // the user can use AI chat (mirrors UserProfile).
@@ -72,120 +63,6 @@ export function useAccountMenuItems({
   const handleLogout = () => {
     logout();
     navigate("/login");
-  };
-
-  const getAdminItems = (): MenuProps["items"] => {
-    const adminItems: MenuProps["items"] = [];
-
-    if (can("user-read")) {
-      adminItems.push({
-        key: "/admin/users",
-        icon: <UserOutlined />,
-        label: "Users",
-        onClick: () => navigate("/admin/users"),
-      });
-    }
-
-    if (hasRole("admin")) {
-      adminItems.push({
-        key: "/admin/role-assignments",
-        icon: <TeamOutlined />,
-        label: "Role Assignments",
-        onClick: () => navigate("/admin/role-assignments"),
-      });
-    }
-
-    if (can("organizational-unit-read")) {
-      adminItems.push({
-        key: "/admin/organizational-units",
-        icon: <TeamOutlined />,
-        label: "Organizational Units",
-        onClick: () => navigate("/admin/organizational-units"),
-      });
-    }
-
-    if (can("cost-element-type-read")) {
-      adminItems.push({
-        key: "/admin/cost-element-types",
-        icon: <TagsOutlined />,
-        label: "Cost Element Types",
-        onClick: () => navigate("/admin/cost-element-types"),
-      });
-    }
-
-    if (can("cost-event-type-read")) {
-      adminItems.push({
-        key: "/admin/cost-event-types",
-        icon: <TagsOutlined />,
-        label: "Cost Event Types",
-        onClick: () => navigate("/admin/cost-event-types"),
-      });
-    }
-
-    if (can("ai-config-read")) {
-      adminItems.push({
-        key: "/admin/ai-providers",
-        icon: <RobotOutlined />,
-        label: "AI Providers",
-        onClick: () => navigate("/admin/ai-providers"),
-      });
-    }
-
-    if (can("ai-config-read")) {
-      adminItems.push({
-        key: "/admin/ai-assistants",
-        icon: <ApiOutlined />,
-        label: "AI Assistants",
-        onClick: () => navigate("/admin/ai-assistants"),
-      });
-    }
-
-    if (can("ai-config-read")) {
-      adminItems.push({
-        key: "/admin/mcp-servers",
-        icon: <CloudServerOutlined />,
-        label: "MCP Servers",
-        onClick: () => navigate("/admin/mcp-servers"),
-      });
-    }
-
-    if (can("agent-schedule-manage")) {
-      adminItems.push({
-        key: "/admin/agent-schedules",
-        icon: <ClockCircleOutlined />,
-        label: "Agent Schedules",
-        onClick: () => navigate("/admin/agent-schedules"),
-      });
-    }
-
-    if (hasRole("admin")) {
-      adminItems.push({
-        key: "/admin/rbac",
-        icon: <SafetyOutlined />,
-        label: "RBAC Configuration",
-        onClick: () => navigate("/admin/rbac"),
-      });
-    }
-
-    if (can("change-order-workflow-config-manage")) {
-      adminItems.push({
-        key: "/admin/change-order-config",
-        icon: <ControlOutlined />,
-        label: "Change Order Config",
-        onClick: () => navigate("/admin/change-order-config"),
-      });
-    }
-
-    if (can("system-dump-reseed")) {
-      adminItems.push({
-        key: "/admin/system",
-        icon: <DatabaseOutlined />,
-        label: "System Admin",
-        onClick: () => navigate("/admin/system"),
-      });
-    }
-
-    return adminItems;
   };
 
   const items: MenuProps["items"] = [
@@ -245,21 +122,6 @@ export function useAccountMenuItems({
               </Badge>
             ),
             onClick: () => navigate("/agents-history"),
-          },
-        ]
-      : []),
-    // Admin submenu section
-    ...(hasRole("admin") && (getAdminItems()?.length ?? 0) > 0
-      ? [
-          {
-            type: "divider" as const,
-          },
-          {
-            key: "admin",
-            icon: <SettingOutlined />,
-            label: "Admin",
-            children: getAdminItems(),
-            popupClassName: "admin-submenu",
           },
         ]
       : []),
