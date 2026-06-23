@@ -8,8 +8,9 @@
  *   3. Entity section (only when `useEntityNav()` is non-null) — a static label
  *      heading + the route-derived nav items, indented under primary nav.
  *   4. Chat (gated `ai-chat`) — a primary nav row that navigates to `/chat`
- *      followed by the always-visible chat-history list (sessions + new chat).
- *      The history list is React.lazy-imported so chat deps stay code-split.
+ *      AND carries a trailing chevron that toggles a chat-history list
+ *      (collapsed by default each mount). The history list is
+ *      React.lazy-imported so chat deps stay code-split.
  *   5. Account section (bottom) — user avatar + name + role and the shared
  *      RBAC-gated account menu (`useAccountMenuItems`).
  *
@@ -17,7 +18,7 @@
  * active states use `token.colorBgTextHover` / `token.colorPrimaryBg`.
  */
 
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useState } from "react";
 import {
   Avatar,
   Divider,
@@ -28,8 +29,10 @@ import {
 } from "antd";
 import {
   AppstoreOutlined,
+  DownOutlined,
   HomeOutlined,
   MessageOutlined,
+  RightOutlined,
   ThunderboltOutlined,
   UserOutlined,
 } from "@ant-design/icons";
@@ -103,11 +106,13 @@ function NavRow({
   active,
   onClick,
   indent,
+  trailing,
 }: {
   item: PrimaryNavItem | NavigationItem;
   active: boolean;
   onClick: () => void;
   indent: number;
+  trailing?: React.ReactNode;
 }) {
   const { token } = theme.useToken();
   const { spacing, borderRadius, typography } = useThemeTokens();
@@ -164,10 +169,25 @@ function NavRow({
           whiteSpace: "nowrap",
           overflow: "hidden",
           textOverflow: "ellipsis",
+          ...(trailing
+            ? { flex: 1, minWidth: 0 }
+            : undefined),
         }}
       >
         {item.label}
       </span>
+      {trailing && (
+        <span
+          style={{
+            marginLeft: "auto",
+            flexShrink: 0,
+            display: "inline-flex",
+            alignItems: "center",
+          }}
+        >
+          {trailing}
+        </span>
+      )}
     </div>
   );
 }
@@ -199,10 +219,14 @@ export function SidebarContent({
   onNavigate,
 }: SidebarContentProps): React.JSX.Element {
   const { token } = theme.useToken();
-  const { spacing } = useThemeTokens();
+  const { spacing, borderRadius } = useThemeTokens();
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+
+  // Chat history is collapsed by default; the Chat nav row carries a chevron
+  // that toggles this. Not persisted — collapses again on each sidebar mount.
+  const [chatHistoryOpen, setChatHistoryOpen] = useState(false);
 
   const effectiveCtx = useEffectiveChatContext();
 
@@ -334,11 +358,12 @@ export function SidebarContent({
         </>
       )}
 
-      {/* Chat — a primary nav row that navigates to /chat (NOT a toggle),
-          followed by the always-visible chat-history list (sessions + the
-          SessionList "New Chat" button). No section header: the SessionList
-          renders its own affordances, so a redundant "Chat history" label is
-          unnecessary. */}
+      {/* Chat — a primary nav row that navigates to /chat AND carries a
+          trailing chevron that toggles the chat-history list below it. The
+          history list is collapsed by default each mount (the chevron's
+          onClick/ onKeyDown call stopPropagation so toggling does NOT trigger
+          the row's navigation). No section header: the SessionList renders its
+          own affordances. */}
       <Can permission="ai-chat">
         <Divider
           style={{
@@ -356,24 +381,61 @@ export function SidebarContent({
           active={isPrimaryActive(location.pathname, "/chat")}
           onClick={handleChatNav}
           indent={spacing.xs}
+          trailing={
+            <span
+              role="button"
+              tabIndex={0}
+              aria-label={
+                chatHistoryOpen
+                  ? "Collapse chat history"
+                  : "Expand chat history"
+              }
+              aria-expanded={chatHistoryOpen}
+              onClick={(e) => {
+                e.stopPropagation();
+                setChatHistoryOpen((open) => !open);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setChatHistoryOpen((open) => !open);
+                }
+              }}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 24,
+                height: 24,
+                borderRadius: borderRadius.sm,
+                color: token.colorTextSecondary,
+                cursor: "pointer",
+              }}
+            >
+              {chatHistoryOpen ? <DownOutlined /> : <RightOutlined />}
+            </span>
+          }
         />
-        <div style={{ flex: "0 0 auto" }}>
-          <Suspense
-            fallback={
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "center",
-                  padding: spacing.lg,
-                }}
-              >
-                <Spin />
-              </div>
-            }
-          >
-            <SidebarChatHistory />
-          </Suspense>
-        </div>
+        {chatHistoryOpen && (
+          <div style={{ flex: "0 0 auto" }}>
+            <Suspense
+              fallback={
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "center",
+                    padding: spacing.lg,
+                  }}
+                >
+                  <Spin />
+                </div>
+              }
+            >
+              <SidebarChatHistory />
+            </Suspense>
+          </div>
+        )}
       </Can>
       </div>
 

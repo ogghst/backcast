@@ -10,7 +10,6 @@
  *   - active session → `useChatContextFromUrl().sessionId` (only meaningful on
  *     `/chat`; harmless when undefined elsewhere).
  *   - selection      → `navigate('/chat?ctx=<eff>&session=<id>', { returnTo })`.
- *   - new chat       → `navigate('/chat?ctx=<eff>', { returnTo })` (no session).
  *   - delete         → the existing `useDeleteSession` mutation (cache
  *     invalidation + toast live inside it).
  *
@@ -69,12 +68,6 @@ function SidebarChatHistory({
     });
   };
 
-  const handleNewChat = () => {
-    navigate(`/chat?${serializeCtx(ctx)}`, {
-      state: { returnTo },
-    });
-  };
-
   const handleDeleteSession = (id: string) => {
     deleteSession.mutate(id);
   };
@@ -107,10 +100,8 @@ function SidebarChatHistory({
           sessions={data?.sessions ?? []}
           currentSessionId={sessionId}
           onSessionSelect={handleSessionSelect}
-          onNewChat={handleNewChat}
           onDeleteSession={handleDeleteSession}
           loading={isLoading}
-          hideNewChatButton={false}
           hasMore={hasMore}
           onLoadMore={loadMore}
         />

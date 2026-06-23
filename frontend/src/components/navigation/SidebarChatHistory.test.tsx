@@ -135,23 +135,6 @@ describe("SidebarChatHistory", () => {
     expect(opts.state).toEqual({ returnTo: "/projects/p1?x=1" });
   });
 
-  it("onNewChat navigates WITHOUT a session param", async () => {
-    const user = userEvent.setup();
-    mockLocation = { pathname: "/", search: "" };
-    mockCtx = { type: "general" };
-
-    renderIt();
-
-    const newChatBtn = await screen.findByRole("button", { name: /new chat/i });
-    await user.click(newChatBtn);
-
-    await waitFor(() => expect(mockNavigate).toHaveBeenCalledTimes(1));
-    const [path] = mockNavigate.mock.calls[0];
-    // No session param present.
-    expect(path).toBe("/chat?ctx=general");
-    expect(path).not.toMatch(/session=/);
-  });
-
   it("onSessionSelect uses the wbe ctx serialization (with &p)", async () => {
     const user = userEvent.setup();
     mockLocation = { pathname: "/projects/p1/wbs-elements/w1", search: "" };

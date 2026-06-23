@@ -21,11 +21,10 @@ interface SessionListProps {
   sessions: AIConversationSessionPublic[];
   currentSessionId?: string;
   onSessionSelect: (sessionId: string) => void;
-  onNewChat: () => void;
+  /** When provided, renders a "New Chat" button in the header. Omit to hide it. */
+  onNewChat?: () => void;
   onDeleteSession: (sessionId: string) => void;
   loading?: boolean;
-  /** Hide the "New Chat" button in the header (useful when embedded in ChatInterface) */
-  hideNewChatButton?: boolean;
   /** Pagination props */
   hasMore?: boolean;
   onLoadMore?: () => void;
@@ -108,7 +107,6 @@ export const SessionList = ({
   onNewChat,
   onDeleteSession,
   loading = false,
-  hideNewChatButton = false,
   hasMore = false,
   onLoadMore,
   loadingMore = false,
@@ -133,8 +131,8 @@ export const SessionList = ({
           }
         `}
       </style>
-      {/* Header - only show if not hiding the New Chat button */}
-      {!hideNewChatButton && (
+      {/* Header - only render the New Chat button when an onNewChat handler is provided */}
+      {onNewChat && (
         <div
           style={{
             padding: spacing.md,

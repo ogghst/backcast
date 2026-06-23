@@ -114,14 +114,12 @@ describe("SessionList", () => {
     expect(onNewChat).toHaveBeenCalled();
   });
 
-  it("should hide New Chat button when hideNewChatButton is true", () => {
+  it("should hide New Chat button when onNewChat is not provided", () => {
     render(
       <SessionList
         sessions={mockSessions}
         onSessionSelect={vi.fn()}
-        onNewChat={vi.fn()}
         onDeleteSession={vi.fn()}
-        hideNewChatButton
       />
     );
 
