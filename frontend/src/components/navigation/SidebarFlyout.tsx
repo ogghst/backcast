@@ -21,7 +21,7 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import { Menu, Typography, theme } from "antd";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { useAccountMenuItems } from "@/components/navigation/accountMenuItems";
 import { useEntityNav } from "@/components/navigation/useEntityNav";
@@ -69,6 +69,7 @@ function EntityPanel({ onClose }: { onClose: () => void }) {
   const { token } = theme.useToken();
   const { spacing } = useThemeTokens();
   const entityNav = useEntityNav();
+  const navigate = useNavigate();
   const location = useLocation();
 
   if (!entityNav) {
@@ -96,7 +97,14 @@ function EntityPanel({ onClose }: { onClose: () => void }) {
       <Menu
         mode="inline"
         selectedKeys={[location.pathname]}
-        onClick={onClose}
+        // Unlike the account panel (whose items embed their own onClick
+        // navigations), the entity nav items are pure { key, label, path } with
+        // no handler. Each item's Menu key IS its path, so navigate on the
+        // Menu-level click, then close the flyout.
+        onClick={(info) => {
+          navigate(info.key);
+          onClose();
+        }}
         items={entityNav.items.map((i) => ({
           key: i.path,
           label: i.label,
