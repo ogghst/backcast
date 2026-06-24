@@ -310,7 +310,7 @@ async def read_wbs_element_history(
     service: WBSElementService = Depends(get_wbs_element_service),
 ) -> Sequence[WBSElement]:
     """Get version history for a WBS Element. Requires read permission."""
-    history = await service.get_history(wbs_element_id)
+    history = await service.get_wbe_history(wbs_element_id)
     if not history:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

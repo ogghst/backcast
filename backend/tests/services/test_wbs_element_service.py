@@ -389,6 +389,12 @@ async def test_get_wbe_history_returns_versions(db: AsyncSession, actor_id) -> N
 
     history = await service.get_wbe_history(wbs.wbs_element_id)
     assert len(history) >= 2
+    # Regression guard: every history version must have a populated
+    # budget_allocation. The raw base TemporalService.get_history returns rows
+    # where this computed field is None, which fails WBSElementRead validation
+    # (budget_allocation: Decimal, non-optional) and 500s the history endpoint.
+    # get_wbe_history computes it per version; assert it is never None.
+    assert all(v.budget_allocation is not None for v in history)
 
 
 # ---------------------------------------------------------------------------
