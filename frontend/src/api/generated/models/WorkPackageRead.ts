@@ -6,6 +6,9 @@
  * Schema for reading Work Package data.
  */
 export type WorkPackageRead = {
+    created_by_name?: (string | null);
+    created_at?: (string | null);
+    updated_at?: (string | null);
     /**
      * Work package name
      */
@@ -30,7 +33,6 @@ export type WorkPackageRead = {
     forecast_id?: (string | null);
     branch: string;
     created_by: string;
-    created_by_name?: (string | null);
     deleted_by?: (string | null);
     valid_time?: (string | null);
     transaction_time?: (string | null);

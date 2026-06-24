@@ -218,7 +218,16 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
         stmt = stmt.offset(skip).limit(limit)
 
         result = await self.session.execute(stmt)
-        return list(result.scalars().all()), total
+        entities = list(result.scalars().all())
+        # Resolve created_by_name + created_at/updated_at across all versions.
+        from app.core.versioning.creator_resolver import (
+            populate_creator_names,
+            populate_entity_timestamps,
+        )
+
+        await populate_creator_names(self.session, entities)
+        await populate_entity_timestamps(self.session, entities)
+        return entities, total
 
     async def get_by_id(
         self,
@@ -287,6 +296,11 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
             entity.created_by_name = row[1]
             history.append(entity)
 
+        # Derive created_at (true creation) + updated_at across all versions.
+        from app.core.versioning.creator_resolver import populate_entity_timestamps
+
+        await populate_entity_timestamps(self.session, history)
+
         return history
 
     async def get_cost_element_as_of(
@@ -312,7 +326,16 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
         )
         stmt = self._apply_bitemporal_filter(stmt, as_of)
         result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
+        entity = result.scalar_one_or_none()
+        if entity is not None:
+            from app.core.versioning.creator_resolver import (
+                populate_creator_names,
+                populate_entity_timestamps,
+            )
+
+            await populate_creator_names(self.session, [entity])
+            await populate_entity_timestamps(self.session, [entity])
+        return entity
 
     async def get_breadcrumb(self, cost_element_id: UUID) -> dict[str, Any]:
         """Get breadcrumb trail for a Cost Element.
@@ -454,4 +477,12 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
             stmt = stmt.where(func.upper(CostElement.valid_time).is_(None))
 
         rows = await self.session.execute(stmt)
-        return {e.cost_element_id: e for e in rows.scalars()}
+        entities = list(rows.scalars())
+        from app.core.versioning.creator_resolver import (
+            populate_creator_names,
+            populate_entity_timestamps,
+        )
+
+        await populate_creator_names(self.session, entities)
+        await populate_entity_timestamps(self.session, entities)
+        return {e.cost_element_id: e for e in entities}

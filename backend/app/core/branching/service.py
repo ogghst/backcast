@@ -161,6 +161,22 @@ class BranchableService[TBranchable: BranchableProtocol]:
         """Get specific version by its version ID (primary key)."""
         return await self.session.get(self.entity_class, entity_id)
 
+    async def _populate_read_fields(self, entities: list[Any]) -> None:
+        """Populate read-only computed fields on a batch of entities.
+
+        Resolves `created_by_name` from the User table (batched) and derives
+        `created_at` (true creation = MIN over all versions) plus `updated_at`
+        (MAX over all versions) from the transaction_time ranges. Both are
+        no-ops for entities that don't expose the relevant attributes.
+        """
+        from app.core.versioning.creator_resolver import (
+            populate_creator_names,
+            populate_entity_timestamps,
+        )
+
+        await populate_creator_names(self.session, entities)
+        await populate_entity_timestamps(self.session, entities)
+
     async def create(
         self,
         actor_id: UUID,
@@ -560,7 +576,9 @@ class BranchableService[TBranchable: BranchableProtocol]:
                 .limit(1)
             )
             result = await self.session.execute(stmt)
-            return result.scalar_one_or_none()
+            entity = result.scalar_one_or_none()
+            await self._populate_read_fields([entity] if entity is not None else [])
+            return entity
 
         # MERGED mode: Check requested branch first, then check if deleted before falling back
         # First, try to get from requested branch
@@ -576,6 +594,7 @@ class BranchableService[TBranchable: BranchableProtocol]:
         branch_result = result_branch.scalar_one_or_none()
 
         if branch_result is not None:
+            await self._populate_read_fields([branch_result])
             return branch_result
 
         # No result on requested branch - check if entity was deleted on this branch
@@ -613,30 +632,17 @@ class BranchableService[TBranchable: BranchableProtocol]:
             .limit(1)
         )
         result_main = await self.session.execute(stmt_main)
-        return result_main.scalar_one_or_none()
+        entity = result_main.scalar_one_or_none()
+        await self._populate_read_fields([entity] if entity is not None else [])
+        return entity
 
     async def get_history(self, root_id: UUID) -> list[TBranchable]:
         """Get all versions of an entity with joined creator name."""
-        from app.models.domain.user import User
-
         # Helper to get root field name
         root_field = self._get_root_field_name()
 
-        # Creator lookup subquery
-        UserAlias = cast(Any, User)
-        creator_subq = (
-            select(UserAlias.user_id, UserAlias.full_name)
-            .distinct(UserAlias.user_id)
-            .order_by(UserAlias.user_id, UserAlias.transaction_time.desc())
-            .subquery("creator_lookup")
-        )
-
         stmt = (
-            select(self.entity_class, creator_subq.c.full_name.label("created_by_name"))
-            .outerjoin(
-                creator_subq,
-                cast(Any, self.entity_class).created_by == creator_subq.c.user_id,
-            )
+            select(self.entity_class)
             .where(
                 getattr(self.entity_class, root_field) == root_id,
             )
@@ -644,13 +650,9 @@ class BranchableService[TBranchable: BranchableProtocol]:
         )
 
         result = await self.session.execute(stmt)
-        history = []
-        for row in result.all():
-            entity = row[0]
-            entity.created_by_name = row[1]
-
-            history.append(entity)
-
+        history = list(result.scalars().all())
+        # Resolve created_by_name (batched) and derive created_at in one pass.
+        await self._populate_read_fields(history)
         return history
 
     async def list_branches(
@@ -941,4 +943,6 @@ class BranchableService[TBranchable: BranchableProtocol]:
         )
 
         result = await self.session.execute(stmt)
-        return list(result.scalars().all())
+        entities = list(result.scalars().all())
+        await self._populate_read_fields(entities)
+        return entities

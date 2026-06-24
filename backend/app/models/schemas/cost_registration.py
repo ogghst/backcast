@@ -89,6 +89,7 @@ class CostRegistrationRead(CostRegistrationBase):
     cost_event_type: str | None = None
     attachment_count: int = 0
     created_by: UUID
+    created_by_name: str | None = None
 
     @computed_field  # type: ignore[prop-decorator]
     @property

@@ -119,9 +119,26 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
     async def get_by_id(
         self, forecast_id: UUID, branch: str = "main"
     ) -> Forecast | None:
-        """Get forecast by root ID and branch."""
+        """Get forecast by root ID and branch with creator name."""
+        from app.models.domain.user import User
+
+        UserAlias = cast(Any, User)
+        creator_subq = (
+            select(UserAlias.user_id, UserAlias.full_name)
+            .distinct(UserAlias.user_id)
+            .order_by(UserAlias.user_id, UserAlias.transaction_time.desc())
+            .subquery("creator_lookup")
+        )
+
         stmt = (
-            select(Forecast)
+            select(
+                Forecast,
+                creator_subq.c.full_name.label("created_by_name"),
+            )
+            .outerjoin(
+                creator_subq,
+                Forecast.created_by == creator_subq.c.user_id,
+            )
             .where(
                 Forecast.forecast_id == forecast_id,
                 is_current_version_on_branch(
@@ -135,7 +152,12 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
             .limit(1)
         )
         result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
+        row = result.first()
+        if row is None:
+            return None
+        entity = row[0]
+        entity.created_by_name = row[1]
+        return entity
 
     async def soft_delete(  # type: ignore[override]
         self,
@@ -185,8 +207,31 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
         stmt = stmt.order_by(cast(Any, Forecast).transaction_time.desc())
         stmt = stmt.offset(skip).limit(limit)
 
-        result = await self.session.execute(stmt)
-        return list(result.scalars().all())
+        # Add creator-name outerjoin so created_by_name is populated per row.
+        from app.models.domain.user import User
+
+        UserAlias = cast(Any, User)
+        creator_subq = (
+            select(UserAlias.user_id, UserAlias.full_name)
+            .distinct(UserAlias.user_id)
+            .order_by(UserAlias.user_id, UserAlias.transaction_time.desc())
+            .subquery("creator_lookup")
+        )
+        fetch_stmt = stmt.with_only_columns(
+            Forecast,
+            creator_subq.c.full_name.label("created_by_name"),
+        ).outerjoin(
+            creator_subq,
+            Forecast.created_by == creator_subq.c.user_id,
+        )
+
+        result = await self.session.execute(fetch_stmt)
+        items: list[Forecast] = []
+        for row in result.all():
+            entity = row[0]
+            entity.created_by_name = row[1]
+            items.append(entity)
+        return items
 
     async def get_for_work_package(
         self, work_package_id: UUID, branch: str = "main"
@@ -203,9 +248,26 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
         Returns:
             Forecast if found, None otherwise
         """
+        from app.models.domain.user import User
+
+        UserAlias = cast(Any, User)
+        creator_subq = (
+            select(UserAlias.user_id, UserAlias.full_name)
+            .distinct(UserAlias.user_id)
+            .order_by(UserAlias.user_id, UserAlias.transaction_time.desc())
+            .subquery("creator_lookup")
+        )
+
         stmt = (
-            select(Forecast)
+            select(
+                Forecast,
+                creator_subq.c.full_name.label("created_by_name"),
+            )
             .join(WorkPackage, WorkPackage.forecast_id == Forecast.forecast_id)
+            .outerjoin(
+                creator_subq,
+                Forecast.created_by == creator_subq.c.user_id,
+            )
             .where(
                 WorkPackage.work_package_id == work_package_id,
                 WorkPackage.branch == branch,
@@ -220,7 +282,12 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
             .limit(1)
         )
         result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
+        row = result.first()
+        if row is None:
+            return None
+        entity = row[0]
+        entity.created_by_name = row[1]
+        return entity
 
     async def create_for_work_package(
         self,

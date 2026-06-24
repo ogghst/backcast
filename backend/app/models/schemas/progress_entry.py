@@ -66,6 +66,7 @@ class ProgressEntryRead(ProgressEntryBase, TemporalComputedMixin):
     progress_entry_id: UUID
     work_package_id: UUID
     created_by: UUID
+    created_by_name: str | None = None
     valid_time: TemporalRange
     transaction_time: TemporalRange
     deleted_at: datetime | None = None

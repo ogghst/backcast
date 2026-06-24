@@ -21,7 +21,7 @@ import { WBSElementCreate, WBSElementRead, WorkPackageRead, WorkPackageCreate, C
 import type { PaginatedResponse } from "@/types/api";
 import { queryKeys } from "@/api/queryKeys";
 import { WBSElementHeaderCard } from "@/components/WBSElements/WBSElementHeaderCard";
-import { WBSElementInfoCard } from "@/components/WBSElements/WBSElementInfoCard";
+import { EntityMetadataCard } from "@/components/common/EntityMetadataCard";
 import { WBSElementTable } from "@/components/hierarchy/WBSElementTable";
 import { WBSElementModal } from "@/features/wbs-elements/components/WBSElementModal";
 import { WorkPackageModal } from "@/features/work-packages/components/WorkPackageModal";
@@ -406,8 +406,21 @@ export const WBSElementOverview = () => {
           })()}
         </Card>
 
-        {/* WBS Element Info (collapsible metadata) */}
-        {wbe && <WBSElementInfoCard wbsElement={wbe} loading={wbeLoading} />}
+        {/* WBS Element metadata footer — standardized across entity pages */}
+        {wbe && (
+          <EntityMetadataCard
+            entityId={wbe.wbs_element_id}
+            entityIdLabel="WBS Element ID"
+            parentId={wbe.parent_wbs_element_id}
+            parentLabel="Parent WBS"
+            parentValue={wbe.parent_name || "Project Root"}
+            createdAt={wbe.created_at}
+            updatedAt={wbe.updated_at}
+            createdBy={wbe.created_by_name}
+            validTime={wbe.valid_time_formatted}
+            cardId="wbe-metadata-card"
+          />
+        )}
 
         {/* Child WBS Element Create Modal */}
         <WBSElementModal

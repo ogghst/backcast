@@ -18,6 +18,7 @@ export type DocumentPublic = {
     is_locked: boolean;
     locked_by: (string | null);
     created_by: string;
+    created_by_name?: (string | null);
     size_bytes: number;
     created_at: string;
     updated_at: string;

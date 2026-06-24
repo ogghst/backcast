@@ -234,7 +234,19 @@ class WBSElementService(BranchableService[WBSElement]):  # type: ignore[type-var
     async def _resolve_parent_names(
         self, query_results: Sequence[Any]
     ) -> list[WBSElement]:
-        """Resolve parent names for a list of WBS Element results."""
+        """Resolve parent names for a list of WBS Element results.
+
+        Also batch-derives `created_at` (true creation = MIN over all versions)
+        and `updated_at` (MAX over all versions), and batch-resolves
+        `created_by_name` from the User table. Centralizing this here means
+        every WBS list path (get_wbs_elements, get_by_project, get_by_parent,
+        get_by_code, ...) emits all fields populated.
+        """
+        from app.core.versioning.creator_resolver import (
+            populate_creator_names,
+            populate_entity_timestamps,
+        )
+
         resolved = []
         for item in query_results:
             if hasattr(item, "__iter__") and not isinstance(item, (str, bytes)):
@@ -249,6 +261,9 @@ class WBSElementService(BranchableService[WBSElement]):  # type: ignore[type-var
                     resolved.append(item)
             else:
                 resolved.append(item)
+
+        await populate_creator_names(self.session, resolved)
+        await populate_entity_timestamps(self.session, resolved)
         return resolved
 
     def _get_base_stmt(self, as_of: datetime | None = None) -> Any:
@@ -1046,6 +1061,11 @@ class WBSElementService(BranchableService[WBSElement]):  # type: ignore[type-var
                 wbe_id, branch=element.branch
             )
             history.append(element)
+
+        # Derive created_at (true creation) + updated_at across all versions.
+        from app.core.versioning.creator_resolver import populate_entity_timestamps
+
+        await populate_entity_timestamps(self.session, history)
 
         return history
 

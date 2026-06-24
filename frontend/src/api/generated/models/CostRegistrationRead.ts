@@ -42,6 +42,7 @@ export type CostRegistrationRead = {
     cost_event_type?: (string | null);
     attachment_count?: number;
     created_by: string;
+    created_by_name?: (string | null);
     /**
      * Display-ready registration date data.
      *

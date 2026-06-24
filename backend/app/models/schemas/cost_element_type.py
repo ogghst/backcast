@@ -46,3 +46,4 @@ class CostElementTypeRead(CostElementTypeBase):
     cost_element_type_id: UUID
     organizational_unit_id: UUID
     created_by: UUID
+    created_by_name: str | None = None

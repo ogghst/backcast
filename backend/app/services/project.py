@@ -21,7 +21,6 @@ from app.core.versioning.commands import (
 )
 from app.core.versioning.enums import BranchMode
 from app.models.domain.project import Project
-from app.models.domain.user import User
 from app.models.domain.wbs_element import WBSElement
 from app.models.domain.work_package import WorkPackage
 from app.models.schemas.project import ProjectCreate, ProjectUpdate
@@ -341,13 +340,12 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
             project = row[0]
             created_by_name = row[1]
             project.created_by_name = created_by_name
-
-            # Populate created_at from transaction_time lower bound
-            if hasattr(project, "transaction_time") and project.transaction_time:
-                if hasattr(project.transaction_time, "lower"):
-                    project.created_at = project.transaction_time.lower
-
             projects.append(project)
+
+        # Derive created_at (true creation) + updated_at across all versions.
+        from app.core.versioning.creator_resolver import populate_entity_timestamps
+
+        await populate_entity_timestamps(self.session, projects)
 
         # Populate computed budgets for all projects (batch query)
         await self._populate_computed_budgets(projects, branch=branch)
@@ -517,39 +515,21 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
         return project
 
     async def _populate_project_metadata_from_db(self, project: Project) -> None:
-        """Populate created_by_name and created_at for a single project.
+        """Populate created_by_name, created_at and updated_at for a single project.
 
-        Performs a separate query to fetch the creator's name.
+        Resolves the creator's name and derives created_at (true creation =
+        MIN over all versions) + updated_at (MAX over all versions).
 
         Args:
             project: The project entity to populate
         """
-        from typing import cast
-
-        if not project.created_by:
-            return
-
-        # Query the user table to get the creator's name
-        UserAlias = cast(Any, User)
-        creator_subq = (
-            select(UserAlias.user_id, UserAlias.full_name)
-            .distinct(UserAlias.user_id)
-            .order_by(UserAlias.user_id, UserAlias.transaction_time.desc())
-            .subquery("creator_lookup")
+        from app.core.versioning.creator_resolver import (
+            populate_creator_names,
+            populate_entity_timestamps,
         )
 
-        stmt = select(creator_subq.c.full_name).where(
-            creator_subq.c.user_id == project.created_by
-        )
-
-        result = await self.session.execute(stmt)
-        creator_name = result.scalar_one_or_none()
-        project.created_by_name = creator_name  # type: ignore
-
-        # Populate created_at from transaction_time lower bound
-        if hasattr(project, "transaction_time") and project.transaction_time:
-            if hasattr(project.transaction_time, "lower"):
-                project.created_at = project.transaction_time.lower  # type: ignore
+        await populate_creator_names(self.session, [project])
+        await populate_entity_timestamps(self.session, [project])
 
     async def _apply_project_creation_defaults(
         self, project_id: UUID, actor_id: UUID

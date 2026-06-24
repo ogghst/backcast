@@ -110,9 +110,26 @@ class ProgressEntryService(TemporalService[ProgressEntry]):  # type: ignore[type
         return await cmd.execute(self.session)
 
     async def get_by_id(self, progress_entry_id: UUID) -> ProgressEntry | None:
-        """Get current progress entry by root ID."""
+        """Get current progress entry by root ID with creator name."""
+        from app.models.domain.user import User
+
+        UserAlias = cast(Any, User)
+        creator_subq = (
+            select(UserAlias.user_id, UserAlias.full_name)
+            .distinct(UserAlias.user_id)
+            .order_by(UserAlias.user_id, UserAlias.transaction_time.desc())
+            .subquery("creator_lookup")
+        )
+
         stmt = (
-            select(ProgressEntry)
+            select(
+                ProgressEntry,
+                creator_subq.c.full_name.label("created_by_name"),
+            )
+            .outerjoin(
+                creator_subq,
+                ProgressEntry.created_by == creator_subq.c.user_id,
+            )
             .where(
                 ProgressEntry.progress_entry_id == progress_entry_id,
                 ProgressEntry.deleted_at.is_(None),
@@ -121,7 +138,12 @@ class ProgressEntryService(TemporalService[ProgressEntry]):  # type: ignore[type
             .limit(1)
         )
         result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
+        row = result.first()
+        if row is None:
+            return None
+        entity = row[0]
+        entity.created_by_name = row[1]
+        return entity
 
     async def get_latest_progress(
         self, work_package_id: UUID, as_of: datetime | None = None
@@ -149,8 +171,31 @@ class ProgressEntryService(TemporalService[ProgressEntry]):  # type: ignore[type
 
         stmt = stmt.order_by(func.lower(ProgressEntry.valid_time).desc()).limit(1)
 
-        result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
+        # Add creator-name join for the single returned row.
+        from app.models.domain.user import User
+
+        UserAlias = cast(Any, User)
+        creator_subq = (
+            select(UserAlias.user_id, UserAlias.full_name)
+            .distinct(UserAlias.user_id)
+            .order_by(UserAlias.user_id, UserAlias.transaction_time.desc())
+            .subquery("creator_lookup")
+        )
+        fetch_stmt = stmt.with_only_columns(
+            ProgressEntry,
+            creator_subq.c.full_name.label("created_by_name"),
+        ).outerjoin(
+            creator_subq,
+            ProgressEntry.created_by == creator_subq.c.user_id,
+        )
+
+        result = await self.session.execute(fetch_stmt)
+        row = result.first()
+        if row is None:
+            return None
+        entity = row[0]
+        entity.created_by_name = row[1]
+        return entity
 
     async def get_progress_history(
         self,
@@ -238,8 +283,32 @@ class ProgressEntryService(TemporalService[ProgressEntry]):  # type: ignore[type
         stmt = stmt.order_by(func.lower(ProgressEntry.valid_time).desc())
         stmt = stmt.offset(skip).limit(limit)
 
-        result = await self.session.execute(stmt)
-        return list(result.scalars().all()), total
+        # Build a separate fetch statement with creator-name outerjoin so the
+        # count above is unaffected and created_by_name is populated per row.
+        from app.models.domain.user import User
+
+        UserAlias = cast(Any, User)
+        creator_subq = (
+            select(UserAlias.user_id, UserAlias.full_name)
+            .distinct(UserAlias.user_id)
+            .order_by(UserAlias.user_id, UserAlias.transaction_time.desc())
+            .subquery("creator_lookup")
+        )
+        fetch_stmt = stmt.with_only_columns(
+            ProgressEntry,
+            creator_subq.c.full_name.label("created_by_name"),
+        ).outerjoin(
+            creator_subq,
+            ProgressEntry.created_by == creator_subq.c.user_id,
+        )
+
+        result = await self.session.execute(fetch_stmt)
+        items: list[ProgressEntry] = []
+        for row in result.all():
+            entity = row[0]
+            entity.created_by_name = row[1]
+            items.append(entity)
+        return items, total
 
     async def get_progress_history_batch(
         self,

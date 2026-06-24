@@ -123,6 +123,7 @@ class ChangeOrderPublic(ChangeOrderBase):
     change_order_id: UUID = Field(..., description="Root UUID identifier")
     id: UUID = Field(..., description="Version ID (primary key)")
     created_by: UUID = Field(..., description="User who created this version")
+    created_by_name: str | None = None
     created_at: datetime | None = Field(
         None,
         description="When this version was created (derived from transaction_time)",

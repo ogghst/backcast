@@ -6,6 +6,9 @@
  * Schema for reading WBS Element data.
  */
 export type WBSElementRead = {
+    created_by_name?: (string | null);
+    created_at?: (string | null);
+    updated_at?: (string | null);
     id: string;
     wbs_element_id: string;
     project_id: string;
@@ -23,9 +26,7 @@ export type WBSElementRead = {
     parent_wbs_element_id?: (string | null);
     description?: (string | null);
     branch: string;
-    created_at?: (string | null);
     created_by: string;
-    created_by_name?: (string | null);
     parent_name?: (string | null);
     deleted_by?: (string | null);
     valid_time?: (string | null);

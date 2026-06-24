@@ -87,7 +87,9 @@ class TemporalService[TVersionable: VersionableProtocol]:
             .limit(limit)
         )
         result = await self.session.execute(stmt)
-        return list(result.scalars().all())
+        entities = list(result.scalars().all())
+        await self._populate_read_fields(entities)
+        return entities
 
     async def get_as_of(
         self,
@@ -133,6 +135,7 @@ class TemporalService[TVersionable: VersionableProtocol]:
 
         # If found, or isolated mode, or already on main, return result
         if result is not None or branch_mode == BranchMode.ISOLATED or branch == "main":
+            await self._populate_read_fields([result] if result is not None else [])
             return result
 
         # MERGED mode: Check if explicitly deleted on branch before falling back
@@ -144,7 +147,25 @@ class TemporalService[TVersionable: VersionableProtocol]:
             return None
 
         # Fall back to main branch
-        return await self._get_as_of_from_branch(entity_id, as_of, "main")
+        result = await self._get_as_of_from_branch(entity_id, as_of, "main")
+        await self._populate_read_fields([result] if result is not None else [])
+        return result
+
+    async def _populate_read_fields(self, entities: list[Any]) -> None:
+        """Populate read-only computed fields on a batch of entities.
+
+        Resolves `created_by_name` from the User table (batched) and derives
+        `created_at` (true creation = MIN over all versions) plus `updated_at`
+        (MAX over all versions) from the transaction_time ranges. Both are
+        no-ops for entities that don't expose the relevant attributes.
+        """
+        from app.core.versioning.creator_resolver import (
+            populate_creator_names,
+            populate_entity_timestamps,
+        )
+
+        await populate_creator_names(self.session, entities)
+        await populate_entity_timestamps(self.session, entities)
 
     async def _get_as_of_from_branch(
         self, entity_id: UUID, as_of: datetime | None, branch: str
@@ -478,30 +499,11 @@ class TemporalService[TVersionable: VersionableProtocol]:
         """Get all versions of an entity with joined creator name."""
         from typing import Any, cast
 
-        from app.models.domain.user import User
-
         # Introspect root field name (e.g. project_id, wbe_id, user_id, department_id)
         root_field = self._get_root_field_name()
 
-        # Create a subquery to get a unique (latest) name for each user_id
-        # ensuring we don't multiply rows if the user entity itself has multiple versions.
-        # We assume the most recent version (by transaction_time) has the correct name.
-        UserAlias = cast(
-            Any, User
-        )  # Cast for type checker to allow table access if needed
-        creator_subq = (
-            select(UserAlias.user_id, UserAlias.full_name)
-            .distinct(UserAlias.user_id)
-            .order_by(UserAlias.user_id, UserAlias.transaction_time.desc())
-            .subquery("creator_lookup")
-        )
-
         stmt = (
-            select(self.entity_class, creator_subq.c.full_name.label("created_by_name"))
-            .outerjoin(
-                creator_subq,
-                cast(Any, self.entity_class).created_by == creator_subq.c.user_id,
-            )
+            select(self.entity_class)
             .where(
                 getattr(self.entity_class, root_field) == root_id,
                 cast(Any, self.entity_class).deleted_at.is_(None),
@@ -510,17 +512,7 @@ class TemporalService[TVersionable: VersionableProtocol]:
         )
 
         result = await self.session.execute(stmt)
-        history = []
-        for row in result.all():
-            entity = row[0]
-            # Attach the joined name to the entity object
-            entity.created_by_name = row[1]
-
-            # Populate created_at from transaction_time lower bound
-            if hasattr(entity, "transaction_time") and entity.transaction_time:
-                if hasattr(entity.transaction_time, "lower"):
-                    entity.created_at = entity.transaction_time.lower
-
-            history.append(entity)
-
+        history = list(result.scalars().all())
+        # Resolve created_by_name (batched) and derive created_at in one pass.
+        await self._populate_read_fields(history)
         return history

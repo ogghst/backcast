@@ -341,7 +341,16 @@ class WorkPackageService(BranchableService[WorkPackage]):  # type: ignore[type-v
         stmt = stmt.offset(skip).limit(limit)
 
         result = await self.session.execute(stmt)
-        return list(result.scalars().all()), total
+        work_packages = list(result.scalars().all())
+        # Resolve created_by_name + created_at/updated_at across all versions.
+        from app.core.versioning.creator_resolver import (
+            populate_creator_names,
+            populate_entity_timestamps,
+        )
+
+        await populate_creator_names(self.session, work_packages)
+        await populate_entity_timestamps(self.session, work_packages)
+        return work_packages, total
 
     async def get_breadcrumb(self, work_package_id: UUID) -> dict[str, Any]:
         """Get breadcrumb trail for a Work Package.
@@ -659,4 +668,12 @@ class WorkPackageService(BranchableService[WorkPackage]):  # type: ignore[type-v
             stmt = stmt.where(func.upper(cast(Any, WorkPackage).valid_time).is_(None))
 
         rows = await self.session.execute(stmt)
-        return {e.work_package_id: e for e in rows.scalars()}
+        entities = list(rows.scalars())
+        from app.core.versioning.creator_resolver import (
+            populate_creator_names,
+            populate_entity_timestamps,
+        )
+
+        await populate_creator_names(self.session, entities)
+        await populate_entity_timestamps(self.session, entities)
+        return {e.work_package_id: e for e in entities}

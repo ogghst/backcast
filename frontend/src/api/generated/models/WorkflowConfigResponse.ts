@@ -37,6 +37,7 @@ export type WorkflowConfigResponse = {
      * User who created this config
      */
     created_by: string;
+    created_by_name?: (string | null);
     /**
      * User who last updated this config
      */

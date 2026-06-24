@@ -123,9 +123,26 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
         await cmd.execute(self.session)
 
     async def get_by_id(self, cost_element_type_id: UUID) -> CostElementType | None:
-        """Get current cost element type by root ID."""
+        """Get current cost element type by root ID with creator name."""
+        from app.models.domain.user import User
+
+        UserAlias = cast(Any, User)
+        creator_subq = (
+            select(UserAlias.user_id, UserAlias.full_name)
+            .distinct(UserAlias.user_id)
+            .order_by(UserAlias.user_id, UserAlias.transaction_time.desc())
+            .subquery("creator_lookup")
+        )
+
         stmt = (
-            select(CostElementType)
+            select(
+                CostElementType,
+                creator_subq.c.full_name.label("created_by_name"),
+            )
+            .outerjoin(
+                creator_subq,
+                CostElementType.created_by == creator_subq.c.user_id,
+            )
             .where(
                 CostElementType.cost_element_type_id == cost_element_type_id,
                 is_current_version(
@@ -136,7 +153,12 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
             .limit(1)
         )
         result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
+        row = result.first()
+        if row is None:
+            return None
+        entity = row[0]
+        entity.created_by_name = row[1]
+        return entity
 
     async def get_cost_element_types(
         self,
@@ -203,8 +225,32 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
 
         stmt = stmt.offset(skip).limit(limit)
 
-        result = await self.session.execute(stmt)
-        return list(result.scalars().all()), total
+        # Build a separate fetch statement with creator-name outerjoin so the
+        # count above is unaffected and created_by_name is populated per row.
+        from app.models.domain.user import User
+
+        UserAlias = cast(Any, User)
+        creator_subq = (
+            select(UserAlias.user_id, UserAlias.full_name)
+            .distinct(UserAlias.user_id)
+            .order_by(UserAlias.user_id, UserAlias.transaction_time.desc())
+            .subquery("creator_lookup")
+        )
+        fetch_stmt = stmt.with_only_columns(
+            CostElementType,
+            creator_subq.c.full_name.label("created_by_name"),
+        ).outerjoin(
+            creator_subq,
+            CostElementType.created_by == creator_subq.c.user_id,
+        )
+
+        result = await self.session.execute(fetch_stmt)
+        items: list[CostElementType] = []
+        for row in result.all():
+            entity = row[0]
+            entity.created_by_name = row[1]
+            items.append(entity)
+        return items, total
 
     async def list(
         self, filters: dict[str, Any] | None = None, skip: int = 0, limit: int = 100000

@@ -62,3 +62,54 @@ async def test_update_metadata_keeps_current_version_loadable(
     # Mutated fields were applied.
     assert updated.description == "Updated description"
     assert updated.tags == ["a", "b"]
+
+
+@pytest.mark.asyncio
+async def test_get_document_populates_created_by_name(
+    db: AsyncSession, actor_id: UUID
+) -> None:
+    """get_document should populate created_by_name from the creator user."""
+    project = await create_test_project(db, actor_id)
+    await db.commit()
+
+    service = DocumentService(db)
+    _stub_storage(service)
+    created = await service.upload_document(
+        project_id=project.project_id,
+        folder_id=None,
+        filename="report.txt",
+        content=b"content",
+        content_type="text/plain",
+        user_id=actor_id,
+    )
+    await db.commit()
+
+    found = await service.get_document(created.id, project_id=project.project_id)
+    assert found is not None
+    assert found.created_by_name == "Admin User"
+
+
+@pytest.mark.asyncio
+async def test_list_documents_populates_created_by_name(
+    db: AsyncSession, actor_id: UUID
+) -> None:
+    """list_documents should populate created_by_name on each document."""
+    project = await create_test_project(db, actor_id)
+    await db.commit()
+
+    service = DocumentService(db)
+    _stub_storage(service)
+    await service.upload_document(
+        project_id=project.project_id,
+        folder_id=None,
+        filename="a.txt",
+        content=b"a",
+        content_type="text/plain",
+        user_id=actor_id,
+    )
+    await db.commit()
+
+    documents = await service.list_documents(project_id=project.project_id)
+    assert len(documents) >= 1
+    assert all(hasattr(d, "created_by_name") for d in documents)
+    assert any(d.created_by_name == "Admin User" for d in documents)

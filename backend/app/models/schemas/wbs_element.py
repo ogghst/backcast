@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.schemas.mixins import TemporalComputedMixin
+from app.models.schemas.mixins import EntityMetadataMixin, TemporalComputedMixin
 from app.models.schemas.temporal_validators import TemporalRange
 from app.models.schemas.validators import NotEmptyString
 
@@ -63,7 +63,7 @@ class WBSElementUpdate(BaseModel):
     )
 
 
-class WBSElementRead(TemporalComputedMixin, BaseModel):
+class WBSElementRead(TemporalComputedMixin, EntityMetadataMixin, BaseModel):
     """Schema for reading WBS Element data."""
 
     id: UUID
@@ -83,9 +83,7 @@ class WBSElementRead(TemporalComputedMixin, BaseModel):
     parent_wbs_element_id: UUID | None = None
     description: str | None = None
     branch: str
-    created_at: datetime | None = None
     created_by: UUID
-    created_by_name: str | None = None
     parent_name: str | None = None
     deleted_by: UUID | None = None
     valid_time: TemporalRange = None

@@ -19,7 +19,7 @@ export interface PageContentProps {
  * <PageContent>
  *   <ProjectHeaderCard project={project} />
  *   <Card title="Root WBS Elements">...</Card>
- *   <ProjectInfoCard project={project} />
+ *   <EntityMetadataCard entityId={project.project_id} entityIdLabel="Project ID" />
  * </PageContent>
  * ```
  */

@@ -61,6 +61,7 @@ class ForecastRead(ForecastBase):
     forecast_id: UUID
     branch: str
     created_by: UUID
+    created_by_name: str | None = None
     approved_date: datetime | None = None
     approved_by: UUID | None = None
     valid_time: TemporalRange = None

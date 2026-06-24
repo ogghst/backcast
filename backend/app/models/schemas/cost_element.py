@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.schemas.mixins import TemporalComputedMixin
+from app.models.schemas.mixins import EntityMetadataMixin, TemporalComputedMixin
 from app.models.schemas.temporal_validators import TemporalRange
 
 
@@ -42,14 +42,13 @@ class CostElementUpdate(BaseModel):
     )
 
 
-class CostElementRead(CostElementBase, TemporalComputedMixin):
+class CostElementRead(CostElementBase, TemporalComputedMixin, EntityMetadataMixin):
     """Schema for reading Cost Element data."""
 
     id: UUID
     cost_element_id: UUID
     work_package_id: UUID
     created_by: UUID
-    created_by_name: str | None = None
     deleted_by: UUID | None = None
     valid_time: TemporalRange = None
     transaction_time: TemporalRange = None

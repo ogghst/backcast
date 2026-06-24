@@ -18,6 +18,7 @@ export type ForecastRead = {
     forecast_id: string;
     branch: string;
     created_by: string;
+    created_by_name?: (string | null);
     approved_date?: (string | null);
     approved_by?: (string | null);
     valid_time?: (string | null);

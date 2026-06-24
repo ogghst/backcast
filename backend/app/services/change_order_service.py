@@ -732,9 +732,31 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         # Apply pagination
         stmt = stmt.offset(skip).limit(limit)
 
+        # Add creator-name outerjoin so created_by_name is populated per row.
+        from app.models.domain.user import User
+
+        UserAlias = cast(Any, User)
+        creator_subq = (
+            select(UserAlias.user_id, UserAlias.full_name)
+            .distinct(UserAlias.user_id)
+            .order_by(UserAlias.user_id, UserAlias.transaction_time.desc())
+            .subquery("creator_lookup")
+        )
+        fetch_stmt = stmt.with_only_columns(
+            ChangeOrder,
+            creator_subq.c.full_name.label("created_by_name"),
+        ).outerjoin(
+            creator_subq,
+            ChangeOrder.created_by == creator_subq.c.user_id,
+        )
+
         # Execute query
-        result = await self.session.execute(stmt)
-        change_orders = list(result.scalars().all())
+        result = await self.session.execute(fetch_stmt)
+        change_orders: list[ChangeOrder] = []
+        for row in result.all():
+            entity = row[0]
+            entity.created_by_name = row[1]
+            change_orders.append(entity)
 
         return change_orders, total
 
@@ -1860,10 +1882,32 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         stmt = stmt.offset(skip).limit(limit)
         stmt = stmt.order_by(ChangeOrder.sla_due_date.asc())
 
-        result = await self.session.execute(stmt)
-        change_orders = result.scalars().all()
+        # Add creator-name outerjoin so created_by_name is populated per row.
+        from app.models.domain.user import User
 
-        return list(change_orders), total
+        UserAlias = cast(Any, User)
+        creator_subq = (
+            select(UserAlias.user_id, UserAlias.full_name)
+            .distinct(UserAlias.user_id)
+            .order_by(UserAlias.user_id, UserAlias.transaction_time.desc())
+            .subquery("creator_lookup")
+        )
+        fetch_stmt = stmt.with_only_columns(
+            ChangeOrder,
+            creator_subq.c.full_name.label("created_by_name"),
+        ).outerjoin(
+            creator_subq,
+            ChangeOrder.created_by == creator_subq.c.user_id,
+        )
+
+        result = await self.session.execute(fetch_stmt)
+        change_orders: list[ChangeOrder] = []
+        for row in result.all():
+            entity = row[0]
+            entity.created_by_name = row[1]
+            change_orders.append(entity)
+
+        return change_orders, total
 
     async def _send_notification(
         self,

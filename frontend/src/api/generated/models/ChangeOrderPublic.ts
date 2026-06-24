@@ -51,6 +51,7 @@ export type ChangeOrderPublic = {
      * User who created this version
      */
     created_by: string;
+    created_by_name?: (string | null);
     /**
      * When this version was created (derived from transaction_time)
      */

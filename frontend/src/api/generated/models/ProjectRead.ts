@@ -7,6 +7,9 @@ import type { ProjectStatus } from './ProjectStatus';
  * Schema for reading project data.
  */
 export type ProjectRead = {
+    created_by_name?: (string | null);
+    created_at?: (string | null);
+    updated_at?: (string | null);
     /**
      * Project name
      */
@@ -46,9 +49,7 @@ export type ProjectRead = {
      * Computed project budget (sum of all cost element budgets)
      */
     budget?: string;
-    created_at?: (string | null);
     created_by?: (string | null);
-    created_by_name?: (string | null);
     deleted_by?: (string | null);
     valid_time?: (string | null);
     transaction_time?: (string | null);

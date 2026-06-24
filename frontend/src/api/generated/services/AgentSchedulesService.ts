@@ -150,19 +150,13 @@ export class AgentSchedulesService {
     }
     /**
      * Trigger Agent Schedule
-     * Launch a run for a schedule from a FRESH conversation session.
+     * Launch a run for a schedule ("Run now"). Owner or admin.
      *
-     * Authorization: the schedule's owner, or an admin. No ``RoleChecker`` —
-     * triggering an existing schedule is authorized by its existence (it was
-     * created under ``agent-schedule-manage``), so a later permission revocation
-     * does not silently halt already-scheduled runs.
-     *
-     * Overlap guard: a transaction-scoped advisory lock serializes concurrent
-     * triggers for the same schedule, and the RUNNING ``AIAgentExecution`` row is
-     * created INSIDE the locked transaction (before commit) so a concurrent
-     * trigger's overlap check sees it → 409. The actual run then launches
-     * fire-and-forget via ``asyncio.create_task`` in the backend process (the
-     * in-memory lifecycle/event-bus singletons require this).
+     * Delegates to ``trigger_schedule_run`` — the same overlap-guarded launcher
+     * the in-process scheduler tick uses — so manual and scheduled runs traverse
+     * identical code. Authorization is by the schedule's existence (created under
+     * ``agent-schedule-manage``); a later permission revocation does not silently
+     * halt already-scheduled runs.
      * @param scheduleId
      * @returns AgentScheduleTriggerResponse Successful Response
      * @throws ApiError

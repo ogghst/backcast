@@ -13111,7 +13111,7 @@
           "Agent Schedules"
         ],
         "summary": "Trigger Agent Schedule",
-        "description": "Launch a run for a schedule from a FRESH conversation session.\n\nAuthorization: the schedule's owner, or an admin. No ``RoleChecker`` \u2014\ntriggering an existing schedule is authorized by its existence (it was\ncreated under ``agent-schedule-manage``), so a later permission revocation\ndoes not silently halt already-scheduled runs.\n\nOverlap guard: a transaction-scoped advisory lock serializes concurrent\ntriggers for the same schedule, and the RUNNING ``AIAgentExecution`` row is\ncreated INSIDE the locked transaction (before commit) so a concurrent\ntrigger's overlap check sees it \u2192 409. The actual run then launches\nfire-and-forget via ``asyncio.create_task`` in the backend process (the\nin-memory lifecycle/event-bus singletons require this).",
+        "description": "Launch a run for a schedule (\"Run now\"). Owner or admin.\n\nDelegates to ``trigger_schedule_run`` \u2014 the same overlap-guarded launcher\nthe in-process scheduler tick uses \u2014 so manual and scheduled runs traverse\nidentical code. Authorization is by the schedule's existence (created under\n``agent-schedule-manage``); a later permission revocation does not silently\nhalt already-scheduled runs.",
         "operationId": "trigger_agent_schedule",
         "security": [
           {
@@ -17097,7 +17097,7 @@
           "name"
         ],
         "title": "AIAssistantConfigCreate",
-        "description": "Schema for creating an assistant config."
+        "description": "Schema for creating an assistant config.\n\nThe ``model_id``-required-for-main-agents invariant is enforced HERE (write\ntime), mirroring ``AIConfigService._enforce_main_agent_has_model``. It is\nintentionally NOT on the read schema ``AIAssistantConfigPublic``: a legacy\nmisconfigured row must not 500 the list endpoint (the invariant guards\nnew writes; existing bad rows are surfaced, not fatal, on read)."
       },
       "AIAssistantConfigPublic": {
         "properties": {
@@ -19973,6 +19973,17 @@
             "title": "Created By",
             "description": "User who created this version"
           },
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
+          },
           "created_at": {
             "anyOf": [
               {
@@ -20705,6 +20716,41 @@
       },
       "ControlAccountRead": {
         "properties": {
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
           "name": {
             "type": "string",
             "maxLength": 255,
@@ -20765,17 +20811,6 @@
             "type": "string",
             "format": "uuid",
             "title": "Created By"
-          },
-          "created_by_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Created By Name"
           },
           "deleted_by": {
             "anyOf": [
@@ -21040,6 +21075,41 @@
       },
       "CostElementRead": {
         "properties": {
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
           "cost_element_type_id": {
             "type": "string",
             "format": "uuid",
@@ -21076,17 +21146,6 @@
             "type": "string",
             "format": "uuid",
             "title": "Created By"
-          },
-          "created_by_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Created By Name"
           },
           "deleted_by": {
             "anyOf": [
@@ -21340,6 +21399,17 @@
             "type": "string",
             "format": "uuid",
             "title": "Created By"
+          },
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
           }
         },
         "type": "object",
@@ -22664,6 +22734,17 @@
             "format": "uuid",
             "title": "Created By"
           },
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
+          },
           "registration_date_formatted": {
             "additionalProperties": {
               "anyOf": [
@@ -23307,6 +23388,17 @@
             "format": "uuid",
             "title": "Created By"
           },
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -23536,6 +23628,17 @@
             "type": "string",
             "format": "uuid",
             "title": "Created By"
+          },
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
           },
           "size_bytes": {
             "type": "integer",
@@ -24390,6 +24493,17 @@
             "type": "string",
             "format": "uuid",
             "title": "Created By"
+          },
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
           },
           "approved_date": {
             "anyOf": [
@@ -26294,6 +26408,17 @@
             "format": "uuid",
             "title": "Created By"
           },
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
+          },
           "valid_time": {
             "anyOf": [
               {
@@ -26457,6 +26582,17 @@
             "type": "string",
             "format": "uuid",
             "title": "Created By"
+          },
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
           }
         },
         "type": "object",
@@ -26641,6 +26777,41 @@
       },
       "ProjectRead": {
         "properties": {
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
           "name": {
             "type": "string",
             "maxLength": 200,
@@ -26739,18 +26910,6 @@
             "description": "Computed project budget (sum of all cost element budgets)",
             "default": "0"
           },
-          "created_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Created At"
-          },
           "created_by": {
             "anyOf": [
               {
@@ -26762,17 +26921,6 @@
               }
             ],
             "title": "Created By"
-          },
-          "created_by_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Created By Name"
           },
           "deleted_by": {
             "anyOf": [
@@ -27559,6 +27707,17 @@
             "type": "string",
             "format": "uuid",
             "title": "Created By"
+          },
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
           },
           "branch": {
             "type": "string",
@@ -29212,6 +29371,41 @@
       },
       "WBSElementRead": {
         "properties": {
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
           "id": {
             "type": "string",
             "format": "uuid",
@@ -29286,33 +29480,10 @@
             "type": "string",
             "title": "Branch"
           },
-          "created_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Created At"
-          },
           "created_by": {
             "type": "string",
             "format": "uuid",
             "title": "Created By"
-          },
-          "created_by_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Created By Name"
           },
           "parent_name": {
             "anyOf": [
@@ -29629,7 +29800,7 @@
               }
             ],
             "title": "Schedule Start Date",
-            "description": "Optional start date for the auto-created schedule baseline"
+            "description": "Start date for the WP's schedule baseline (defaults to control_date if omitted)"
           },
           "schedule_end_date": {
             "anyOf": [
@@ -29642,7 +29813,7 @@
               }
             ],
             "title": "Schedule End Date",
-            "description": "Optional end date for the auto-created schedule baseline"
+            "description": "End date for the WP's schedule baseline (defaults to start + 90 days if omitted)"
           },
           "schedule_progression_type": {
             "anyOf": [
@@ -29654,7 +29825,7 @@
               }
             ],
             "title": "Schedule Progression Type",
-            "description": "Optional progression type for the schedule (LINEAR, GAUSSIAN, LOGARITHMIC)"
+            "description": "Progression type for the schedule baseline (LINEAR, GAUSSIAN, LOGARITHMIC)"
           },
           "eac_amount": {
             "anyOf": [
@@ -29670,7 +29841,7 @@
               }
             ],
             "title": "Eac Amount",
-            "description": "Optional EAC amount for auto-created forecast (defaults to budget_amount)"
+            "description": "EAC amount for the WP's forecast (defaults to budget_amount if omitted)"
           },
           "basis_of_estimate": {
             "anyOf": [
@@ -29682,7 +29853,7 @@
               }
             ],
             "title": "Basis Of Estimate",
-            "description": "Optional basis of estimate for auto-created forecast (defaults to 'Initial forecast')"
+            "description": "Basis of estimate for the WP's forecast (defaults to 'Initial forecast')"
           }
         },
         "type": "object",
@@ -29696,6 +29867,41 @@
       },
       "WorkPackageRead": {
         "properties": {
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
           "name": {
             "type": "string",
             "maxLength": 255,
@@ -29782,17 +29988,6 @@
             "type": "string",
             "format": "uuid",
             "title": "Created By"
-          },
-          "created_by_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Created By Name"
           },
           "deleted_by": {
             "anyOf": [
@@ -30116,6 +30311,17 @@
             "format": "uuid",
             "title": "Created By",
             "description": "User who created this config"
+          },
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
           },
           "updated_by": {
             "anyOf": [

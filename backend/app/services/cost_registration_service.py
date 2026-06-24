@@ -765,9 +765,26 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         await cmd.execute(self.session)
 
     async def get_by_id(self, cost_registration_id: UUID) -> CostRegistration | None:
-        """Get current cost registration by root ID."""
+        """Get current cost registration by root ID with creator name."""
+        from app.models.domain.user import User
+
+        UserAlias = cast(Any, User)
+        creator_subq = (
+            select(UserAlias.user_id, UserAlias.full_name)
+            .distinct(UserAlias.user_id)
+            .order_by(UserAlias.user_id, UserAlias.transaction_time.desc())
+            .subquery("creator_lookup")
+        )
+
         stmt = (
-            select(CostRegistration)
+            select(
+                CostRegistration,
+                creator_subq.c.full_name.label("created_by_name"),
+            )
+            .outerjoin(
+                creator_subq,
+                CostRegistration.created_by == creator_subq.c.user_id,
+            )
             .where(
                 CostRegistration.cost_registration_id == cost_registration_id,
                 func.upper(CostRegistration.valid_time).is_(None),
@@ -777,7 +794,12 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             .limit(1)
         )
         result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
+        row = result.first()
+        if row is None:
+            return None
+        entity = row[0]
+        entity.created_by_name = row[1]
+        return entity
 
     async def get_cost_registrations(
         self,
@@ -887,8 +909,31 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         stmt = stmt.order_by(CostRegistration.registration_date.desc())
         stmt = stmt.offset(skip).limit(limit)
 
-        result = await self.session.execute(stmt)
-        items = list(result.scalars().all())
+        # Build a separate fetch statement with creator-name outerjoin so the
+        # count above is unaffected and created_by_name is populated per row.
+        from app.models.domain.user import User
+
+        UserAlias = cast(Any, User)
+        creator_subq = (
+            select(UserAlias.user_id, UserAlias.full_name)
+            .distinct(UserAlias.user_id)
+            .order_by(UserAlias.user_id, UserAlias.transaction_time.desc())
+            .subquery("creator_lookup")
+        )
+        fetch_stmt = stmt.with_only_columns(
+            CostRegistration,
+            creator_subq.c.full_name.label("created_by_name"),
+        ).outerjoin(
+            creator_subq,
+            CostRegistration.created_by == creator_subq.c.user_id,
+        )
+
+        result = await self.session.execute(fetch_stmt)
+        items: list[CostRegistration] = []
+        for row in result.all():
+            entity = row[0]
+            entity.created_by_name = row[1]
+            items.append(entity)
 
         # Build work package name map for denormalized response
         wp_ids: set[UUID] = set()

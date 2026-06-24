@@ -4,9 +4,9 @@ import { Card, Descriptions, Table, Tag, Grid } from "antd";
 import { useWorkPackages } from "@/features/work-packages/api/useWorkPackages";
 import { useWBSElement } from "@/features/wbs-elements/api/useWBSElements";
 import { formatCurrency } from "@/utils/formatters";
-import { getBranchColor } from "@/utils/formatters";
 import type { ControlAccountRead } from "@/api/generated";
 import { PageContent } from "@/components/layout";
+import { EntityMetadataCard } from "@/components/common/EntityMetadataCard";
 
 /** Status color map for work packages */
 const WP_STATUS_COLOR_MAP: Record<string, string> = {
@@ -93,20 +93,6 @@ export const ControlAccountOverview: React.FC = () => {
               label: "Organizational Unit",
               children: ca?.organizational_unit_name || "-",
             },
-            {
-              key: "branch",
-              label: "Branch",
-              children: ca?.branch ? (
-                <Tag color={getBranchColor(ca.branch)}>{ca.branch}</Tag>
-              ) : (
-                "-"
-              ),
-            },
-            {
-              key: "createdBy",
-              label: "Created By",
-              children: ca?.created_by_name || "-",
-            },
           ]}
         />
       </Card>
@@ -168,6 +154,22 @@ export const ControlAccountOverview: React.FC = () => {
           ]}
         />
       </Card>
+
+      {/* Control Account metadata footer — standardized across entity pages */}
+      {ca && (
+        <EntityMetadataCard
+          entityId={ca.control_account_id}
+          entityIdLabel="Control Account ID"
+          parentId={ca.wbs_element_id}
+          parentLabel="WBS Element"
+          parentValue={ca.wbs_element_name}
+          createdAt={ca.created_at}
+          updatedAt={ca.updated_at}
+          createdBy={ca.created_by_name}
+          validTime={ca.valid_time_formatted}
+          cardId="control-account-metadata-card"
+        />
+      )}
     </PageContent>
   );
 };

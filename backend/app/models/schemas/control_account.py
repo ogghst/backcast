@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.schemas.mixins import TemporalComputedMixin
+from app.models.schemas.mixins import EntityMetadataMixin, TemporalComputedMixin
 from app.models.schemas.temporal_validators import TemporalRange
 from app.models.schemas.validators import NotEmptyString
 
@@ -55,7 +55,9 @@ class ControlAccountUpdate(BaseModel):
     )
 
 
-class ControlAccountRead(ControlAccountBase, TemporalComputedMixin):
+class ControlAccountRead(
+    ControlAccountBase, TemporalComputedMixin, EntityMetadataMixin
+):
     """Schema for reading Control Account data."""
 
     id: UUID
@@ -64,7 +66,6 @@ class ControlAccountRead(ControlAccountBase, TemporalComputedMixin):
     organizational_unit_id: UUID
     branch: str
     created_by: UUID
-    created_by_name: str | None = None
     deleted_by: UUID | None = None
     valid_time: TemporalRange = None
     transaction_time: TemporalRange = None

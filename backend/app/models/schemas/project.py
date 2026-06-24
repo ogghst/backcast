@@ -7,7 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.enums import ProjectStatus
-from app.models.schemas.mixins import TemporalComputedMixin
+from app.models.schemas.mixins import EntityMetadataMixin, TemporalComputedMixin
 from app.models.schemas.temporal_validators import TemporalRange
 from app.models.schemas.validators import NotEmptyString
 
@@ -64,7 +64,7 @@ class ProjectUpdate(BaseModel):
     )
 
 
-class ProjectRead(ProjectBase, TemporalComputedMixin):
+class ProjectRead(ProjectBase, TemporalComputedMixin, EntityMetadataMixin):
     """Schema for reading project data."""
 
     id: UUID
@@ -74,9 +74,7 @@ class ProjectRead(ProjectBase, TemporalComputedMixin):
         Decimal("0"),
         description="Computed project budget (sum of all cost element budgets)",
     )
-    created_at: datetime | None = None
     created_by: UUID | None = None
-    created_by_name: str | None = None
     deleted_by: UUID | None = None
     valid_time: TemporalRange = None
     transaction_time: TemporalRange = None

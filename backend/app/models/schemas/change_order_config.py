@@ -185,6 +185,7 @@ class WorkflowConfigResponse(BaseModel):
     is_active: bool = Field(..., description="Whether this config is active")
     version: int = Field(..., description="Optimistic locking version")
     created_by: UUID = Field(..., description="User who created this config")
+    created_by_name: str | None = None
     updated_by: UUID | None = Field(
         None, description="User who last updated this config"
     )

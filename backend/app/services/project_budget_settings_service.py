@@ -37,7 +37,7 @@ class ProjectBudgetSettingsService(TemporalService[ProjectBudgetSettings]):  # t
     async def get_settings_for_project(
         self, project_id: UUID
     ) -> ProjectBudgetSettings | None:
-        """Get current budget settings for a project.
+        """Get current budget settings for a project with creator name.
 
         Args:
             project_id: The project to get settings for
@@ -45,8 +45,27 @@ class ProjectBudgetSettingsService(TemporalService[ProjectBudgetSettings]):  # t
         Returns:
             ProjectBudgetSettings if found, None otherwise
         """
+        from typing import cast
+
+        from app.models.domain.user import User
+
+        UserAlias = cast(Any, User)
+        creator_subq = (
+            select(UserAlias.user_id, UserAlias.full_name)
+            .distinct(UserAlias.user_id)
+            .order_by(UserAlias.user_id, UserAlias.transaction_time.desc())
+            .subquery("creator_lookup")
+        )
+
         stmt = (
-            select(ProjectBudgetSettings)
+            select(
+                ProjectBudgetSettings,
+                creator_subq.c.full_name.label("created_by_name"),
+            )
+            .outerjoin(
+                creator_subq,
+                ProjectBudgetSettings.created_by == creator_subq.c.user_id,
+            )
             .where(
                 ProjectBudgetSettings.project_id == project_id,
                 func.upper(ProjectBudgetSettings.valid_time).is_(None),
@@ -56,7 +75,12 @@ class ProjectBudgetSettingsService(TemporalService[ProjectBudgetSettings]):  # t
             .limit(1)
         )
         result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
+        row = result.first()
+        if row is None:
+            return None
+        entity = row[0]
+        entity.created_by_name = row[1]
+        return entity
 
     async def upsert_settings(
         self,
