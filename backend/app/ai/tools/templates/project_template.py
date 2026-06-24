@@ -23,6 +23,7 @@ from typing import Annotated, Any
 
 from langchain_core.tools import InjectedToolArg
 
+from app.ai.tools.context_tools import _apply_session_project_switch
 from app.ai.tools.decorator import ai_tool
 from app.ai.tools.templates._pagination import (
     BATCH_SIZE_LIMIT,
@@ -119,6 +120,17 @@ async def create_project(
             project_data, actor_id=UUID(context.user_id)
         )
 
+        # Retarget the session to the newly created project so subsequent
+        # project-scoped tools operate on it instead of the ambient project.
+        # No RBAC re-check: the user just created the project (already gated
+        # by the project-create permission).
+        await _apply_session_project_switch(
+            context=context,
+            project_uuid=project.project_id,
+            project_name=project.name,
+            project_code=project.code,
+        )
+
         # Convert to AI-friendly format
         return {
             "id": str(project.project_id),
@@ -127,6 +139,7 @@ async def create_project(
             "description": project.description,
             "status": project.status,
             "budget": float(project.budget) if project.budget else None,
+            "context_switched_to": str(project.project_id),
         }
     except ValueError as e:
         return {"error": f"Invalid input: {e}"}
@@ -931,6 +944,10 @@ async def batch_create_projects(
             )
 
             project = await service.create_project(project_data, actor_id=actor_id)
+            # NOTE: we deliberately do NOT auto-retarget the session here (unlike
+            # create_project). With N created projects the target is ambiguous;
+            # the caller must choose one via set_project_context if it wants to
+            # continue working in a single project scope.
             results.append(
                 {
                     "id": str(project.project_id),

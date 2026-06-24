@@ -428,6 +428,18 @@ export interface WSTemporalContextChangeMessage {
 }
 
 /**
+ * Server -> Client: Project context change event
+ * Sent when the AI assistant switches project scope via the
+ * set_project_context tool (or create_project after a recent fix)
+ */
+export interface WSProjectContextChangeMessage {
+  type: "project_context_change";
+  project_id: string;
+  project_name: string;
+  project_code: string;
+}
+
+/**
  * Server -> Client: Ask user event
  * Sent when the agent needs user input via the ask_user tool
  */
@@ -478,6 +490,7 @@ export type WSServerMessage =
   | WSBriefingMessage
   | WSPlanUpdateMessage
   | WSTemporalContextChangeMessage
+  | WSProjectContextChangeMessage
   | WSAskUserMessage;
 
 /**
@@ -723,6 +736,15 @@ export function isTemporalContextChangeMessage(
   message: WSServerMessage
 ): message is WSTemporalContextChangeMessage {
   return message.type === "temporal_context_change";
+}
+
+/**
+ * Type guard to check if a server message is a project context change message
+ */
+export function isProjectContextChangeMessage(
+  message: WSServerMessage
+): message is WSProjectContextChangeMessage {
+  return message.type === "project_context_change";
 }
 
 /**

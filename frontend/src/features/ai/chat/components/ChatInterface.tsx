@@ -24,7 +24,7 @@ import {
   QuestionCircleOutlined,
   SendOutlined,
 } from "@ant-design/icons";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useChatMessages } from "../api/useChatSessions";
 import { useChatSessionsPaginated } from "../api/useChatSessionsPaginated";
 import { useStreamingChat } from "../api/useStreamingChat";
@@ -53,6 +53,7 @@ import { ApprovalDialog } from "../../components/ApprovalDialog";
 import { useAIAssistants } from "@/features/ai/api/useAIAssistants";
 import type { SessionContext } from "../../types";
 import type { WSTemporalContextChangeMessage } from "../types";
+import type { WSProjectContextChangeMessage } from "../types";
 import type { WSPlanUpdateMessage } from "../types";
 import type { BriefingDocumentData } from "../types";
 import { useTimeMachineStore } from "@/stores/useTimeMachineStore";
@@ -314,6 +315,12 @@ export const ChatInterface = ({
   const screens = useBreakpoint();
   const isMobile = !screens.md; // md breakpoint is 768px
   const isSmallMobile = screens.xs; // xs is 480px
+
+  // Router hooks — declared early so callbacks in the useStreamingChat config
+  // (below) can reference navigate/searchParams without TDZ violations.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   // State
   const [currentSessionId, setCurrentSessionId] = useState<string | undefined>(
@@ -1201,6 +1208,32 @@ export const ChatInterface = ({
       const dateStr = change.as_of ? new Date(change.as_of).toLocaleDateString() : "current time";
       message.info(`Time Machine: ${dateStr}, branch: ${change.branch_name} (${change.branch_mode})`);
     }, []),
+    onProjectContextChange: useCallback((change: WSProjectContextChangeMessage) => {
+      // The chat's project context is purely URL-driven (the ?ctx= contract is
+      // the SOLE context source). Update the URL to the new project scope;
+      // useChatContextFromUrl re-derives context → ChatInterface re-renders
+      // with the new context prop → useStreamingChat syncs projectIdRef/contextRef
+      // and the session list query (keyed on contextId) refetches automatically.
+      // serializeCtx drops any stale `p` rider for a project context.
+      const newCtx = serializeCtx({
+        type: "project",
+        id: change.project_id,
+      });
+      // Preserve the session/exec riders + returnTo state across the scope switch.
+      const session = searchParams.get("session");
+      const exec = searchParams.get("exec");
+      const qs = [
+        newCtx,
+        ...(session ? [`session=${session}`] : []),
+        ...(exec ? [`exec=${exec}`] : []),
+      ].join("&");
+      const state = location.state as { returnTo?: string } | null;
+      navigate(`/chat?${qs}`, {
+        state: state?.returnTo ? { returnTo: state.returnTo } : undefined,
+      });
+
+      message.info(`Switched to project ${change.project_code} — ${change.project_name}`);
+    }, [searchParams, location.state, navigate]),
     onReplayEnd: useCallback(() => {
       // Flush replay buffer into a single streaming state update
       const buffer = replayBufferRef.current;
@@ -1400,9 +1433,8 @@ export const ChatInterface = ({
   // reload session-recovery was reset. A ref guard ensures the effect fires
   // only when the URL value ACTUALLY changes (so re-renders driven by other
   // state don't re-run it).
-  const location = useLocation();
-  const navigate = useNavigate();
   const urlSessionId = useChatContextFromUrl().sessionId;
+
   const lastUrlSessionRef = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (urlSessionId === lastUrlSessionRef.current) return;
