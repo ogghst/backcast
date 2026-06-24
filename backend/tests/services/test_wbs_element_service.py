@@ -448,6 +448,207 @@ async def test_create_wbe_revenue_allocation_exceeds_contract_raises(
 
 
 # ---------------------------------------------------------------------------
+# create_wbe: no/zero revenue allocation must not trip project-wide cap
+# ---------------------------------------------------------------------------
+
+
+async def _seed_over_allocated_project(db: AsyncSession, actor_id):
+    """Project with a 500.00 contract already over-allocated (400 + 400).
+
+    Returns (project, service). Uses the factory (direct CreateVersionCommand)
+    so the over-allocated state exists without tripping create_wbe validation.
+    """
+    project = await create_test_project(db, actor_id, contract_value=Decimal("500.00"))
+    await create_test_wbs_element(
+        db, actor_id, project.project_id, revenue_allocation=Decimal("400.00")
+    )
+    await create_test_wbs_element(
+        db, actor_id, project.project_id, revenue_allocation=Decimal("400.00")
+    )
+    await db.commit()
+    return project, WBSElementService(db)
+
+
+@pytest.mark.asyncio
+async def test_create_wbe_none_revenue_succeeds_when_over_allocated(
+    db: AsyncSession, actor_id
+) -> None:
+    """A new WBS with revenue_allocation=None succeeds in an over-allocated project.
+
+    Regression test: previously create_wbe called _validate_revenue_allocation
+    unconditionally, so creating a brand-new element that contributes nothing to
+    the revenue pool was blocked whenever the project was already over-allocated.
+    """
+    project, service = await _seed_over_allocated_project(db, actor_id)
+
+    element = await service.create_wbe(
+        WBSElementCreate(
+            project_id=project.project_id,
+            code="NEW.0",
+            name="No revenue element",
+            revenue_allocation=None,
+        ),
+        actor_id,
+    )
+    await db.commit()
+
+    assert element.wbs_element_id is not None
+    assert element.revenue_allocation is None
+
+    # Sanity: the project really is over-allocated, so this test is meaningful.
+    with pytest.raises(ValueError, match="revenue allocation.*exceeds"):
+        await service._validate_revenue_allocation(
+            project_id=project.project_id, branch="main"
+        )
+
+
+@pytest.mark.asyncio
+async def test_create_wbe_zero_revenue_succeeds_when_over_allocated(
+    db: AsyncSession, actor_id
+) -> None:
+    """A new WBS with revenue_allocation=0 succeeds in an over-allocated project.
+
+    Zero contributes nothing to the revenue pool, so it must be allowed even when
+    the project is already over-allocated.
+    """
+    project, service = await _seed_over_allocated_project(db, actor_id)
+
+    element = await service.create_wbe(
+        WBSElementCreate(
+            project_id=project.project_id,
+            code="ZERO.0",
+            name="Zero revenue element",
+            revenue_allocation=Decimal("0"),
+        ),
+        actor_id,
+    )
+    await db.commit()
+
+    assert element.wbs_element_id is not None
+    assert element.revenue_allocation == Decimal("0")
+
+
+@pytest.mark.asyncio
+async def test_create_wbe_positive_revenue_raises_when_over_allocated(
+    db: AsyncSession, actor_id
+) -> None:
+    """A new WBS with a positive revenue_allocation still trips the cap.
+
+    Confirms the guard did not disable real validation: when the new element
+    actually adds to the revenue pool, _validate_revenue_allocation runs and
+    raises on an over-allocated project.
+    """
+    project, service = await _seed_over_allocated_project(db, actor_id)
+
+    with pytest.raises(ValueError, match="revenue allocation.*exceeds"):
+        await service.create_wbe(
+            WBSElementCreate(
+                project_id=project.project_id,
+                code="POS.0",
+                name="Positive revenue element",
+                revenue_allocation=Decimal("100.00"),
+            ),
+            actor_id,
+        )
+
+
+# ---------------------------------------------------------------------------
+# update_wbe: non-revenue edit must not trip project-wide revenue validation
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_update_wbe_non_revenue_edit_succeeds_when_over_allocated(
+    db: AsyncSession, actor_id
+) -> None:
+    """A non-revenue update (e.g. description) succeeds even when the project is
+    already over-allocated.
+
+    Regression test: previously update_wbe called _validate_revenue_allocation
+    unconditionally on every update, so editing a text field on any WBS in an
+    over-allocated project raised ValueError (mapped to 404 by the route).
+    """
+    # Project with a small contract value.
+    project = await create_test_project(db, actor_id, contract_value=Decimal("500.00"))
+    await db.commit()
+
+    # Seed two WBS elements whose allocations together exceed the contract value.
+    # Use the factory (direct CreateVersionCommand) so the over-allocated state
+    # exists without tripping create_wbe validation.
+    wbs_a = await create_test_wbs_element(
+        db,
+        actor_id,
+        project.project_id,
+        revenue_allocation=Decimal("400.00"),
+    )
+    # Second over-allocated WBS -- result unused, kept for its allocation side-effect.
+    await create_test_wbs_element(
+        db,
+        actor_id,
+        project.project_id,
+        revenue_allocation=Decimal("400.00"),
+    )
+    await db.commit()
+
+    service = WBSElementService(db)
+
+    # A plain text edit must succeed despite the pre-existing over-allocation.
+    updated = await service.update_wbe(
+        wbs_a.wbs_element_id,
+        WBSElementUpdate(description="new text"),
+        actor_id,
+    )
+    await db.commit()
+
+    assert updated.wbs_element_id == wbs_a.wbs_element_id
+    assert updated.description == "new text"
+
+    # Sanity: the project really is over-allocated, so this test is meaningful.
+    with pytest.raises(ValueError, match="revenue allocation.*exceeds"):
+        await service._validate_revenue_allocation(
+            project_id=project.project_id, branch="main"
+        )
+
+
+@pytest.mark.asyncio
+async def test_update_wbe_revenue_increase_on_over_allocated_project_raises(
+    db: AsyncSession, actor_id
+) -> None:
+    """An update that increases revenue_allocation still triggers validation.
+
+    Confirms the guard did not disable real validation: when revenue_allocation
+    is explicitly in the payload, _validate_revenue_allocation runs and raises
+    on an over-allocated project.
+    """
+    project = await create_test_project(db, actor_id, contract_value=Decimal("500.00"))
+    await db.commit()
+
+    wbs_a = await create_test_wbs_element(
+        db,
+        actor_id,
+        project.project_id,
+        revenue_allocation=Decimal("400.00"),
+    )
+    await create_test_wbs_element(
+        db,
+        actor_id,
+        project.project_id,
+        revenue_allocation=Decimal("400.00"),
+    )
+    await db.commit()
+
+    service = WBSElementService(db)
+
+    # Increasing revenue_allocation on an already-over-allocated project must raise.
+    with pytest.raises(ValueError, match="revenue allocation.*exceeds"):
+        await service.update_wbe(
+            wbs_a.wbs_element_id,
+            WBSElementUpdate(revenue_allocation=Decimal("500.00")),
+            actor_id,
+        )
+
+
+# ---------------------------------------------------------------------------
 # update_wbe with parent change to root (null parent)
 # ---------------------------------------------------------------------------
 

@@ -613,10 +613,15 @@ class WBSElementService(BranchableService[WBSElement]):  # type: ignore[type-var
         )
         element = await cmd.execute(self.session)
 
-        await self._validate_revenue_allocation(
-            project_id=wbe_in.project_id,
-            branch=element_data.get("branch", "main"),
-        )
+        # The revenue cap is a project-wide pool. A new element with no (or zero)
+        # revenue allocation contributes nothing to it, so it must be allowed even
+        # when the project is already over-allocated. Only enforce the cap when the
+        # new element actually carries a positive allocation.
+        if wbe_in.revenue_allocation:
+            await self._validate_revenue_allocation(
+                project_id=wbe_in.project_id,
+                branch=element_data.get("branch", "main"),
+            )
 
         element.budget_allocation = await self._compute_wbs_budget(
             root_id, branch=element_data.get("branch", "main")
@@ -678,10 +683,15 @@ class WBSElementService(BranchableService[WBSElement]):  # type: ignore[type-var
         )
         updated = await cmd.execute(self.session)
 
-        await self._validate_revenue_allocation(
-            project_id=project_id,
-            branch=branch,
-        )
+        # Revenue allocation is a project-wide invariant. Only re-validate it when
+        # this update actually changes a revenue_allocation value; otherwise a plain
+        # text edit (e.g. description) would be blocked by a pre-existing
+        # over-allocation in the project.
+        if "revenue_allocation" in update_data:
+            await self._validate_revenue_allocation(
+                project_id=project_id,
+                branch=branch,
+            )
 
         updated.budget_allocation = await self._compute_wbs_budget(
             wbe_id, branch=branch
