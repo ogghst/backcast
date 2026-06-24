@@ -2834,3 +2834,83 @@ class TestBranchableServiceCreateVersionSuffix:
         mock_cmd_cls.assert_called_once()
         all_kwargs = mock_cmd_cls.call_args.kwargs
         assert "project_id" in all_kwargs
+
+
+# ===========================================================================
+# REGRESSION: created_by stamping on branching clone() calls
+# ===========================================================================
+
+
+class TestBranchingCommandsStampCreatedBy:
+    """Regression tests: branching commands must stamp created_by=self.actor_id
+    on every new version, NOT inherit it from the source version.
+
+    Bug: app/core/branching/commands.py had five clone() calls that omitted
+    created_by, so new versions inherited the source author (e.g. SYSTEM_ACTOR
+    for seeded data) instead of recording the acting user.
+    """
+
+    @pytest.mark.asyncio
+    async def test_update_command_stamps_actor_on_new_version(
+        self, db: AsyncSession, actor_id: UUID
+    ) -> None:
+        """UpdateCommand must stamp created_by = actor_id (the updater), not the
+        source version's author. This is THE reported bug guard."""
+        # author A creates the seed version (CreateVersionCommand correctly
+        # stamps created_by = author_A).
+        author_a = uuid4()
+        project = await create_test_project(db, author_a, name="AuthorA")
+        await db.commit()
+        assert project.created_by == author_a
+
+        # user B (distinct from author A) updates via the branching UpdateCommand.
+        user_b = uuid4()
+        assert user_b != author_a
+        cmd = UpdateCommand(
+            entity_class=Project,
+            root_id=project.project_id,
+            actor_id=user_b,
+            updates={"name": "UpdatedByB"},
+            branch="main",
+        )
+        await cmd.execute(db)
+        await db.commit()
+
+        # Re-fetch from DB to read the persisted created_by.
+        service = BranchableService(Project, db)
+        current = await service.get_as_of(project.project_id)
+        assert current is not None
+        assert current.name == "UpdatedByB"
+        # THE regression assertion: new version's created_by == updater (B),
+        # NOT the source author (A).
+        assert current.created_by == user_b, (
+            f"Expected created_by={user_b} (the updater), "
+            f"got {current.created_by} (bug: inherits source author)"
+        )
+
+    @pytest.mark.asyncio
+    async def test_create_branch_command_stamps_actor_on_new_version(
+        self, db: AsyncSession, actor_id: UUID
+    ) -> None:
+        """CreateBranchCommand must stamp created_by = actor_id on the branched
+        version, not inherit the source author."""
+        author_a = uuid4()
+        project = await create_test_project(db, author_a, name="BranchSource")
+        await db.commit()
+        assert project.created_by == author_a
+
+        user_b = uuid4()
+        cmd = CreateBranchCommand(
+            entity_class=Project,
+            root_id=project.project_id,
+            actor_id=user_b,
+            new_branch="BR-CREATEDBY",
+        )
+        branched = await cmd.execute(db)
+        await db.commit()
+
+        assert branched.branch == "BR-CREATEDBY"
+        assert branched.created_by == user_b, (
+            f"Expected created_by={user_b} (the actor who branched), "
+            f"got {branched.created_by} (bug: inherits source author)"
+        )

@@ -130,7 +130,12 @@ class CreateBranchCommand(BranchCommandABC[TBranchable]):
 
         # Clone to new branch
         branched = cast(
-            TBranchable, source.clone(branch=self.new_branch, parent_id=source.id)
+            TBranchable,
+            source.clone(
+                branch=self.new_branch,
+                parent_id=source.id,
+                created_by=self.actor_id,
+            ),
         )
         session.add(branched)
         await session.flush()  # Get ID assigned
@@ -265,7 +270,12 @@ class UpdateCommand(BranchCommandABC[TBranchable]):
         # This is essential when current is from main but we're updating on a change order branch
         new_version = cast(
             TBranchable,
-            current.clone(branch=self.branch, **self.updates, parent_id=current_id),
+            current.clone(
+                branch=self.branch,
+                **self.updates,
+                parent_id=current_id,
+                created_by=self.actor_id,
+            ),
         )
 
         # 3. Close current (only if not already closed as remainder)
@@ -394,6 +404,7 @@ class MergeBranchCommand(BranchCommandABC[TBranchable]):
                     branch=self.target_branch,
                     parent_id=None,
                     merge_from_branch=self.source_branch,
+                    created_by=self.actor_id,
                 ),
             )
             merge_timestamp = (
@@ -426,6 +437,7 @@ class MergeBranchCommand(BranchCommandABC[TBranchable]):
                 branch=self.target_branch,
                 parent_id=target.id,
                 merge_from_branch=self.source_branch,
+                created_by=self.actor_id,
             ),
         )
 
@@ -508,6 +520,7 @@ class RevertCommand(BranchCommandABC[TBranchable]):
                 branch=self.branch,
                 parent_id=current.id,
                 merge_from_branch=None,
+                created_by=self.actor_id,
             ),
         )
 
