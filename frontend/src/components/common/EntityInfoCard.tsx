@@ -7,6 +7,8 @@ interface EntityInfoCardProps {
   id: string;
   collapsed?: boolean;
   children: React.ReactNode;
+  /** Extra content rendered in the card header (e.g. action buttons). */
+  extra?: React.ReactNode;
 }
 
 /**
@@ -29,6 +31,7 @@ export const EntityInfoCard: React.FC<EntityInfoCardProps> = ({
   id,
   collapsed = true,
   children,
+  extra,
 }) => {
   const { token } = theme.useToken();
 
@@ -47,6 +50,7 @@ export const EntityInfoCard: React.FC<EntityInfoCardProps> = ({
       }
       id={id}
       collapsed={collapsed}
+      extra={extra}
       style={{
         marginBottom: token.marginLG,
         borderRadius: token.borderRadiusLG,

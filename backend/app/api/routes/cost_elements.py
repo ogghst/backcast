@@ -257,6 +257,26 @@ async def read_cost_element(
     return read
 
 
+@router.get(
+    "/{cost_element_id}/history",
+    response_model=list[CostElementRead],
+    operation_id="get_cost_element_history",
+    dependencies=[Depends(RoleChecker(required_permission="cost-element-read"))],
+)
+async def read_cost_element_history(
+    cost_element_id: UUID,
+    service: CostElementService = Depends(get_cost_element_service),
+) -> list[CostElementRead]:
+    """Get version history for a cost element. Requires read permission."""
+    history = await service.get_history(cost_element_id)
+    if not history:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No history found for this Cost Element",
+        )
+    return [CostElementRead.model_validate(entry) for entry in history]
+
+
 @router.put(
     "/{cost_element_id}",
     response_model=CostElementRead,

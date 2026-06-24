@@ -1,7 +1,7 @@
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { App, Button, Card, Space, Grid, Table, Tag, Empty, Spin, theme } from "antd";
-import { EditOutlined, DeleteOutlined, PlusOutlined } from "@ant-design/icons";
+import { EditOutlined, DeleteOutlined, PlusOutlined, HistoryOutlined } from "@ant-design/icons";
 import { useQueries, useQueryClient } from "@tanstack/react-query";
 import {
   useWBSElement,
@@ -26,6 +26,9 @@ import { WBSElementTable } from "@/components/hierarchy/WBSElementTable";
 import { WBSElementModal } from "@/features/wbs-elements/components/WBSElementModal";
 import { WorkPackageModal } from "@/features/work-packages/components/WorkPackageModal";
 import { CostHistoryChart } from "@/features/cost-registration/components/CostHistoryChart";
+import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
+import { useEntityHistory } from "@/hooks/useEntityHistory";
+import { WbsElementsService } from "@/api/generated";
 import { Can } from "@/components/auth/Can";
 import { ViewModeToggle } from "@/components/common/ViewModeToggle";
 import { useViewMode } from "@/hooks/useViewMode";
@@ -86,6 +89,15 @@ export const WBSElementOverview = () => {
 
   // Create child WBS Element modal state
   const [modalOpen, setModalOpen] = useState(false);
+
+  // Version history state
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const { data: historyVersions, isLoading: historyLoading } = useEntityHistory({
+    resource: "wbes",
+    entityId: wbsElementId,
+    fetchFn: (id) => WbsElementsService.getWbsElementHistory(id),
+    enabled: historyOpen,
+  });
 
   // Mutations
   const { mutateAsync: createWBE, isPending: isCreatingWBE } = useCreateWBSElement({
@@ -419,6 +431,52 @@ export const WBSElementOverview = () => {
             createdBy={wbe.created_by_name}
             validTime={wbe.valid_time_formatted}
             cardId="wbe-metadata-card"
+            extra={
+              <Can permission="wbs-element-read">
+                <Button
+                  icon={<HistoryOutlined />}
+                  onClick={() => setHistoryOpen(true)}
+                >
+                  {isMobile ? undefined : "History"}
+                </Button>
+              </Can>
+            }
+          />
+        )}
+
+        {/* Version history drawer */}
+        {wbe && (
+          <VersionHistoryDrawer
+            open={historyOpen}
+            onClose={() => setHistoryOpen(false)}
+            entityName={`WBE: ${wbe.code} - ${wbe.name}`}
+            isLoading={historyLoading}
+            versions={(historyVersions || []).map((version: Record<string, unknown>, idx: number, arr: unknown[]) => {
+              const validTimeFormatted = version.valid_time_formatted as {
+                lower: string | null;
+                upper: string | null;
+                lower_formatted: string;
+                upper_formatted: string;
+                is_currently_valid: boolean;
+              } | undefined;
+              const transactionTimeFormatted = version.transaction_time_formatted as {
+                lower: string | null;
+                upper: string | null;
+                lower_formatted: string;
+                upper_formatted: string;
+                is_currently_valid: boolean;
+              } | undefined;
+
+              return {
+                id: `v${arr.length - idx}`,
+                valid_from: validTimeFormatted?.lower || "",
+                valid_to: validTimeFormatted?.upper || null,
+                transaction_time: transactionTimeFormatted?.lower || "",
+                changed_by: (version.created_by_name as string) || "System",
+                valid_time_formatted: validTimeFormatted,
+                transaction_time_formatted: transactionTimeFormatted,
+              };
+            })}
           />
         )}
 

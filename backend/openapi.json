@@ -4151,6 +4151,59 @@
         }
       }
     },
+    "/api/v1/cost-elements/{cost_element_id}/history": {
+      "get": {
+        "tags": [
+          "Cost Elements"
+        ],
+        "summary": "Read Cost Element History",
+        "description": "Get version history for a cost element. Requires read permission.",
+        "operationId": "get_cost_element_history",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cost_element_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Cost Element Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CostElementRead"
+                  },
+                  "title": "Response Get Cost Element History"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/cost-events": {
       "get": {
         "tags": [

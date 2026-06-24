@@ -29,6 +29,8 @@ interface EntityMetadataCardProps {
   validTime?: Record<string, string | boolean | null> | null;
   /** html id for the card wrapper. */
   cardId?: string;
+  /** Extra content rendered in the card header (e.g. a History action button). */
+  extra?: ReactNode;
 }
 
 /**
@@ -71,11 +73,12 @@ export const EntityMetadataCard = ({
   createdBy,
   validTime,
   cardId,
+  extra,
 }: EntityMetadataCardProps) => {
   const { token } = useExtendedToken();
 
   return (
-    <EntityInfoCard title="Details" id={cardId ?? "entity-metadata-card"}>
+    <EntityInfoCard title="Details" id={cardId ?? "entity-metadata-card"} extra={extra}>
       <Descriptions {...entityInfoDescriptionsProps(token)}>
         <Descriptions.Item label={entityIdLabel}>
           <Typography.Text code copyable style={{ fontSize: token.fontSizeXS }}>

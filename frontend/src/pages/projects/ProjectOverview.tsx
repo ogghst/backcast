@@ -139,14 +139,6 @@ export const ProjectOverview = () => {
               {isMobile ? undefined : "Edit"}
             </Button>
           </Can>
-          <Can permission="project-read">
-            <Button
-              icon={<HistoryOutlined />}
-              onClick={() => setHistoryOpen(true)}
-            >
-              {isMobile ? undefined : "History"}
-            </Button>
-          </Can>
           <Can permission="project-delete">
             <Button
               danger
@@ -222,6 +214,16 @@ export const ProjectOverview = () => {
             createdBy={project.created_by_name}
             validTime={project.valid_time_formatted}
             cardId="project-metadata-card"
+            extra={
+              <Can permission="project-read">
+                <Button
+                  icon={<HistoryOutlined />}
+                  onClick={() => setHistoryOpen(true)}
+                >
+                  {isMobile ? undefined : "History"}
+                </Button>
+              </Can>
+            }
           />
         </PageContent>
       )}

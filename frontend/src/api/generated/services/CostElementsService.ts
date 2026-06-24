@@ -157,4 +157,25 @@ export class CostElementsService {
             },
         });
     }
+    /**
+     * Read Cost Element History
+     * Get version history for a cost element. Requires read permission.
+     * @param costElementId
+     * @returns CostElementRead Successful Response
+     * @throws ApiError
+     */
+    public static getCostElementHistory(
+        costElementId: string,
+    ): CancelablePromise<Array<CostElementRead>> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/cost-elements/{cost_element_id}/history',
+            path: {
+                'cost_element_id': costElementId,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
 }
