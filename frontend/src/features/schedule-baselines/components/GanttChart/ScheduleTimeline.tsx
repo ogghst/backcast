@@ -75,8 +75,14 @@ export interface ScheduleTimelineProps {
   chartRef?: React.MutableRefObject<ECharts | null>;
   /** Optional bar-click handler (defaults to no-op). */
   onBarClick?: (row: GanttRow) => void;
-  /** Optional explicit height; otherwise derived from row count + density. */
-  height?: number;
+  /**
+   * Optional explicit height; otherwise derived from row count + density.
+   *
+   * Accepts a CSS string (e.g. `"100%"`) so a compact dashboard widget can
+   * fill its tile without a fixed pixel value (EChartsBaseChart already
+   * handles string heights). The full page passes a computed pixel number.
+   */
+  height?: number | string;
   /** Loading state (shows a Spin in place of the chart). */
   loading?: boolean;
 }
@@ -106,10 +112,7 @@ export const ScheduleTimeline: React.FC<ScheduleTimelineProps> = ({
   );
 
   // Schedule index for dependency-arrow coordinate resolution
-  const scheduleIndex = useMemo(
-    () => buildScheduleBaselineIndex(rows),
-    [rows],
-  );
+  const scheduleIndex = useMemo(() => buildScheduleBaselineIndex(rows), [rows]);
 
   const projectStart = useMemo(
     () => (data?.project_start ? new Date(data.project_start) : null),
@@ -167,9 +170,12 @@ export const ScheduleTimeline: React.FC<ScheduleTimelineProps> = ({
 
   // Expose the live instance to the hook so the toolbar can dispatch actions.
   const handleChartReady = useMemo(
-    () => (chartRef ? (chart: ECharts) => {
-      chartRef.current = chart;
-    } : undefined),
+    () =>
+      chartRef
+        ? (chart: ECharts) => {
+            chartRef.current = chart;
+          }
+        : undefined,
     [chartRef],
   );
 
@@ -177,7 +183,9 @@ export const ScheduleTimeline: React.FC<ScheduleTimelineProps> = ({
   // series items carry 7-element data arrays (vs 4 for bars).
   const handleEvents = useMemo(
     () => ({
-      click: (params: { data?: [number, number, number, GanttRow] | unknown[] }) => {
+      click: (params: {
+        data?: [number, number, number, GanttRow] | unknown[];
+      }) => {
         if (!onBarClick) return;
         if (!params.data || params.data.length !== 4) return;
         const row = params.data[3] as GanttRow;
@@ -185,7 +193,11 @@ export const ScheduleTimeline: React.FC<ScheduleTimelineProps> = ({
       },
       // Dependency-link hover emphasis.
       mouseover: (params: { data?: unknown[]; dataIndex?: number }) => {
-        if (params.data && params.data.length === 7 && params.dataIndex != null) {
+        if (
+          params.data &&
+          params.data.length === 7 &&
+          params.dataIndex != null
+        ) {
           setHoveredDepIndex(params.dataIndex);
         }
       },

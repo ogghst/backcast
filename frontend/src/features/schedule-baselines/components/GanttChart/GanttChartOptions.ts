@@ -16,7 +16,10 @@
  */
 
 import type { EChartsOption } from "echarts";
-import type { EChartsColorPalette, EChartsTooltipConfig } from "@/features/evm/utils/echartsTheme";
+import type {
+  EChartsColorPalette,
+  EChartsTooltipConfig,
+} from "@/features/evm/utils/echartsTheme";
 import type { GanttRow } from "./GanttDataTransformer";
 import type { GanttDependencyLink } from "../../api/useGanttData";
 import type { GanttChartConfig } from "./config";
@@ -81,7 +84,8 @@ export function buildGanttOptions(
   hoveredDepIndex: number = -1,
 ): EChartsOption {
   const preset = getZoomPreset(config.zoom);
-  const { density, gridLeft, showDependencies, showDataZoom, showTimeHeader } = config;
+  const { density, gridLeft, showDependencies, showDataZoom, showTimeHeader } =
+    config;
 
   const yLabels = rows.map((row) => row.name);
 
@@ -89,7 +93,12 @@ export function buildGanttOptions(
   const barData: Array<[number, number, number, GanttRow]> = [];
   rows.forEach((row, index) => {
     if (row.startDate && row.endDate) {
-      barData.push([index, row.startDate.getTime(), row.endDate.getTime(), row]);
+      barData.push([
+        index,
+        row.startDate.getTime(),
+        row.endDate.getTime(),
+        row,
+      ]);
     }
   });
 
@@ -106,8 +115,10 @@ export function buildGanttOptions(
         const predRow = rows[predIdx];
         const succRow = rows[succIdx];
         if (
-          predRow?.startDate && predRow?.endDate &&
-          succRow?.startDate && succRow?.endDate
+          predRow?.startDate &&
+          predRow?.endDate &&
+          succRow?.startDate &&
+          succRow?.endDate
         ) {
           depData.push([
             predIdx,
@@ -279,7 +290,11 @@ ${
         axisLine: { lineStyle: { color: colors.border } },
         splitLine: {
           show: true,
-          lineStyle: { color: colors.border, type: "dashed" as const, opacity: 0.6 },
+          lineStyle: {
+            color: colors.border,
+            type: "dashed" as const,
+            opacity: 0.6,
+          },
         },
         interval: preset.splitlineIntervalMs,
       },
@@ -310,16 +325,59 @@ ${
       // range — a category axis with data:[] collapses the grid and suppresses
       // its xAxis labels).
       { type: "value", gridIndex: 0, show: false, min: 0, max: 1 },
-      // yAxis 1: main chart category axis (labels hidden — rendered by React)
+      // yAxis 1: main chart category axis.
+      //
+      // In `full` mode labels are HIDDEN here — the page renders its own React
+      // label panel beside the chart (so collapse triangles + click handlers
+      // stay interactive when the separator is dragged).
+      //
+      // In `compact` mode there is NO React label panel (the dashboard tile has
+      // no page chrome), so the chart must render the row names itself. Each
+      // label is indented by its outline `level` (leading spaces) and WBE
+      // headers are bolded; width + overflow:'truncate' give a clean ellipsis.
       {
         type: "category",
         data: yLabels,
         inverse: true,
         gridIndex: 1,
-        show: false,
-        axisLine: { show: false },
-        axisTick: { show: false },
-        splitLine: { show: false },
+        ...(config.mode === "compact"
+          ? {
+              show: true,
+              axisLabel: {
+                show: true,
+                color: colors.textSecondary,
+                fontSize: 11,
+                width: gridLeft - 8,
+                overflow: "truncate" as const,
+                // ECharts passes (value, index); the category-axis data array
+                // (`yLabels`) is built 1:1 from `rows`, so the index is a
+                // reliable lookup — avoids mis-labeling rows that share a name.
+                formatter: (_value: string, index: number) => {
+                  const row = rows[index];
+                  const name = row ? row.name : _value;
+                  if (!row) return name;
+                  const indent = " ".repeat(Math.max(0, row.level - 1) * 2);
+                  return row.isWbe
+                    ? `{wbe|${indent}${name}}`
+                    : `${indent}${name}`;
+                },
+                rich: {
+                  wbe: {
+                    fontWeight: "bold" as const,
+                    color: colors.text,
+                  },
+                },
+              },
+              axisLine: { show: false },
+              axisTick: { show: false },
+              splitLine: { show: false },
+            }
+          : {
+              show: false,
+              axisLine: { show: false },
+              axisTick: { show: false },
+              splitLine: { show: false },
+            }),
       },
     ],
     series: [
@@ -353,7 +411,13 @@ ${
         clip: true,
         renderItem: (
           params: {
-            coordSys: { x: number; y: number; width: number; height: number; top: number };
+            coordSys: {
+              x: number;
+              y: number;
+              width: number;
+              height: number;
+              top: number;
+            };
             dataIndex: number;
           },
           api: {
@@ -432,12 +496,24 @@ ${
             children: [
               {
                 type: "rect",
-                shape: { x: startCoord[0], y, width: barWidth, height: barHeight, r: 3 },
+                shape: {
+                  x: startCoord[0],
+                  y,
+                  width: barWidth,
+                  height: barHeight,
+                  r: 3,
+                },
                 style: { fill: colors.border, opacity: 0.25 },
               },
               {
                 type: "rect",
-                shape: { x: startCoord[0], y, width: barWidth, height: barHeight, r: 3 },
+                shape: {
+                  x: startCoord[0],
+                  y,
+                  width: barWidth,
+                  height: barHeight,
+                  r: 3,
+                },
                 style: { fill: fgColor, opacity: 0.8 },
               },
             ],

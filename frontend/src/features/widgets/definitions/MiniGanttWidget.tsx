@@ -1,106 +1,52 @@
+/**
+ * Mini Gantt Dashboard Widget
+ *
+ * Renders the SAME `<ScheduleTimeline>` engine as the full /schedule page,
+ * driven by `defaultCompactConfig` — collapses the duplication that existed
+ * when this widget hand-rolled its own rollup + bars (hardcoded colours, no
+ * today line). The widget keeps its `mini-gantt` typeId and filename so
+ * persisted layouts need no migration.
+ *
+ * Compact-mode specifics:
+ *   - The tile has no page chrome, so `ScheduleTimeline` is rendered with
+ *     `mode:'compact'`, which makes `buildGanttOptions` render the row labels
+ *     inside the chart (no React label panel). See GanttChartOptions.ts.
+ *   - Default viewport: collapsed to WBE-rollup (`computeCollapseToLevel(
+ *     items, 1)`) so a handful of root WBE summary bars fit a tile. Read-only
+ *     — there is no collapse-toggle UI on the tile.
+ *   - A click anywhere on the tile navigates to the full /schedule page.
+ *
+ * @module features/widgets/definitions
+ */
+
 import { BarChartOutlined } from "@ant-design/icons";
-import { Typography, theme, Tooltip } from "antd";
+import { Typography } from "antd";
 import { useMemo, type FC } from "react";
-import { useDashboardContext } from "../context/useDashboardContext";
+import { useNavigate } from "react-router-dom";
+import { useEChartsTheme } from "@/features/evm/utils/echartsTheme";
 import { useGanttData } from "@/features/schedule-baselines/api/useGanttData";
-import type { GanttItem } from "@/features/schedule-baselines/api/useGanttData";
+import { ScheduleTimeline } from "@/features/schedule-baselines/components/GanttChart/ScheduleTimeline";
+import { defaultCompactConfig } from "@/features/schedule-baselines/components/GanttChart/config";
+import { computeCollapseToLevel } from "@/features/schedule-baselines/components/GanttChart/GanttDataTransformer";
+import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
+import { useDashboardContext } from "../context/useDashboardContext";
 import { WidgetShell } from "../components/WidgetShell";
 import { registerWidget, widgetTypeId } from "..";
 import type { WidgetComponentProps } from "../types";
 
 const { Text } = Typography;
 
-interface MiniGanttConfig {
-  showWBEOnly: boolean;
-  zoomLevel: "months" | "weeks";
-}
-
-/** A single row in the timeline, grouped by WBE. */
-interface TimelineRow {
-  wbsElementId: string;
-  code: string;
-  name: string;
-  startDate: Date;
-  endDate: Date;
-}
+/** Persisted config shape (kept stable for typeId 'mini-gantt'). */
+type MiniGanttConfig = Record<string, never>;
 
 /**
- * Aggregate GanttItems into one row per WBE.
- * Uses the earliest start_date and latest end_date across all cost elements
- * belonging to the same WBE.
+ * Mini Gantt widget — compact schedule overview rendered on the shared core.
+ *
+ * Forwards all WidgetShell lifecycle props (instanceId / isEditing /
+ * isLoading / error / onRemove / onRefresh / onConfigure / onFullscreen /
+ * widgetType / dashboardName). Clicking the chart navigates to /schedule.
  */
-function aggregateToWBERows(items: GanttItem[]): TimelineRow[] {
-  const groups = new Map<string, TimelineRow>();
-
-  for (const item of items) {
-    if (!item.start_date || !item.end_date) continue;
-
-    const existing = groups.get(item.wbs_element_id);
-    const start = new Date(item.start_date);
-    const end = new Date(item.end_date);
-
-    if (!existing) {
-      groups.set(item.wbs_element_id, {
-        wbsElementId: item.wbs_element_id,
-        code: item.wbe_code,
-        name: item.wbe_name,
-        startDate: start,
-        endDate: end,
-      });
-    } else {
-      if (start < existing.startDate) existing.startDate = start;
-      if (end > existing.endDate) existing.endDate = end;
-    }
-  }
-
-  return Array.from(groups.values()).sort(
-    (a, b) => a.startDate.getTime() - b.startDate.getTime(),
-  );
-}
-
-/**
- * Build one row per item (cost element level).
- * Groups items by WBE for visual ordering but keeps individual bars.
- */
-function toItemRows(items: GanttItem[]): TimelineRow[] {
-  return items
-    .filter((item) => item.cost_element_id && item.start_date && item.end_date)
-    .map((item) => ({
-      wbsElementId: item.cost_element_id!,
-      code: item.cost_element_code ?? "",
-      name: item.cost_element_name ?? "",
-      startDate: new Date(item.start_date!),
-      endDate: new Date(item.end_date!),
-    }))
-    .sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
-}
-
-/** Compute the overall timeline bounds from project dates or item data. */
-function getTimelineBounds(
-  rows: TimelineRow[],
-  projectStart: string | null,
-  projectEnd: string | null,
-): { startMs: number; endMs: number } | null {
-  if (rows.length === 0) return null;
-
-  const projectStartMs = projectStart
-    ? new Date(projectStart).getTime()
-    : null;
-  const projectEndMs = projectEnd ? new Date(projectEnd).getTime() : null;
-
-  let startMs = projectStartMs ?? rows[0].startDate.getTime();
-  let endMs = projectEndMs ?? rows[0].endDate.getTime();
-
-  for (const row of rows) {
-    if (row.startDate.getTime() < startMs) startMs = row.startDate.getTime();
-    if (row.endDate.getTime() > endMs) endMs = row.endDate.getTime();
-  }
-
-  return { startMs, endMs };
-}
-
 const MiniGanttComponent: FC<WidgetComponentProps<MiniGanttConfig>> = ({
-  config,
   instanceId,
   isEditing,
   onRemove,
@@ -109,34 +55,50 @@ const MiniGanttComponent: FC<WidgetComponentProps<MiniGanttConfig>> = ({
   widgetType,
   dashboardName,
 }) => {
-  const { token } = theme.useToken();
+  const navigate = useNavigate();
   const { projectId } = useDashboardContext();
-  const { data, isLoading, error, refetch } = useGanttData(projectId);
+  const { data, isLoading, error, refetch } = useGanttData(projectId ?? "");
+  const { colors, tooltipConfig } = useEChartsTheme();
+  const currency = useProjectCurrency(projectId);
 
-  const rows = useMemo(() => {
-    const items = data?.items ?? [];
-    return config.showWBEOnly ? aggregateToWBERows(items) : toItemRows(items);
-  }, [data?.items, config.showWBEOnly]);
-
-  const bounds = useMemo(
-    () =>
-      getTimelineBounds(
-        rows,
-        data?.project_start ?? null,
-        data?.project_end ?? null,
-      ),
-    [rows, data?.project_start, data?.project_end],
+  // Read-only WBE-rollup view: only root WBE summary bars show (a few rows fit
+  // a tile). This is derived state — there is no collapse-toggle UI on the
+  // tile, so we compute the collapsed set directly from the data payload
+  // rather than seeding local state via an effect (avoids cascading renders).
+  // Depends on `data` (stable TanStack reference) — not the derived `items`
+  // array, which would change identity every render while data is loading.
+  const collapsedWbeIds = useMemo(
+    () => computeCollapseToLevel(data?.items ?? [], 1),
+    [data],
   );
 
-  const barColors = useMemo(
-    () => [token.colorPrimary, token.colorInfo],
-    [token.colorPrimary, token.colorInfo],
+  // Compact config (no deps, no dataZoom slider, tight density). The chart
+  // owns its own y-axis labels in compact mode.
+  const compactConfig = useMemo(() => ({ ...defaultCompactConfig }), []);
+
+  // Stable empty-data response so ScheduleTimeline never gets `undefined`.
+  const emptyData = useMemo(
+    () => ({
+      items: [],
+      project_start: null,
+      project_end: null,
+      dependencies: [],
+    }),
+    [],
   );
+
+  // Don't navigate when the dashboard is in edit mode (clicks should select /
+  // drag the tile, not route away).
+  const handleClick = () => {
+    if (isEditing) return;
+    if (!projectId) return;
+    navigate(`/projects/${projectId}/schedule`);
+  };
 
   return (
     <WidgetShell
       instanceId={instanceId}
-      title="Mini Gantt"
+      title="Schedule"
       icon={<BarChartOutlined />}
       isEditing={isEditing}
       isLoading={isLoading}
@@ -148,107 +110,61 @@ const MiniGanttComponent: FC<WidgetComponentProps<MiniGanttConfig>> = ({
       widgetType={widgetType}
       dashboardName={dashboardName}
     >
-      {rows.length === 0 ? (
+      {projectId ? (
         <div
+          onClick={handleClick}
           style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
             height: "100%",
+            width: "100%",
+            cursor: isEditing ? "default" : "pointer",
+            // No fixed-height overflow:auto scroll wrapper — react-grid-layout
+            // tiles must not introduce an inner scroll container around the
+            // chart (it breaks resizing). The chart fills the tile via "100%".
           }}
         >
-          <Text type="secondary">No schedule data available</Text>
+          <ScheduleTimeline
+            data={data ?? emptyData}
+            currency={currency}
+            colors={colors}
+            tooltipConfig={tooltipConfig}
+            config={compactConfig}
+            collapsedWbeIds={collapsedWbeIds}
+            height="100%"
+            loading={isLoading}
+          />
         </div>
-      ) : bounds ? (
-        <div
-          style={{
-            overflow: "auto",
-            height: "100%",
-            padding: token.paddingSM,
-          }}
-        >
-          {rows.map((row, index) => {
-            const rangeMs = bounds.endMs - bounds.startMs || 1;
-            const leftPercent =
-              ((row.startDate.getTime() - bounds.startMs) / rangeMs) * 100;
-            const widthPercent =
-              ((row.endDate.getTime() - row.startDate.getTime()) / rangeMs) *
-              100;
-            const barColor = barColors[index % barColors.length];
-            const label = `${row.code} - ${row.name}`;
-            const dateLabel = `${row.startDate.toLocaleDateString()} - ${row.endDate.toLocaleDateString()}`;
-
-            return (
-              <div
-                key={row.wbsElementId}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  marginBottom: 4,
-                }}
-              >
-                <Tooltip title={label} placement="left">
-                  <div
-                    style={{
-                      width: 120,
-                      flexShrink: 0,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                      fontSize: token.fontSizeSM,
-                      color: token.colorTextSecondary,
-                    }}
-                  >
-                    {row.code}
-                  </div>
-                </Tooltip>
-                <Tooltip title={dateLabel}>
-                  <div
-                    style={{
-                      flex: 1,
-                      position: "relative",
-                      height: 20,
-                      background: token.colorFillQuaternary,
-                      borderRadius: token.borderRadiusSM,
-                    }}
-                  >
-                    <div
-                      style={{
-                        position: "absolute",
-                        left: `${leftPercent}%`,
-                        width: `${Math.max(widthPercent, 0.5)}%`,
-                        height: "100%",
-                        background: barColor,
-                        borderRadius: token.borderRadiusSM,
-                        opacity: 0.7,
-                      }}
-                    />
-                  </div>
-                </Tooltip>
-              </div>
-            );
-          })}
-        </div>
-      ) : null}
+      ) : (
+        !isLoading &&
+        !error && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              height: "100%",
+            }}
+          >
+            <Text type="secondary">Select a project</Text>
+          </div>
+        )
+      )}
     </WidgetShell>
   );
 };
 
 registerWidget<MiniGanttConfig>({
   typeId: widgetTypeId("mini-gantt"),
-  displayName: "Mini Gantt",
-  description: "Simplified WBE timeline overview",
+  displayName: "Schedule",
+  description:
+    "Compact schedule timeline overview (click to open the full Gantt)",
   category: "breakdown",
   icon: <BarChartOutlined />,
   sizeConstraints: {
     minW: 6,
     minH: 3,
     defaultW: 6,
-    defaultH: 3,
+    defaultH: 4,
   },
   component: MiniGanttComponent,
-  defaultConfig: {
-    showWBEOnly: true,
-    zoomLevel: "months",
-  },
+  defaultConfig: {},
 });
