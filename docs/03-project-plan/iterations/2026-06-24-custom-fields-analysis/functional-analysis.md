@@ -9,6 +9,66 @@
 
 ---
 
+## Implementation Status
+
+> **Live status — last updated 2026-06-27 (v7).** This chapter is the single source of truth for what is implemented vs deferred. Per-phase detail remains in §10; per-decision refinements in §11.3. All shipped work is on the `custom-fields` branch.
+
+### Phase rollout
+
+| Phase | Scope | Status | Commit(s) |
+|---|---|---|---|
+| **0 — Foundations** | `custom_fields` / `custom_entity_template_root_id` / `custom_field_definitions_snapshot` on Project/WBS/WP/**ChangeOrder**; C1 unique partial current-version index; FieldDefinition OO hierarchy; CO `custom_field_values`→`custom_fields` unification; global `IntegrityError`→409; seed. | ✅ Shipped | `3bd51af0` |
+| **1 — MVP** | `CustomEntityTemplate` CRUD (Versionable, org-scoped); `CustomFieldService` chokepoint (create/update/snapshot); `CustomFieldsRenderer` + 5 entity modals; AI read (`include_custom_fields`, `ai_visible` gate); D2 first-time binding on edit. | ✅ Shipped | `3bd51af0`, `723a1bc8`, `0fe40424` |
+| **2 — Queryability** | `FilterParser` JSONB filter/sort branch; global-search JSONB clauses; `search_mode` D8 dual-gate (`searchable` UI / `ai_visible` AI); `searchable` FE toggle; defensive-cast no-500 hardening; `list_current_field_codes` resolver. | ✅ Shipped | `31cb7479` |
+| **3 — Merge + Lifecycle** | Per-key JSONB merge-conflict diff; field `status` active/deprecated/retired with the M2 status-authority split (live deprecation gate, snapshot value/type); **change-based** write-gate; create-hide/edit-readonly; AI retired-exclude/deprecated-flag. | ✅ Shipped | `8ee60a4d` |
+| **4 — Deferred/Optional** | FormulaField engine + rollup; export/CSV; InfoPill/explorer/Gantt surfaces; AttachmentLinkField; custom fields on more entity types; multi-template binding. | 🔲 Not started | — |
+
+### Implemented capabilities (what works today)
+
+- **Admin-defined fields** — `CustomEntityTemplate` (Versionable, org-scoped) groups an OO field-class hierarchy: text/number/decimal/integer/date/datetime/boolean/select/multiselect/indicator/reference (formula deferred). Bound one-per-entity at create, or first-time on edit; immutable once bound (D2).
+- **Bitemporal + branch-aware** — the JSONB `custom_fields` dict and `custom_field_definitions_snapshot` ride EVCS `clone()`/`UpdateCommand` for free; Create/Update/Branch/Merge/Revert all carry them per-version; as-of queryable, branch-isolated.
+- **Write validation** (single chokepoint `CustomFieldService.validate_field_values`) — unknown-key rejection (M1), required-null rejection (D11), per-field type/range validation, `ReferenceField` existence, and the M2 lifecycle gate (change-based). Surfaces as `CustomFieldValidationError` → HTTP 400; C1 concurrency races → 409.
+- **Queryability** — `?filters=code:value` (equality + IN) and sort by custom key on Project/WBS/ChangeOrder list endpoints; global Cmd+K search matches custom-field values; gated by `searchable` (UI) / `ai_visible` (AI).
+- **Field lifecycle** — deprecated/retired fields hide in new-entity forms, render read-only on existing entities (live-status overlay), reject writes when *changed*; retired never reaches the AI.
+- **Merge fidelity** — two branches editing *different* custom sub-fields merge cleanly; same-key edits surface as precise per-key conflicts (`field: "custom_fields.<key>"`).
+- **AI** — read tools surface `custom_fields` behind `ai_visible`; write tools accept `custom_fields` + template binding; a discovery tool (`get_custom_field_definitions`) exposes the ai_visible-gated manifest.
+
+### Where things live
+
+| Concern | File(s) |
+|---|---|
+| Field type system | `backend/app/models/custom_fields/` (`base.py`, `fields.py`, `registry.py`) |
+| Template model / service / routes | `backend/app/models/domain/custom_entity_template.py`, `app/services/custom_entity_template_service.py`, `app/api/routes/custom_entity_templates.py` |
+| Write chokepoint + resolver | `backend/app/services/custom_field_service.py` |
+| Filter/sort JSONB branch | `backend/app/core/filtering.py` |
+| Merge-conflict diff | `backend/app/core/branching/service.py` (`_detect_merge_conflicts`) |
+| Global search | `backend/app/services/global_search_service.py` |
+| AI gates | `backend/app/ai/tools/custom_fields_helpers.py` |
+| FE editor / renderer / hook | `frontend/src/features/custom-fields/` |
+| Entity modals (5) | Project / WBSElement / WorkPackage / ChangeOrder modals (+ `ProjectEditModal`) |
+| Migration | `backend/alembic/versions/c93e9767de59_custom_fields_phase0.py` |
+| Tests | `backend/tests/services/test_custom_fields_phase{0,2,3}.py`, `tests/core/test_branching_core.py` |
+
+### Deferred / not-yet-built
+
+**In-phase deferrals (documented, not bugs):**
+- **Indexes (M10)** — zero custom-field indexes shipped. Recipe when a hot query is measured: a partial functional expression index `CREATE INDEX … ON t ((custom_fields->>'key')) WHERE upper(valid_time) IS NULL AND deleted_at IS NULL CONCURRENTLY` (Alembic must wrap it in `op.get_context().autocommit_block()` — no `CONCURRENTLY` precedent exists yet).
+- **FE dynamic filter-builder** + **WorkPackage list-filter infrastructure** — backend `?filters=` works on Project/WBS/ChangeOrder; the dynamic FE filter UI and WP list-filter wiring are fast-follows.
+- **Template-level lifecycle (M17)** + **`retire()`** + **cached usage-backref** + **admin "used by N entities" UI** — the §6.7 acceptance criterion is field-level; template retire is the scale/admin extension. A live-count query at retire-time is the simpler MVP stand-in if/when added.
+
+**Phase 4 — Deferred/Optional (take à la carte):**
+- `FormulaField` engine (computed-on-read; unblocks custom-field→budget coupling, §7.8) + rollup aggregation (Sum/Avg/Min/Max over the WBS tree).
+- Export/CSV pipeline.
+- Custom-field surfaces in InfoPills / explorer cards / Gantt labels (§7.10).
+- Notification emission on custom-field change (§7.7).
+- `AttachmentLinkField`; custom fields on ControlAccount / CostElement / CostRegistration / Forecast / ScheduleBaseline / OrganizationalUnit / Document (M12 — discriminator is extensible); multi-template binding (D10 deferred branch).
+
+### Review & verification posture
+
+Each phase shipped with an adversarial review (multi-dimension find → refute-by-default verify): Phase 2 surfaced the no-500 cast gap (fixed); Phase 3 surfaced the whole-map-replace echo bug (fixed — the change-based write-gate). `ruff`/`mypy` clean across the diff (318 files); backend test batteries green. Two pre-existing typecheck errors in `useStreamingChat.projectContext.test.ts` (AI-chat territory, unrelated to custom fields) remain out of scope.
+
+---
+
 ## 1. Executive Summary
 
 Backcast needs admin-defined **custom fields** so the system can capture project-type-specific attributes (a house-build project's *address*, *seismic area*, *contractor*; a "room" WBS element's *height/width*; a "floor" work package's *tile type/supplier*) without a code change per customer. The decisive codebase fact is that EVCS uses **full-snapshot bitemporal versioning**: every state change clones the entire row via `VersionableMixin.clone()` (`backend/app/models/mixins.py:62-80`), which iterates `mapper.attrs` to copy all mapped columns. Persistence of that clone happens through **two distinct paths** — (A) a hand-built raw SQL INSERT that enumerates `mapper.columns` and applies a generic JSONB serialization guard (`UpdateCommand` at `backend/app/core/branching/commands.py:312-361`; `UpdateVersionCommand` at `backend/app/core/versioning/commands.py:264-374`), and (B) the ORM `session.add()` + `flush()` path, which relies on asyncpg's native JSONB codec (`CreateBranchCommand`, `MergeBranchCommand`, `RevertCommand`, `CreateVersionCommand`). This means a single **JSONB `custom_fields` column on each versioned entity table** propagates through Create/Update/Branch/Merge/Revert for free — and a dict-shaped version of this pattern is **already in production** on `ChangeOrder.custom_field_values` (`backend/app/models/domain/change_order.py:169`). Per the 2026-06-26 sign-off, that ChangeOrder path is **deprecated and unified** under the new model — `ChangeOrder` becomes a first-class target entity type (§7.9), eliminating the two-definition-model split that was v2's largest architectural risk.
