@@ -33,6 +33,7 @@ from uuid import UUID
 
 from langchain_core.tools import InjectedToolArg
 
+from app.ai.tools.custom_fields_helpers import filter_ai_visible_custom_fields
 from app.ai.tools.decorator import ai_tool
 from app.ai.tools.templates._pagination import (
     BATCH_SIZE_LIMIT,
@@ -70,6 +71,7 @@ async def find_work_packages(
     status: str | None = None,
     page: int = 1,
     limit: int | None = None,
+    include_custom_fields: bool = False,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Find work packages by ID or search/filter.
@@ -83,6 +85,10 @@ async def find_work_packages(
         status: Optional filter by status (open/closed)
         page: Page number (1-based)
         limit: Maximum records per page (default from config, max 200)
+        include_custom_fields: When True, include each row's ai_visible custom
+            fields (filtered by the entity's snapshot). Default False; the
+            single-element lookup (work_package_id set) always includes
+            custom_fields.
         context: Injected tool execution context
 
     Returns:
@@ -136,6 +142,10 @@ async def find_work_packages(
                 else None,
                 "forecast_id": str(wp.forecast_id) if wp.forecast_id else None,
                 "branch": wp.branch,
+                "custom_fields": filter_ai_visible_custom_fields(
+                    getattr(wp, "custom_fields", None),
+                    getattr(wp, "custom_field_definitions_snapshot", None),
+                ),
             }
             return add_temporal_metadata(wp_result, context)
 
@@ -165,6 +175,16 @@ async def find_work_packages(
                     "status": wp.status,
                     "control_account_id": str(wp.control_account_id),
                     "branch": wp.branch,
+                    **(
+                        {
+                            "custom_fields": filter_ai_visible_custom_fields(
+                                getattr(wp, "custom_fields", None),
+                                getattr(wp, "custom_field_definitions_snapshot", None),
+                            )
+                        }
+                        if include_custom_fields
+                        else {}
+                    ),
                 }
                 for wp in work_packages
             ],
@@ -210,6 +230,8 @@ async def create_work_package(
     eac_amount: float | None = None,
     basis_of_estimate: str | None = None,
     control_date: str | None = None,
+    custom_fields: dict[str, Any] | None = None,
+    custom_entity_template_root_id: str | None = None,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Create a new PMI Work Package under a Control Account.
@@ -229,6 +251,10 @@ async def create_work_package(
         eac_amount: Optional EAC amount for auto-created forecast (defaults to budget_amount)
         basis_of_estimate: Optional basis of estimate for forecast (defaults to "Initial forecast")
         control_date: Optional control date for valid_time start (ISO format)
+        custom_fields: Optional {code: value} dict of custom-field values; the
+            service validates against the bound template and captures a snapshot.
+        custom_entity_template_root_id: Optional UUID of the CustomEntityTemplate
+            to bind (required when custom_fields is non-empty).
         context: Injected tool execution context
 
     Returns:
@@ -271,6 +297,12 @@ async def create_work_package(
             schedule_progression_type=progression_type,
             eac_amount=Decimal(str(eac_amount)) if eac_amount is not None else None,
             basis_of_estimate=basis_of_estimate,
+            custom_fields=custom_fields,
+            custom_entity_template_root_id=(
+                UUID(custom_entity_template_root_id)
+                if custom_entity_template_root_id
+                else None
+            ),
         )
 
         wp = await service.create_work_package(
@@ -294,6 +326,10 @@ async def create_work_package(
             if wp.schedule_baseline_id
             else None,
             "forecast_id": str(wp.forecast_id) if wp.forecast_id else None,
+            "custom_fields": filter_ai_visible_custom_fields(
+                getattr(wp, "custom_fields", None),
+                getattr(wp, "custom_field_definitions_snapshot", None),
+            ),
             "message": "Work package created successfully",
         }
     except ValueError as e:
@@ -327,6 +363,8 @@ async def update_work_package(
     eac_amount: float | None = None,
     basis_of_estimate: str | None = None,
     control_date: str | None = None,
+    custom_fields: dict[str, Any] | None = None,
+    custom_entity_template_root_id: str | None = None,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Update an existing work package.
@@ -347,6 +385,11 @@ async def update_work_package(
         eac_amount: New EAC amount for the forecast (optional)
         basis_of_estimate: New basis of estimate for the forecast (optional)
         control_date: Control date for valid_time start in ISO format (optional)
+        custom_fields: Optional {code: value} dict; when provided the service
+            validates against the snapshot captured at create. Omit to leave
+            custom fields untouched.
+        custom_entity_template_root_id: Optional UUID of the bound
+            CustomEntityTemplate (only meaningful at create; ignored on update).
         context: Injected tool execution context
 
     Returns:
@@ -402,6 +445,10 @@ async def update_work_package(
             update_kwargs["eac_amount"] = Decimal(str(eac_amount))
         if basis_of_estimate is not None:
             update_kwargs["basis_of_estimate"] = basis_of_estimate
+        # custom_fields is opt-in per call (service routes on presence via
+        # exclude_unset, D11). An empty {} is meaningful, so check `is not None`.
+        if custom_fields is not None:
+            update_kwargs["custom_fields"] = custom_fields
         update_kwargs["branch"] = context.branch_name or "main"
 
         update_data = WorkPackageUpdate(**update_kwargs)
@@ -428,6 +475,10 @@ async def update_work_package(
             if wp.schedule_baseline_id
             else None,
             "forecast_id": str(wp.forecast_id) if wp.forecast_id else None,
+            "custom_fields": filter_ai_visible_custom_fields(
+                getattr(wp, "custom_fields", None),
+                getattr(wp, "custom_field_definitions_snapshot", None),
+            ),
             "message": "Work package updated successfully",
         }
     except ValueError as e:

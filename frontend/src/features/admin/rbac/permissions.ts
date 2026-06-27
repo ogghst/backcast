@@ -64,6 +64,12 @@ export const PERMISSION_METADATA: Record<string, PermissionMeta> = {
   "cost-element-type-update": { topic: "Cost Element Type", description: "Edit cost element types" },
   "cost-element-type-delete": { topic: "Cost Element Type", description: "Remove cost element types" },
 
+  // Custom Entity Template
+  "custom-entity-template-read": { topic: "Custom Entity Template", description: "View custom entity templates" },
+  "custom-entity-template-create": { topic: "Custom Entity Template", description: "Create custom entity templates" },
+  "custom-entity-template-update": { topic: "Custom Entity Template", description: "Edit custom entity templates" },
+  "custom-entity-template-delete": { topic: "Custom Entity Template", description: "Remove custom entity templates" },
+
   // Cost Element
   "cost-element-read": { topic: "Cost Element", description: "View cost elements" },
   "cost-element-create": { topic: "Cost Element", description: "Create cost elements" },
@@ -170,6 +176,7 @@ const TOPIC_ORDER: string[] = [
   "Control Account",
   "Work Package",
   "Cost Element Type",
+  "Custom Entity Template",
   "Cost Element",
   "Cost Registration",
   "Cost Event",

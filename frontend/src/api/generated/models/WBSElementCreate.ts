@@ -35,6 +35,14 @@ export type WBSElementCreate = {
      */
     description?: (string | null);
     /**
+     * Admin-template custom field values
+     */
+    custom_fields?: (Record<string, any> | null);
+    /**
+     * Bound CustomEntityTemplate root ID
+     */
+    custom_entity_template_root_id?: (string | null);
+    /**
      * Root WBS Element ID (internal use only for seeding)
      */
     wbs_element_id?: (string | null);
@@ -46,5 +54,9 @@ export type WBSElementCreate = {
      * Optional control date for creation (valid_time start)
      */
     control_date?: (string | null);
+    /**
+     * Server-captured field-definition snapshot (read-only)
+     */
+    custom_field_definitions_snapshot?: (Record<string, any> | null);
 };
 

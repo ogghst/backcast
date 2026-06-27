@@ -1,9 +1,14 @@
 import type { ReactNode } from "react";
-import { Descriptions, Typography } from "antd";
+import { Descriptions, Divider, Typography } from "antd";
 import { EntityInfoCard } from "@/components/common/EntityInfoCard";
 import { entityInfoDescriptionsProps } from "@/components/common/entityInfoDescriptionsProps";
 import { useExtendedToken } from "@/hooks/useToken";
 import { formatDateTime, formatTemporalRange } from "@/utils/formatters";
+import { CustomFieldsRenderer } from "@/features/custom-fields/components/CustomFieldsRenderer";
+import type {
+  CustomFieldsValue,
+  FieldDefinitions,
+} from "@/features/custom-fields/types/fieldSpec";
 
 /**
  * Props for {@link EntityMetadataCard}.
@@ -31,6 +36,14 @@ interface EntityMetadataCardProps {
   cardId?: string;
   /** Extra content rendered in the card header (e.g. a History action button). */
   extra?: ReactNode;
+  /**
+   * Captured field-definitions snapshot (`custom_field_definitions_snapshot`).
+   * When present and non-empty, a read-only "Custom Fields" section is rendered
+   * below the metadata rows. Null/empty → section omitted entirely.
+   */
+  customFieldDefinitions?: FieldDefinitions | null;
+  /** Stored custom-field values (`custom_fields`); read-only display only. */
+  customFields?: CustomFieldsValue | null;
 }
 
 /**
@@ -74,8 +87,13 @@ export const EntityMetadataCard = ({
   validTime,
   cardId,
   extra,
+  customFieldDefinitions,
+  customFields,
 }: EntityMetadataCardProps) => {
   const { token } = useExtendedToken();
+
+  const hasCustomFields =
+    !!customFieldDefinitions && Object.keys(customFieldDefinitions).length > 0;
 
   return (
     <EntityInfoCard title="Details" id={cardId ?? "entity-metadata-card"} extra={extra}>
@@ -110,6 +128,23 @@ export const EntityMetadataCard = ({
           </Descriptions.Item>
         )}
       </Descriptions>
+
+      {hasCustomFields && (
+        <>
+          <Divider style={{ marginBlock: token.marginMD }} />
+          <Typography.Text
+            strong
+            style={{ display: "block", marginBottom: token.marginXS }}
+          >
+            Custom Fields
+          </Typography.Text>
+          <CustomFieldsRenderer
+            readOnly
+            fieldDefinitions={customFieldDefinitions!}
+            values={customFields ?? undefined}
+          />
+        </>
+      )}
     </EntityInfoCard>
   );
 };

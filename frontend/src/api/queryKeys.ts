@@ -166,6 +166,15 @@ export const queryKeys = createQueryKeys("backcast-evs", {
     detail: (id: string) => ["cost-element-types", "detail", id] as const,
   },
 
+  // Custom Entity Templates
+  customEntityTemplates: {
+    all: ["custom-entity-templates"] as const,
+    list: ["custom-entity-templates", "list"] as const,
+    detail: (id: string) => ["custom-entity-templates", "detail", id] as const,
+    history: (id: string) =>
+      ["custom-entity-templates", "history", id] as const,
+  },
+
   // Cost Registrations
   costRegistrations: {
     all: ["cost-registrations"] as const,

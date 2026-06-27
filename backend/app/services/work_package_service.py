@@ -98,6 +98,26 @@ class WorkPackageService(BranchableService[WorkPackage]):  # type: ignore[type-v
         root_id = data.work_package_id
         wp_data["work_package_id"] = root_id
 
+        # Phase 1C: custom_fields chokepoint — resolve template, validate,
+        # capture the IMMUTABLE snapshot. ValueError propagates to the route
+        # (400 on create).
+        from app.services.custom_field_service import CustomFieldService
+
+        template_root_id = wp_data.get("custom_entity_template_root_id")
+        cf = wp_data.get("custom_fields")
+        cf_to_store, snapshot = await CustomFieldService(
+            self.session
+        ).prepare_for_create(
+            template_root_id=template_root_id,
+            custom_fields=cf,
+            actor_id=actor_id,
+        )
+        wp_data["custom_fields"] = cf_to_store
+        if snapshot is not None:
+            wp_data["custom_field_definitions_snapshot"] = snapshot
+        else:
+            wp_data.pop("custom_field_definitions_snapshot", None)
+
         # Validate Control Account existence
         ca_exists = await self.session.execute(
             select(ControlAccount.id)
@@ -198,6 +218,23 @@ class WorkPackageService(BranchableService[WorkPackage]):  # type: ignore[type-v
         update_data = data.model_dump(exclude_unset=True)
         update_data.pop("control_date", None)
         branch = update_data.pop("branch", None) or "main"
+
+        # Phase 1C: validate custom_fields against the IMMUTABLE snapshot
+        # captured at create (D11: only when the key is present; absent = skip).
+        # The snapshot is never refreshed on update.
+        if "custom_fields" in update_data:
+            from app.services.custom_field_service import CustomFieldService
+
+            current = await self.get_as_of(
+                entity_id=work_package_id, as_of=None, branch=branch
+            )
+            await CustomFieldService(self.session).validate_for_update(
+                snapshot=(
+                    current.custom_field_definitions_snapshot if current else None
+                ),
+                custom_fields=update_data["custom_fields"],
+                actor_id=actor_id,
+            )
 
         # Extract schedule/forecast fields before WP update
         schedule_fields = {

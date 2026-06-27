@@ -40,6 +40,10 @@ export type ChangeOrderCreate = {
      */
     impact_level?: (string | null);
     /**
+     * Bound CustomEntityTemplate root ID
+     */
+    custom_entity_template_root_id?: (string | null);
+    /**
      * Control date for bitemporal operations
      */
     control_date?: (string | null);
@@ -60,8 +64,12 @@ export type ChangeOrderCreate = {
      */
     sla_status?: (string | null);
     /**
-     * Custom field values matching config.custom_fields definitions
+     * Custom field values (CHANGE_ORDER CustomEntityTemplate)
      */
-    custom_field_values?: (Record<string, any> | null);
+    custom_fields?: (Record<string, any> | null);
+    /**
+     * Server-captured field-definition snapshot (read-only)
+     */
+    custom_field_definitions_snapshot?: (Record<string, any> | null);
 };
 

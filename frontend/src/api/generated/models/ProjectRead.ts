@@ -42,6 +42,14 @@ export type ProjectRead = {
      * Description
      */
     description?: (string | null);
+    /**
+     * Admin-template custom field values
+     */
+    custom_fields?: (Record<string, any> | null);
+    /**
+     * Bound CustomEntityTemplate root ID
+     */
+    custom_entity_template_root_id?: (string | null);
     id: string;
     project_id: string;
     branch: string;
@@ -53,6 +61,10 @@ export type ProjectRead = {
     deleted_by?: (string | null);
     valid_time?: (string | null);
     transaction_time?: (string | null);
+    /**
+     * Immutable field-definition snapshot captured at create
+     */
+    custom_field_definitions_snapshot?: (Record<string, any> | null);
     /**
      * Display-ready valid_time temporal data.
      *

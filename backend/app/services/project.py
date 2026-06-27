@@ -396,6 +396,27 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
         root_id = project_in.project_id or uuid4()
         project_data["project_id"] = root_id
 
+        # Phase 1C: custom_fields chokepoint — resolve the template, validate
+        # the supplied values, and capture the IMMUTABLE field-definitions
+        # snapshot onto the entity row. ValueError propagates to the route
+        # (400 on create).
+        from app.services.custom_field_service import CustomFieldService
+
+        template_root_id = project_data.get("custom_entity_template_root_id")
+        cf = project_data.get("custom_fields")
+        cf_to_store, snapshot = await CustomFieldService(
+            self.session
+        ).prepare_for_create(
+            template_root_id=template_root_id,
+            custom_fields=cf,
+            actor_id=actor_id,
+        )
+        project_data["custom_fields"] = cf_to_store
+        if snapshot is not None:
+            project_data["custom_field_definitions_snapshot"] = snapshot
+        else:
+            project_data.pop("custom_field_definitions_snapshot", None)
+
         cmd = CreateVersionCommand(
             entity_class=Project,  # type: ignore[type-var,unused-ignore]
             root_id=root_id,
@@ -429,6 +450,21 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
         update_data = project_in.model_dump(exclude_unset=True)
         update_data.pop("control_date", None)
         update_data.pop("branch", None)
+
+        # Phase 1C: validate custom_fields against the IMMUTABLE snapshot
+        # captured at create (D11: only when the key is present; absent = skip).
+        # The snapshot is never refreshed on update.
+        if "custom_fields" in update_data:
+            from app.services.custom_field_service import CustomFieldService
+
+            current = await self.get_as_of(project_id, branch=branch)
+            await CustomFieldService(self.session).validate_for_update(
+                snapshot=(
+                    current.custom_field_definitions_snapshot if current else None
+                ),
+                custom_fields=update_data["custom_fields"],
+                actor_id=actor_id,
+            )
 
         cmd = UpdateCommand(
             entity_class=Project,  # type: ignore[type-var,unused-ignore]

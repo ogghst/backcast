@@ -214,6 +214,8 @@ export const ProjectOverview = () => {
             createdBy={project.created_by_name}
             validTime={project.valid_time_formatted}
             cardId="project-metadata-card"
+            customFieldDefinitions={project.custom_field_definitions_snapshot}
+            customFields={project.custom_fields}
             extra={
               <Can permission="project-read">
                 <Button

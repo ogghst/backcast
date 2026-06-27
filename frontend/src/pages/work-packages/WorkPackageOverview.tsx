@@ -630,6 +630,8 @@ export const WorkPackageOverview = () => {
         createdBy={workPackage.created_by_name}
         validTime={workPackage.valid_time_formatted}
         cardId="wp-metadata-card"
+        customFieldDefinitions={workPackage.custom_field_definitions_snapshot}
+        customFields={workPackage.custom_fields}
         extra={
           <Can permission="work-package-read">
             <Button

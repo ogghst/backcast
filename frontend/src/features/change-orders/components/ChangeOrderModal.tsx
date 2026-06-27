@@ -3,11 +3,9 @@ import {
   Modal,
   Form,
   Input,
-  InputNumber,
   DatePicker,
   Select,
   Alert,
-  Divider,
   theme,
 } from "antd";
 import dayjs from "dayjs";
@@ -19,11 +17,10 @@ import type {
 } from "@/api/generated";
 import { useWorkflowInfo } from "../hooks/useWorkflowInfo";
 import { useNextChangeOrderCode } from "../api/useChangeOrders";
-import {
-  useGlobalConfig,
-  useProjectConfig,
-  type CustomFieldDefinition,
-} from "../api/useWorkflowConfig";
+import { CollapsibleCard } from "@/components/common/CollapsibleCard";
+import { TemplateSelector } from "@/features/custom-fields/components/TemplateSelector";
+import { CustomFieldsRenderer } from "@/features/custom-fields/components/CustomFieldsRenderer";
+import type { FieldDefinitions } from "@/features/custom-fields/types/fieldSpec";
 
 interface ServerErrors {
   code?: string;
@@ -46,7 +43,7 @@ interface FormValues {
   justification?: string;
   effective_date?: dayjs.Dayjs;
   status: string;
-  custom_field_values?: Record<string, string | number | dayjs.Dayjs | null>;
+  custom_fields?: Record<string, string | number | dayjs.Dayjs | null>;
 }
 
 export const ChangeOrderModal = ({
@@ -65,6 +62,26 @@ export const ChangeOrderModal = ({
   // Track current code value for branch name display
   const [currentCode, setCurrentCode] = useState<string>("");
 
+  // Custom-fields template (CREATE only; EDIT renders from the captured
+  // snapshot). Replaces the legacy global/project workflow-config custom
+  // fields, which were driven by a hand-rolled FieldRegistry.
+  const [selectedTemplateRootId, setSelectedTemplateRootId] = useState<
+    string | null
+  >(null);
+  const [selectedFieldDefs, setSelectedFieldDefs] =
+    useState<FieldDefinitions | null>(null);
+
+  // EDIT-mode field definitions are derived purely from the entity's captured
+  // snapshot (no user interaction), so useMemo — not state — to avoid
+  // setState-in-effect cascades.
+  const editFieldDefs = useMemo<FieldDefinitions | null>(
+    () =>
+      (initialValues?.custom_field_definitions_snapshot as FieldDefinitions | null | undefined) ??
+      null,
+    [initialValues],
+  );
+  const fieldDefs = isEdit ? editFieldDefs : selectedFieldDefs;
+
   // Get workflow-aware information
   const workflowInfo = useWorkflowInfo(
     initialValues?.status,
@@ -72,21 +89,6 @@ export const ChangeOrderModal = ({
     initialValues?.can_edit_status,
     initialValues?.branch_locked
   );
-
-  // Fetch workflow config for custom fields (project with global fallback)
-  const globalConfigQuery = useGlobalConfig();
-  const projectConfigQuery = useProjectConfig(projectId, {
-    enabled: !!projectId,
-    retry: false,
-  });
-
-  const customFields: CustomFieldDefinition[] = useMemo(() => {
-    const activeConfig =
-      projectId && projectConfigQuery.data
-        ? projectConfigQuery.data
-        : globalConfigQuery.data;
-    return activeConfig?.custom_fields ?? [];
-  }, [projectId, projectConfigQuery.data, globalConfigQuery.data]);
 
   // Fetch next code from backend for create mode
   const { data: nextCodeData, isLoading: isLoadingNextCode } =
@@ -103,21 +105,26 @@ export const ChangeOrderModal = ({
   useEffect(() => {
     if (open) {
       if (initialValues) {
-        // Transform API date strings to dayjs objects for DatePicker
-        // Pre-fill custom field values, converting date strings to dayjs
-        const cfv = initialValues.custom_field_values;
+        // Edit renders custom fields from the entity's CAPTURED SNAPSHOT
+        // (template binding is immutable post-create). Convert any stored
+        // date/datetime values to dayjs so the renderer's DatePicker binds.
+        // editFieldDefs is derived via useMemo above.
+        const cfv = initialValues.custom_fields;
         const customFieldValues: Record<
           string,
           string | number | dayjs.Dayjs | null
         > = {};
-        if (cfv) {
+        if (cfv && editFieldDefs) {
           for (const [key, value] of Object.entries(cfv)) {
-            const fieldDef = customFields.find((f) => f.name === key);
-            if (fieldDef?.type === "date" && typeof value === "string" && value) {
-              customFieldValues[key] = dayjs(value);
-            } else {
-              customFieldValues[key] = value as string | number | null;
-            }
+            const spec = editFieldDefs[key];
+            const isDateField =
+              spec &&
+              (spec.type === "date" || spec.type === "datetime") &&
+              typeof value === "string" &&
+              value;
+            customFieldValues[key] = isDateField
+              ? dayjs(value as string)
+              : (value as string | number | null);
           }
         }
 
@@ -126,10 +133,10 @@ export const ChangeOrderModal = ({
           effective_date: initialValues.effective_date
             ? dayjs(initialValues.effective_date)
             : null,
-          custom_field_values:
+          custom_fields:
             Object.keys(customFieldValues).length > 0
               ? customFieldValues
-              : undefined,
+              : {},
         });
       } else {
         form.resetFields();
@@ -138,10 +145,18 @@ export const ChangeOrderModal = ({
           project_id: projectId,
           status: "draft",
           code: autoGeneratedCode || "",
+          custom_fields: {},
         });
+        // No-cascade: start with an empty selector. Resetting selection state
+        // when the modal re-opens for CREATE is the documented React exception
+        // to set-state-in-effect (reset on prop change). Key-based remount
+        // would fight the form's destroyOnHidden.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setSelectedTemplateRootId(null);
+        setSelectedFieldDefs(null);
       }
     }
-  }, [open, initialValues, form, projectId, autoGeneratedCode, customFields]);
+  }, [open, initialValues, form, projectId, autoGeneratedCode, editFieldDefs]);
 
   const handleSubmit = async () => {
     try {
@@ -169,10 +184,10 @@ export const ChangeOrderModal = ({
       // (don't send null to the API)
 
       // Convert custom field dayjs values to ISO strings for the API
-      if (values.custom_field_values) {
+      if (values.custom_fields) {
         const cfv: Record<string, string | number | null> = {};
         for (const [key, value] of Object.entries(
-          values.custom_field_values,
+          values.custom_fields,
         )) {
           if (dayjs.isDayjs(value)) {
             cfv[key] = value.isValid() ? value.format("YYYY-MM-DD") : null;
@@ -180,12 +195,16 @@ export const ChangeOrderModal = ({
             cfv[key] = value as string | number | null;
           }
         }
-        formattedValues.custom_field_values = cfv;
+        formattedValues.custom_fields = cfv;
       }
 
       await onOk({
         ...formattedValues,
         status: formattedValues.status as ChangeOrderStatus,
+        // Template binding is immutable post-create; only send on CREATE.
+        custom_entity_template_root_id: isEdit
+          ? undefined
+          : (selectedTemplateRootId ?? null),
       } as ChangeOrderCreate | ChangeOrderUpdate);
     } catch (error) {
       console.error("Form submission error:", error);
@@ -314,48 +333,38 @@ export const ChangeOrderModal = ({
           />
         </Form.Item>
 
-        {/* Dynamic Custom Fields */}
-        {customFields.length > 0 && (
-          <>
-            <Divider style={{ margin: `${token.marginXS} 0` }}>
-              Custom Fields
-            </Divider>
-            {customFields.map((field) => (
-              <Form.Item
-                key={field.name}
-                name={["custom_field_values", field.name]}
-                label={field.name}
-                rules={[
-                  {
-                    required: field.required,
-                    message: `${field.name} is required`,
-                  },
-                ]}
-              >
-                {field.type === "text" ? (
-                  <Input placeholder={`Enter ${field.name.toLowerCase()}`} />
-                ) : field.type === "number" ? (
-                  <InputNumber
-                    placeholder={`Enter ${field.name.toLowerCase()}`}
-                    style={{ width: "100%" }}
-                  />
-                ) : field.type === "date" ? (
-                  <DatePicker style={{ width: "100%" }} />
-                ) : field.type === "select" && field.options.length > 0 ? (
-                  <Select
-                    placeholder={`Select ${field.name.toLowerCase()}`}
-                    allowClear
-                    options={field.options.map((opt) => ({
-                      label: opt,
-                      value: opt,
-                    }))}
-                  />
-                ) : (
-                  <Input placeholder={`Enter ${field.name.toLowerCase()}`} />
-                )}
-              </Form.Item>
-            ))}
-          </>
+        {/* Custom fields (template-driven). CREATE: pick a template; EDIT:
+            immutable binding, render from the captured snapshot. Replaces the
+            legacy hand-rolled custom-field UI driven by workflow config. */}
+        {!isEdit && (
+          <Form.Item
+            name="custom_entity_template_root_id"
+            label="Custom Fields Template"
+            tooltip="Optional. Selecting a template adds its custom fields below."
+          >
+            <TemplateSelector
+              targetType="CHANGE_ORDER"
+              value={selectedTemplateRootId}
+              onChange={(rootId, fieldDefs) => {
+                setSelectedTemplateRootId(rootId);
+                setSelectedFieldDefs(fieldDefs ?? null);
+                form.setFieldValue(
+                  "custom_entity_template_root_id",
+                  rootId,
+                );
+              }}
+            />
+          </Form.Item>
+        )}
+
+        {fieldDefs && Object.keys(fieldDefs).length > 0 && (
+          <CollapsibleCard
+            id="change-order-custom-fields"
+            title="Custom Fields"
+            keepMounted
+          >
+            <CustomFieldsRenderer fieldDefinitions={fieldDefs} />
+          </CollapsibleCard>
         )}
       </Form>
 

@@ -12,6 +12,9 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
+from sqlalchemy.exc import IntegrityError
+
+from app.api.dependencies.errors import is_unique_violation
 
 # Include routers
 from app.api.routes import (
@@ -29,6 +32,7 @@ from app.api.routes import (
     cost_events,
     cost_registration_attachments,
     cost_registrations,
+    custom_entity_templates,
     dashboard,
     dashboard_layouts,
     documents,
@@ -108,6 +112,20 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info("[STARTUP] users_rbac_seed OK %.0fms", (_time.time() - _t0) * 1000)
     except Exception:
         logger.warning("[STARTUP] users_rbac_seed FAILED", exc_info=True)
+
+    # Seed default CustomEntityTemplate rows (idempotent, safe on every startup).
+    try:
+        _t0 = _time.time()
+        from app.db.seed_custom_templates import seed_default_custom_templates
+
+        async with async_session_maker() as session:
+            await seed_default_custom_templates(session)
+            await session.commit()
+        logger.info(
+            "[STARTUP] custom_templates_seed OK %.0fms", (_time.time() - _t0) * 1000
+        )
+    except Exception:
+        logger.warning("[STARTUP] custom_templates_seed FAILED", exc_info=True)
 
     # Initialize RBAC permissions cache (runs AFTER seeding so it reflects
     # the fully-seeded role/permission state).
@@ -369,6 +387,28 @@ async def branch_locked_exception_handler(
     )
 
 
+@app.exception_handler(IntegrityError)
+async def integrity_error_handler(
+    request: Request, exc: IntegrityError
+) -> JSONResponse:
+    """Handle database integrity errors.
+
+    A PostgreSQL unique-violation (sqlstate 23505) — e.g. when the C1
+    per-(root, branch) current-version index catches a concurrent edit — is
+    mapped to 409 Conflict. Other integrity errors surface as 500.
+    """
+    if is_unique_violation(exc):
+        return JSONResponse(
+            status_code=409,
+            content={
+                "detail": "Concurrent modification detected: another edit created a conflicting current version. Please re-fetch and retry."
+            },
+        )
+    return JSONResponse(
+        status_code=500, content={"detail": "Database integrity error."}
+    )
+
+
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(
     request: Request, exc: ValidationError
@@ -480,6 +520,11 @@ app.include_router(
     cost_element_types.router,
     prefix=f"{settings.API_V1_STR}/cost-element-types",
     tags=["Cost Element Types"],
+)
+app.include_router(
+    custom_entity_templates.router,
+    prefix=f"{settings.API_V1_STR}/custom-entity-templates",
+    tags=["Custom Entity Templates"],
 )
 app.include_router(
     cost_event_types.router,

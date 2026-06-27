@@ -431,6 +431,8 @@ export const WBSElementOverview = () => {
             createdBy={wbe.created_by_name}
             validTime={wbe.valid_time_formatted}
             cardId="wbe-metadata-card"
+            customFieldDefinitions={wbe.custom_field_definitions_snapshot}
+            customFields={wbe.custom_fields}
             extra={
               <Can permission="wbs-element-read">
                 <Button

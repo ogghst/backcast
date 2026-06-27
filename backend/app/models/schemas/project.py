@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -25,6 +26,12 @@ class ProjectBase(BaseModel):
     start_date: datetime | None = Field(None, description="Project start date")
     end_date: datetime | None = Field(None, description="Project end date")
     description: str | None = Field(None, max_length=5000, description="Description")
+    custom_fields: dict[str, Any] | None = Field(
+        None, description="Admin-template custom field values"
+    )
+    custom_entity_template_root_id: UUID | None = Field(
+        None, description="Bound CustomEntityTemplate root ID"
+    )
 
 
 class ProjectCreate(ProjectBase):
@@ -41,6 +48,11 @@ class ProjectCreate(ProjectBase):
     )
     control_date: datetime | None = Field(
         None, description="Optional control date for creation (valid_time start)"
+    )
+    custom_field_definitions_snapshot: dict[str, Any] | None = Field(
+        None,
+        description="Server-captured field-definition snapshot (read-only)",
+        exclude=True,
     )
 
 
@@ -62,6 +74,12 @@ class ProjectUpdate(BaseModel):
     control_date: datetime | None = Field(
         None, description="Optional control date for update (valid_time start)"
     )
+    custom_fields: dict[str, Any] | None = Field(
+        None, description="Admin-template custom field values"
+    )
+    custom_entity_template_root_id: UUID | None = Field(
+        None, description="Bound CustomEntityTemplate root ID"
+    )
 
 
 class ProjectRead(ProjectBase, TemporalComputedMixin, EntityMetadataMixin):
@@ -78,6 +96,10 @@ class ProjectRead(ProjectBase, TemporalComputedMixin, EntityMetadataMixin):
     deleted_by: UUID | None = None
     valid_time: TemporalRange = None
     transaction_time: TemporalRange = None
+    custom_field_definitions_snapshot: dict[str, Any] | None = Field(
+        None,
+        description="Immutable field-definition snapshot captured at create",
+    )
 
     model_config = ConfigDict(from_attributes=True)
 

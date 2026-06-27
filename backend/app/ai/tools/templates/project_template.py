@@ -24,6 +24,7 @@ from typing import Annotated, Any
 from langchain_core.tools import InjectedToolArg
 
 from app.ai.tools.context_tools import _apply_session_project_switch
+from app.ai.tools.custom_fields_helpers import filter_ai_visible_custom_fields
 from app.ai.tools.decorator import ai_tool
 from app.ai.tools.templates._pagination import (
     BATCH_SIZE_LIMIT,
@@ -57,6 +58,8 @@ async def create_project(
     budget: float | None = None,
     start_date: str | None = None,
     end_date: str | None = None,
+    custom_fields: dict[str, Any] | None = None,
+    custom_entity_template_root_id: str | None = None,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Create a new project.
@@ -70,6 +73,11 @@ async def create_project(
         budget: Optional project budget
         start_date: Optional start date (ISO format string)
         end_date: Optional end date (ISO format string)
+        custom_fields: Optional {code: value} dict of custom-field values. Codes
+            must match the bound template's field definitions; the service
+            validates and captures an immutable snapshot at create.
+        custom_entity_template_root_id: Optional UUID of the CustomEntityTemplate
+            to bind (required when custom_fields is non-empty).
         context: Injected tool execution context
 
     Returns:
@@ -113,6 +121,12 @@ async def create_project(
             start_date=datetime.fromisoformat(start_date) if start_date else None,
             end_date=datetime.fromisoformat(end_date) if end_date else None,
             branch=context.branch_name or "main",
+            custom_fields=custom_fields,
+            custom_entity_template_root_id=(
+                UUID(custom_entity_template_root_id)
+                if custom_entity_template_root_id
+                else None
+            ),
         )
 
         # Call service method (Entity-specific method handles EVCS root_id)
@@ -139,6 +153,10 @@ async def create_project(
             "description": project.description,
             "status": project.status,
             "budget": float(project.budget) if project.budget else None,
+            "custom_fields": filter_ai_visible_custom_fields(
+                getattr(project, "custom_fields", None),
+                getattr(project, "custom_field_definitions_snapshot", None),
+            ),
             "context_switched_to": str(project.project_id),
         }
     except ValueError as e:
@@ -160,6 +178,8 @@ async def update_project(
     name: str | None = None,
     description: str | None = None,
     status: str | None = None,
+    custom_fields: dict[str, Any] | None = None,
+    custom_entity_template_root_id: str | None = None,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Update an existing project.
@@ -171,6 +191,12 @@ async def update_project(
         name: New project name (optional)
         description: New description (optional)
         status: New status (optional)
+        custom_fields: Optional {code: value} dict of custom-field values. When
+            provided (even empty), the service validates against the snapshot
+            captured at create; omit to leave custom fields untouched.
+        custom_entity_template_root_id: Optional UUID of the bound
+            CustomEntityTemplate (only meaningful at create; ignored on update
+            where the snapshot is immutable).
         context: Injected tool execution context
 
     Returns:
@@ -202,6 +228,11 @@ async def update_project(
             update_kwargs["description"] = description
         if status is not None:
             update_kwargs["status"] = status
+        # custom_fields is opt-in per call: include only when the LLM passed it
+        # (the service routes on presence via exclude_unset, D11). An empty {}
+        # is meaningful (clears values), so we check `is not None`.
+        if custom_fields is not None:
+            update_kwargs["custom_fields"] = custom_fields
 
         if not update_kwargs:
             return {"error": "No fields provided for update"}
@@ -226,6 +257,10 @@ async def update_project(
             "description": project.description,
             "status": project.status,
             "budget": float(project.budget) if project.budget else None,
+            "custom_fields": filter_ai_visible_custom_fields(
+                project.custom_fields,
+                getattr(project, "custom_field_definitions_snapshot", None),
+            ),
         }
     except ValueError as e:
         return {"error": f"Invalid input: {e}"}
@@ -312,6 +347,7 @@ async def find_wbs_elements(
     search: str | None = None,
     page: int = 1,
     limit: int | None = None,
+    include_custom_fields: bool = False,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Find WBS Elements by ID or search/filter.
@@ -324,6 +360,10 @@ async def find_wbs_elements(
         search: Optional search term
         page: Page number (1-based)
         limit: Maximum records per page (default from config, max 200)
+        include_custom_fields: When True, include each row's ai_visible custom
+            fields (filtered by the entity's snapshot). Default False; the
+            single-element lookup (wbs_element_id set) always includes
+            custom_fields.
         context: Injected tool execution context
 
     Returns:
@@ -368,6 +408,10 @@ async def find_wbs_elements(
                 if hasattr(wbs, "budget_allocation") and wbs.budget_allocation
                 else None,
                 "description": wbs.description if hasattr(wbs, "description") else None,
+                "custom_fields": filter_ai_visible_custom_fields(
+                    getattr(wbs, "custom_fields", None),
+                    getattr(wbs, "custom_field_definitions_snapshot", None),
+                ),
             }
             return add_temporal_metadata(result, context)
 
@@ -393,6 +437,16 @@ async def find_wbs_elements(
                     "budget_allocation": float(w.budget_allocation)
                     if hasattr(w, "budget_allocation") and w.budget_allocation
                     else None,
+                    **(
+                        {
+                            "custom_fields": filter_ai_visible_custom_fields(
+                                getattr(w, "custom_fields", None),
+                                getattr(w, "custom_field_definitions_snapshot", None),
+                            )
+                        }
+                        if include_custom_fields
+                        else {}
+                    ),
                 }
                 for w in wbs_elements
             ],
@@ -424,6 +478,8 @@ async def create_wbs_element(
     code: str,
     description: str | None = None,
     parent_wbs_element_id: str | None = None,
+    custom_fields: dict[str, Any] | None = None,
+    custom_entity_template_root_id: str | None = None,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Create a new WBS Element.
@@ -436,6 +492,10 @@ async def create_wbs_element(
         code: Unique WBS Element code
         description: Optional description
         parent_wbs_element_id: Optional UUID of the parent WBS Element to create as a child
+        custom_fields: Optional {code: value} dict of custom-field values; the
+            service validates against the bound template and captures a snapshot.
+        custom_entity_template_root_id: Optional UUID of the CustomEntityTemplate
+            to bind (required when custom_fields is non-empty).
         context: Injected tool execution context
 
     Returns:
@@ -480,6 +540,12 @@ async def create_wbs_element(
             if parent_wbs_element_id
             else None,
             branch=context.branch_name or "main",
+            custom_fields=custom_fields,
+            custom_entity_template_root_id=(
+                UUID(custom_entity_template_root_id)
+                if custom_entity_template_root_id
+                else None
+            ),
         )
 
         # Call service method
@@ -495,6 +561,10 @@ async def create_wbs_element(
             "parent_wbs_element_id": str(wbs.parent_wbs_element_id)
             if hasattr(wbs, "parent_wbs_element_id") and wbs.parent_wbs_element_id
             else None,
+            "custom_fields": filter_ai_visible_custom_fields(
+                getattr(wbs, "custom_fields", None),
+                getattr(wbs, "custom_field_definitions_snapshot", None),
+            ),
         }
     except ValueError as e:
         return {"error": f"Invalid input: {e}"}
@@ -515,6 +585,8 @@ async def update_wbs_element(
     name: str | None = None,
     description: str | None = None,
     revenue_allocation: float | None = None,
+    custom_fields: dict[str, Any] | None = None,
+    custom_entity_template_root_id: str | None = None,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Update an existing WBS Element.
@@ -526,6 +598,11 @@ async def update_wbs_element(
         name: New name (optional)
         description: New description (optional)
         revenue_allocation: New revenue allocation as a decimal value (optional)
+        custom_fields: Optional {code: value} dict; when provided the service
+            validates against the snapshot captured at create. Omit to leave
+            custom fields untouched.
+        custom_entity_template_root_id: Optional UUID of the bound
+            CustomEntityTemplate (only meaningful at create; ignored on update).
         context: Injected tool execution context
 
     Returns:
@@ -559,6 +636,10 @@ async def update_wbs_element(
             update_kwargs["description"] = description
         if revenue_allocation is not None:
             update_kwargs["revenue_allocation"] = Decimal(str(revenue_allocation))
+        # custom_fields is opt-in per call (service routes on presence via
+        # exclude_unset, D11). An empty {} is meaningful, so check `is not None`.
+        if custom_fields is not None:
+            update_kwargs["custom_fields"] = custom_fields
 
         if not update_kwargs:
             return {"error": "No fields provided for update"}
@@ -582,6 +663,10 @@ async def update_wbs_element(
             "code": wbs.code,
             "project_id": str(wbs.project_id),
             "description": wbs.description if hasattr(wbs, "description") else None,
+            "custom_fields": filter_ai_visible_custom_fields(
+                getattr(wbs, "custom_fields", None),
+                getattr(wbs, "custom_field_definitions_snapshot", None),
+            ),
         }
     except ValueError as e:
         return {"error": f"Invalid input: {e}"}

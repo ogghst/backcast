@@ -26,5 +26,13 @@ export type WorkPackageUpdate = {
     schedule_description?: (string | null);
     eac_amount?: (number | string | null);
     basis_of_estimate?: (string | null);
+    /**
+     * Admin-template custom field values
+     */
+    custom_fields?: (Record<string, any> | null);
+    /**
+     * Bound CustomEntityTemplate root ID
+     */
+    custom_entity_template_root_id?: (string | null);
 };
 

@@ -1,0 +1,128 @@
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
+import { App, ConfigProvider } from "antd";
+
+import {
+  FieldDefinitionsEditor,
+  type FieldDefinitionsValue,
+} from "./FieldDefinitionsEditor";
+
+function renderWithTheme(ui: React.ReactElement) {
+  return render(
+    <App>
+      <ConfigProvider>{ui}</ConfigProvider>
+    </App>,
+  );
+}
+
+describe("FieldDefinitionsEditor", () => {
+  it("renders existing fields from the value prop", () => {
+    const value: FieldDefinitionsValue = {
+      priority: { type: "select", label: "Priority", options: ["low", "high"] },
+    };
+    renderWithTheme(
+      <FieldDefinitionsEditor value={value} onChange={vi.fn()} />,
+    );
+    // Code + label inputs are pre-filled.
+    expect(
+      (screen.getByPlaceholderText("priority") as HTMLInputElement).value,
+    ).toBe("priority");
+    expect(
+      (screen.getByPlaceholderText("Priority") as HTMLInputElement).value,
+    ).toBe("Priority");
+  });
+
+  it("shows the empty hint when there are no fields", () => {
+    renderWithTheme(
+      <FieldDefinitionsEditor value={{}} onChange={vi.fn()} />,
+    );
+    expect(screen.getByText(/no custom fields defined/i)).toBeInTheDocument();
+  });
+
+  it("adds a field and emits the new dict via onChange", () => {
+    const onChange = vi.fn();
+    renderWithTheme(
+      <FieldDefinitionsEditor value={{}} onChange={onChange} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /add field/i }));
+    expect(onChange).toHaveBeenCalledTimes(1);
+    // An empty-code row serializes to an empty dict (empty codes skipped).
+    expect(onChange).toHaveBeenCalledWith({});
+  });
+
+  it("serializes type-specific config (options, max_length, target_entity)", () => {
+    const onChange = vi.fn();
+    const value: FieldDefinitionsValue = {
+      // select -> options
+      priority: { type: "select", label: "Priority", options: ["low"] },
+      // text -> max_length
+      reason: { type: "text", label: "Reason", max_length: 500, required: true },
+      // reference -> target_entity
+      owner: { type: "reference", label: "Owner", target_entity: "user" },
+      // number -> no extra config
+      amount: { type: "number", label: "Amount" },
+    };
+    renderWithTheme(
+      <FieldDefinitionsEditor value={value} onChange={onChange} />,
+    );
+
+    // Re-emit by toggling required on the first row's switch. We grab switches
+    // (Required + the type-specific ones); toggling any fires onChange with the
+    // full serialized dict. Simpler: re-render with a fresh onChange and patch
+    // a label to force an emit, then assert the payload shape.
+    const labelInput = screen.getByDisplayValue("Priority");
+    fireEvent.change(labelInput, { target: { value: "Prio2" } });
+
+    const lastCall = onChange.mock.calls.at(-1)?.[0] as FieldDefinitionsValue;
+    expect(lastCall).toBeDefined();
+    // options preserved on select
+    expect(lastCall.priority.options).toEqual(["low"]);
+    // max_length + required preserved on text
+    expect(lastCall.reason.max_length).toBe(500);
+    expect(lastCall.reason.required).toBe(true);
+    // target_entity preserved on reference
+    expect(lastCall.owner.target_entity).toBe("user");
+    // number has no extra config keys beyond type/label
+    expect(lastCall.amount).toEqual({ type: "number", label: "Amount" });
+    // label update applied
+    expect(lastCall.priority.label).toBe("Prio2");
+    // code never written into the inner spec (backend injects it)
+    expect("code" in lastCall.priority).toBe(false);
+  });
+
+  it("removes a field via the remove button", () => {
+    const onChange = vi.fn();
+    const value: FieldDefinitionsValue = {
+      priority: { type: "select", label: "Priority" },
+      reason: { type: "text", label: "Reason" },
+    };
+    renderWithTheme(
+      <FieldDefinitionsEditor value={value} onChange={onChange} />,
+    );
+    // antd icon buttons expose the label via `title`, not the accessible name.
+    const removeButtons = screen
+      .getAllByRole("button")
+      .filter((b) => b.getAttribute("title") === "Remove field");
+    expect(removeButtons.length).toBe(2);
+    // Remove the first row (priority).
+    fireEvent.click(removeButtons[0]);
+    const lastCall = onChange.mock.calls.at(-1)?.[0] as FieldDefinitionsValue;
+    expect(Object.keys(lastCall)).toEqual(["reason"]);
+  });
+
+  it("flags duplicate codes with an error message", () => {
+    // Two rows with the same code: edit the second row's code to collide.
+    const value: FieldDefinitionsValue = {
+      dup: { type: "text", label: "First" },
+    };
+    renderWithTheme(
+      <FieldDefinitionsEditor value={value} onChange={vi.fn()} />,
+    );
+    // Add a second field and type the same code "dup".
+    fireEvent.click(screen.getByRole("button", { name: /add field/i }));
+    const codeInputs = screen.getAllByPlaceholderText("priority");
+    fireEvent.change(codeInputs[1], { target: { value: "dup" } });
+    // Both colliding rows render the duplicate-code message.
+    expect(screen.getAllByText("Code must be unique").length).toBeGreaterThanOrEqual(1);
+  });
+});

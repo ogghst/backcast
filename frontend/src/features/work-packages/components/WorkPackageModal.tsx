@@ -1,13 +1,30 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Modal, Form, Input, Select, InputNumber } from "antd";
+import dayjs, { type Dayjs } from "dayjs";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { useControlAccounts } from "@/features/control-accounts/api/useControlAccounts";
+import { CollapsibleCard } from "@/components/common/CollapsibleCard";
+import { TemplateSelector } from "@/features/custom-fields/components/TemplateSelector";
+import { CustomFieldsRenderer } from "@/features/custom-fields/components/CustomFieldsRenderer";
+import type { FieldDefinitions } from "@/features/custom-fields/types/fieldSpec";
 import type {
   WorkPackageCreate,
   WorkPackageUpdate,
   WorkPackageRead,
 } from "@/api/generated";
+
+/** Serialize custom-field dayjs values to ISO strings for the API. */
+function serializeCustomFields(
+  values: Record<string, unknown> | undefined | null,
+): Record<string, unknown> | undefined {
+  if (!values) return undefined;
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(values)) {
+    out[key] = dayjs.isDayjs(value) ? (value as Dayjs).toISOString() : value;
+  }
+  return out;
+}
 
 const STATUS_OPTIONS = [
   { label: "Open", value: "open" },
@@ -39,6 +56,24 @@ export const WorkPackageModal = ({
   const { asOf } = useTimeMachineParams();
   const { spacing } = useThemeTokens();
   const isEdit = !!initialValues;
+
+  // Custom-fields template (CREATE only; EDIT renders from the snapshot).
+  const [selectedTemplateRootId, setSelectedTemplateRootId] = useState<
+    string | null
+  >(null);
+  const [selectedFieldDefs, setSelectedFieldDefs] =
+    useState<FieldDefinitions | null>(null);
+
+  // EDIT-mode field definitions are derived purely from the entity's captured
+  // snapshot (no user interaction), so useMemo — not state — to avoid
+  // setState-in-effect cascades.
+  const editFieldDefs = useMemo<FieldDefinitions | null>(
+    () =>
+      (initialValues?.custom_field_definitions_snapshot as FieldDefinitions) ??
+      null,
+    [initialValues],
+  );
+  const fieldDefs = isEdit ? editFieldDefs : selectedFieldDefs;
 
   // Control Account options — scoped to a specific WBS element when provided
   const { data: caData } = useControlAccounts(
@@ -87,12 +122,22 @@ export const WorkPackageModal = ({
             : undefined,
           status: initialValues.status,
           control_account_id: initialValues.control_account_id,
+          custom_fields: initialValues.custom_fields ?? {},
         });
+        // editFieldDefs is derived via useMemo above.
       } else {
         form.resetFields();
         form.setFieldsValue({
           status: "open",
+          custom_fields: {},
         });
+        // No-cascade: start with an empty selector. Resetting selection state
+        // when the modal re-opens for CREATE is the documented React exception
+        // to set-state-in-effect (reset on prop change). Key-based remount
+        // would fight the form's destroyOnHidden.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setSelectedTemplateRootId(null);
+        setSelectedFieldDefs(null);
       }
     }
     prevOpenRef.current = open;
@@ -101,7 +146,15 @@ export const WorkPackageModal = ({
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
-      await onOk(values);
+      await onOk({
+        ...values,
+        custom_fields: serializeCustomFields(
+          values.custom_fields as Record<string, unknown> | undefined,
+        ),
+        custom_entity_template_root_id: isEdit
+          ? undefined
+          : (selectedTemplateRootId ?? null),
+      });
     } catch (error) {
       console.error("Form submission error:", error);
     }
@@ -195,6 +248,39 @@ export const WorkPackageModal = ({
             allowClear
           />
         </Form.Item>
+
+        {/* Custom fields (template-driven). CREATE: pick a template; EDIT:
+            immutable binding, render from the captured snapshot. */}
+        {!isEdit && (
+          <Form.Item
+            name="custom_entity_template_root_id"
+            label="Custom Fields Template"
+            tooltip="Optional. Selecting a template adds its custom fields below."
+          >
+            <TemplateSelector
+              targetType="WORK_PACKAGE"
+              value={selectedTemplateRootId}
+              onChange={(rootId, fieldDefs) => {
+                setSelectedTemplateRootId(rootId);
+                setSelectedFieldDefs(fieldDefs ?? null);
+                form.setFieldValue(
+                  "custom_entity_template_root_id",
+                  rootId,
+                );
+              }}
+            />
+          </Form.Item>
+        )}
+
+        {fieldDefs && Object.keys(fieldDefs).length > 0 && (
+          <CollapsibleCard
+            id="work-package-custom-fields"
+            title="Custom Fields"
+            keepMounted
+          >
+            <CustomFieldsRenderer fieldDefinitions={fieldDefs} />
+          </CollapsibleCard>
+        )}
       </Form>
     </Modal>
   );

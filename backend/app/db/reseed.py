@@ -74,6 +74,8 @@ TABLES_TO_TRUNCATE: list[str] = [
     "cost_element_types",
     "cost_event_types",
     "organizational_units",
+    # Custom entity templates (depend on organizational_units root IDs)
+    "custom_entity_templates",
     # App config
     "dashboard_layouts",
     "mcp_servers",
@@ -176,7 +178,7 @@ _JSONB_COLS: set[str] = {
     "score_boundaries",
     "workflow_transitions",
     "custom_fields",
-    "custom_field_values",
+    "field_definitions",
     "config_snapshot",
     "impact_analysis_results",
     "delegation_config",
@@ -314,6 +316,19 @@ async def _seed_organizational_units(
             **unit_data,
         )
     logger.info("Seeded %d organizational units", len(data))
+
+
+async def _seed_custom_entity_templates(session: AsyncSession) -> None:
+    """Seed default CustomEntityTemplate rows (idempotent create-or-skip).
+
+    Delegates to :func:`seed_default_custom_templates` so the startup and reseed
+    paths share a single source of truth for the default CHANGE_ORDER template.
+    """
+    from app.db.seed_custom_templates import seed_default_custom_templates
+
+    await seed_default_custom_templates(session)
+    await session.flush()
+    logger.info("Seeded default custom entity templates")
 
 
 async def _seed_cost_element_types(
@@ -1016,6 +1031,9 @@ async def reseed_from_data(session: AsyncSession, data: dict[str, Any]) -> None:
 
         print("  Seeding organizational units...")
         await _seed_organizational_units(session, data["organizational_units"])
+
+        print("  Seeding custom entity templates...")
+        await _seed_custom_entity_templates(session)
 
         print("  Seeding cost element types...")
         await _seed_cost_element_types(session, data["cost_element_types"])

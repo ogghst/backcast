@@ -33,6 +33,7 @@ from uuid import UUID
 
 from langchain_core.tools import InjectedToolArg
 
+from app.ai.tools.custom_fields_helpers import filter_ai_visible_custom_fields
 from app.ai.tools.decorator import ai_tool
 from app.ai.tools.templates._pagination import (
     BATCH_SIZE_LIMIT,
@@ -72,6 +73,7 @@ async def find_change_orders(
     status: str | None = None,
     page: int = 1,
     limit: int | None = None,
+    include_custom_fields: bool = False,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Find change orders by ID or search/filter.
@@ -84,6 +86,10 @@ async def find_change_orders(
         status: Optional status filter (e.g., "Draft", "Pending", "Approved", "Rejected")
         page: Page number (1-based)
         limit: Maximum records per page (default from config, max 200)
+        include_custom_fields: When True, include each row's ai_visible custom
+            fields (filtered by the entity's snapshot). Default False; the
+            single-element lookup (change_order_id set) always includes
+            custom_fields.
         context: Injected tool execution context
 
     Returns:
@@ -139,6 +145,10 @@ async def find_change_orders(
                 "updated_at": change_order.updated_at.isoformat()
                 if hasattr(change_order, "updated_at") and change_order.updated_at
                 else None,
+                "custom_fields": filter_ai_visible_custom_fields(
+                    getattr(change_order, "custom_fields", None),
+                    getattr(change_order, "custom_field_definitions_snapshot", None),
+                ),
             }
             return add_temporal_metadata(result, context)
 
@@ -175,6 +185,16 @@ async def find_change_orders(
                     "created_at": co.created_at.isoformat()
                     if hasattr(co, "created_at") and co.created_at
                     else None,
+                    **(
+                        {
+                            "custom_fields": filter_ai_visible_custom_fields(
+                                getattr(co, "custom_fields", None),
+                                getattr(co, "custom_field_definitions_snapshot", None),
+                            )
+                        }
+                        if include_custom_fields
+                        else {}
+                    ),
                 }
                 for co in change_orders
             ],
@@ -208,6 +228,8 @@ async def create_change_order(
     reason: str,
     impact_level: str | None = None,
     effective_date: str | None = None,
+    custom_fields: dict[str, Any] | None = None,
+    custom_entity_template_root_id: str | None = None,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Create a new change order.
@@ -224,6 +246,10 @@ async def create_change_order(
         reason: Business justification for the change
         impact_level: Risk/impact level — one of LOW, MEDIUM, HIGH
         effective_date: When the change takes effect (ISO 8601 date string, optional)
+        custom_fields: Optional {code: value} dict of custom-field values; the
+            service validates against the bound template and captures a snapshot.
+        custom_entity_template_root_id: Optional UUID of the CustomEntityTemplate
+            to bind (required when custom_fields is non-empty).
         context: Injected tool execution context
 
     Returns:
@@ -267,6 +293,12 @@ async def create_change_order(
             justification=reason,
             impact_level=impact_level,
             effective_date=parsed_effective_date,
+            custom_fields=custom_fields,
+            custom_entity_template_root_id=(
+                UUID(custom_entity_template_root_id)
+                if custom_entity_template_root_id
+                else None
+            ),
         )
 
         # Call service method
@@ -286,12 +318,121 @@ async def create_change_order(
             "status": change_order.status,
             "impact_level": change_order.impact_level,
             "branch_name": change_order.branch_name,
+            "custom_fields": filter_ai_visible_custom_fields(
+                getattr(change_order, "custom_fields", None),
+                getattr(change_order, "custom_field_definitions_snapshot", None),
+            ),
             "message": f"Change order {change_order.code} created with branch {change_order.branch_name}",
         }
     except ValueError as e:
         return {"error": f"Invalid input: {e}"}
     except Exception as e:
         logger.error(f"Error in create_change_order: {e}")
+        return {"error": str(e)}
+
+
+@ai_tool(
+    name="update_change_order",
+    description="Update change order fields (title/description/justification/impact_level/effective_date/custom_fields).",
+    permissions=["change-order-update"],
+    category="change-orders",
+    risk_level=RiskLevel.HIGH,
+)
+async def update_change_order(
+    change_order_id: str,
+    title: str | None = None,
+    description: str | None = None,
+    justification: str | None = None,
+    impact_level: str | None = None,
+    effective_date: str | None = None,
+    custom_fields: dict[str, Any] | None = None,
+    custom_entity_template_root_id: str | None = None,
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Update an existing change order's editable fields.
+
+    Context: Provides database session and change order service for updating.
+    Workflow transitions (submit/approve/reject) have their own tools; this
+    tool is for content edits only.
+
+    Args:
+        change_order_id: UUID of the change order to update
+        title: New title (optional)
+        description: New description (optional)
+        justification: New business justification (optional)
+        impact_level: New impact level — LOW/MEDIUM/HIGH (optional)
+        effective_date: New effective date (ISO 8601, optional)
+        custom_fields: Optional {code: value} dict; when provided the service
+            validates against the snapshot captured at create. Omit to leave
+            custom fields untouched.
+        custom_entity_template_root_id: Optional UUID of the bound
+            CustomEntityTemplate (only meaningful at create; ignored on update).
+        context: Injected tool execution context
+
+    Returns:
+        Dictionary with updated change order details.
+
+    Raises:
+        ValueError: If change_order_id is invalid.
+        KeyError: If change order not found.
+    """
+    try:
+        from datetime import UTC, datetime
+
+        from app.services.change_order_service import ChangeOrderService
+
+        service = ChangeOrderService(context.session)
+
+        update_kwargs: dict[str, Any] = {}
+        if title is not None:
+            update_kwargs["title"] = title
+        if description is not None:
+            update_kwargs["description"] = description
+        if justification is not None:
+            update_kwargs["justification"] = justification
+        if impact_level is not None:
+            update_kwargs["impact_level"] = impact_level
+        if effective_date is not None:
+            update_kwargs["effective_date"] = datetime.fromisoformat(
+                effective_date
+            ).replace(tzinfo=UTC)
+        # custom_fields is opt-in per call (service routes on presence via
+        # exclude_unset, D11). An empty {} is meaningful, so check `is not None`.
+        if custom_fields is not None:
+            update_kwargs["custom_fields"] = custom_fields
+
+        if not update_kwargs:
+            return {"error": "No fields provided for update"}
+
+        update_data = ChangeOrderUpdate(**update_kwargs)
+
+        change_order = await service.update_change_order(
+            change_order_id=UUID(change_order_id),
+            change_order_in=update_data,
+            actor_id=UUID(context.user_id),
+            branch=context.branch_name or "main",
+        )
+
+        return {
+            "id": str(change_order.change_order_id),
+            "code": change_order.code,
+            "project_id": str(change_order.project_id),
+            "title": change_order.title,
+            "description": change_order.description,
+            "status": change_order.status,
+            "impact_level": change_order.impact_level,
+            "custom_fields": filter_ai_visible_custom_fields(
+                getattr(change_order, "custom_fields", None),
+                getattr(change_order, "custom_field_definitions_snapshot", None),
+            ),
+            "message": "Change order updated successfully",
+        }
+    except ValueError as e:
+        return {"error": f"Invalid input: {e}"}
+    except KeyError:
+        return {"error": f"Change order {change_order_id} not found"}
+    except Exception as e:
+        logger.error(f"Error in update_change_order: {e}")
         return {"error": str(e)}
 
 

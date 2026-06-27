@@ -5,6 +5,7 @@ import {
   CostElementRead,
   OrganizationalUnitRead,
   CostElementTypeRead,
+  CustomEntityTemplateRead,
 } from "@/api/generated";
 import { User } from "@/types/user";
 
@@ -52,4 +53,10 @@ export type OrganizationalUnitFilters = Filterable<
 export type CostElementTypeFilters = Filterable<
   CostElementTypeRead,
   "name" | "code" | "description"
+>;
+
+// Custom Entity Templates
+export type CustomEntityTemplateFilters = Filterable<
+  CustomEntityTemplateRead,
+  "name" | "code" | "target_entity_type" | "organizational_unit_id"
 >;

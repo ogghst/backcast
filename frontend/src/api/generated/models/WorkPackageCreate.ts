@@ -24,6 +24,14 @@ export type WorkPackageCreate = {
      */
     status?: string;
     /**
+     * Admin-template custom field values
+     */
+    custom_fields?: (Record<string, any> | null);
+    /**
+     * Bound CustomEntityTemplate root ID
+     */
+    custom_entity_template_root_id?: (string | null);
+    /**
      * Root Work Package ID
      */
     work_package_id?: string;
@@ -59,5 +67,9 @@ export type WorkPackageCreate = {
      * Basis of estimate for the WP's forecast (defaults to 'Initial forecast')
      */
     basis_of_estimate?: (string | null);
+    /**
+     * Server-captured field-definition snapshot (read-only)
+     */
+    custom_field_definitions_snapshot?: (Record<string, any> | null);
 };
 

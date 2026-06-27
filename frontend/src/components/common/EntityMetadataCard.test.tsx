@@ -96,4 +96,58 @@ describe("EntityMetadataCard", () => {
     // Null updatedAt renders "-"
     expect(screen.getByText("Last Updated")).toBeInTheDocument();
   });
+
+  it("renders a read-only Custom Fields section when definitions are present", () => {
+    render(
+      <EntityMetadataCard
+        entityId="proj-1"
+        entityIdLabel="Project ID"
+        createdAt="2026-06-23T22:24:17Z"
+        updatedAt="2026-06-24T05:50:39Z"
+        customFieldDefinitions={{
+          sponsor: { type: "text", label: "Sponsor" },
+          active: { type: "boolean", label: "Active" },
+        }}
+        customFields={{ sponsor: "Acme Corp", active: true }}
+      />,
+    );
+
+    expandCard();
+
+    expect(screen.getByText("Custom Fields")).toBeInTheDocument();
+    // Field labels + stored values render via CustomFieldsRenderer readOnly.
+    expect(screen.getByText("Sponsor")).toBeInTheDocument();
+    expect(screen.getByText("Acme Corp")).toBeInTheDocument();
+    expect(screen.getByText("Active")).toBeInTheDocument();
+    expect(screen.getByText("Yes")).toBeInTheDocument();
+  });
+
+  it("omits the Custom Fields section when definitions are null/empty", () => {
+    const { rerender } = render(
+      <EntityMetadataCard
+        entityId="proj-1"
+        entityIdLabel="Project ID"
+        createdAt="2026-06-23T22:24:17Z"
+        updatedAt="2026-06-24T05:50:39Z"
+        customFieldDefinitions={null}
+        customFields={{ sponsor: "Acme Corp" }}
+      />,
+    );
+
+    expandCard();
+    expect(screen.queryByText("Custom Fields")).not.toBeInTheDocument();
+
+    // Empty definitions object also yields no section.
+    rerender(
+      <EntityMetadataCard
+        entityId="proj-1"
+        entityIdLabel="Project ID"
+        createdAt="2026-06-23T22:24:17Z"
+        updatedAt="2026-06-24T05:50:39Z"
+        customFieldDefinitions={{}}
+      />,
+    );
+    expandCard();
+    expect(screen.queryByText("Custom Fields")).not.toBeInTheDocument();
+  });
 });

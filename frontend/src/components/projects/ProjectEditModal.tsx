@@ -12,7 +12,10 @@ import {
 import { ProjectRead, ProjectUpdate, type ProjectStatus } from "@/api/generated";
 import { Can } from "@/components/auth/Can";
 import { getCurrencySymbol } from "@/utils/formatters";
-import dayjs from "dayjs";
+import { CollapsibleCard } from "@/components/common/CollapsibleCard";
+import { CustomFieldsRenderer } from "@/features/custom-fields/components/CustomFieldsRenderer";
+import type { FieldDefinitions } from "@/features/custom-fields/types/fieldSpec";
+import dayjs, { type Dayjs } from "dayjs";
 
 interface ProjectEditModalProps {
   open: boolean;
@@ -30,6 +33,19 @@ interface FormValues {
   start_date?: dayjs.Dayjs | null;
   end_date?: dayjs.Dayjs | null;
   description?: string;
+  custom_fields?: Record<string, unknown>;
+}
+
+/** Serialize custom-field dayjs values to ISO strings for the API. */
+function serializeCustomFields(
+  values: Record<string, unknown> | undefined | null,
+): Record<string, unknown> | undefined {
+  if (!values) return undefined;
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(values)) {
+    out[key] = dayjs.isDayjs(value) ? (value as Dayjs).toISOString() : value;
+  }
+  return out;
 }
 
 const PROJECT_STATUSES = [
@@ -64,6 +80,14 @@ export const ProjectEditModal = ({
   const { token } = theme.useToken();
   const [form] = Form.useForm<FormValues>();
 
+  // Edit-only: render custom fields from the entity's captured snapshot.
+  // Template binding is immutable post-create, so there is no selector here.
+  // Derived via useMemo (not state) to avoid setState-in-effect cascades.
+  const snapshotFieldDefs = useMemo<FieldDefinitions | null>(
+    () => (project?.custom_field_definitions_snapshot as FieldDefinitions) ?? null,
+    [project],
+  );
+
   const selectedCurrency = Form.useWatch("currency", form) || project?.currency || "EUR";
   const currencySymbol = useMemo(() => getCurrencySymbol(selectedCurrency), [selectedCurrency]);
 
@@ -79,7 +103,9 @@ export const ProjectEditModal = ({
         start_date: project.start_date ? dayjs(project.start_date) : undefined,
         end_date: project.end_date ? dayjs(project.end_date) : undefined,
         description: project.description ?? undefined,
+        custom_fields: project.custom_fields ?? {},
       });
+      // snapshotFieldDefs is derived via useMemo above.
     }
   }, [open, project, form]);
 
@@ -96,6 +122,9 @@ export const ProjectEditModal = ({
           : null,
         end_date: values.end_date ? values.end_date.toISOString() : null,
         description: values.description ?? null,
+        custom_fields: serializeCustomFields(
+          values.custom_fields as Record<string, unknown> | undefined,
+        ),
       };
       onOk(updateData);
     } catch (error) {
@@ -259,6 +288,19 @@ export const ProjectEditModal = ({
                 }}
               />
             </Form.Item>
+
+            {/* Custom fields rendered from the captured snapshot. Template
+                binding is immutable post-create, so no selector here. */}
+            {snapshotFieldDefs &&
+              Object.keys(snapshotFieldDefs).length > 0 && (
+                <CollapsibleCard
+                  id="project-edit-custom-fields"
+                  title="Custom Fields"
+                  keepMounted
+                >
+                  <CustomFieldsRenderer fieldDefinitions={snapshotFieldDefs} />
+                </CollapsibleCard>
+              )}
           </Space>
         </Form>
       </Modal>

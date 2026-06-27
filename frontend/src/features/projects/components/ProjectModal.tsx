@@ -1,12 +1,31 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Modal, Form, Input, InputNumber, DatePicker, Select } from "antd";
-import dayjs from "dayjs";
+import dayjs, { type Dayjs } from "dayjs";
 import type {
   ProjectRead,
   ProjectCreate,
   ProjectUpdate,
 } from "@/api/generated";
 import { getCurrencySymbol } from "@/utils/formatters";
+import { CollapsibleCard } from "@/components/common/CollapsibleCard";
+import { TemplateSelector } from "@/features/custom-fields/components/TemplateSelector";
+import { CustomFieldsRenderer } from "@/features/custom-fields/components/CustomFieldsRenderer";
+import type { FieldDefinitions } from "@/features/custom-fields/types/fieldSpec";
+
+/**
+ * Serialize custom-field values: any dayjs becomes an ISO date string, the rest
+ * pass through. Mirrors how this modal serializes start_date/end_date.
+ */
+function serializeCustomFields(
+  values: Record<string, unknown> | undefined | null,
+): Record<string, unknown> | undefined {
+  if (!values) return undefined;
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(values)) {
+    out[key] = dayjs.isDayjs(value) ? (value as Dayjs).toISOString() : value;
+  }
+  return out;
+}
 
 const CURRENCY_OPTIONS = [
   { label: "EUR - Euro", value: "EUR" },
@@ -33,6 +52,25 @@ export const ProjectModal = ({
 }: ProjectModalProps) => {
   const [form] = Form.useForm();
   const isEdit = !!initialValues;
+
+  // Custom-fields template selection (CREATE only). Edit renders from the
+  // entity's captured snapshot, so the selector stays null/disabled there.
+  const [selectedTemplateRootId, setSelectedTemplateRootId] = useState<
+    string | null
+  >(null);
+  const [selectedFieldDefs, setSelectedFieldDefs] =
+    useState<FieldDefinitions | null>(null);
+
+  // EDIT-mode field definitions are derived purely from the entity's captured
+  // snapshot (no user interaction), so useMemo — not state — to avoid
+  // setState-in-effect cascades. CREATE-mode defs live in selectedFieldDefs.
+  const editFieldDefs = useMemo<FieldDefinitions | null>(
+    () =>
+      (initialValues?.custom_field_definitions_snapshot as FieldDefinitions) ??
+      null,
+    [initialValues],
+  );
+  const fieldDefs = isEdit ? editFieldDefs : selectedFieldDefs;
 
   const selectedCurrency = Form.useWatch("currency", form) || initialValues?.currency || "EUR";
   const currencySymbol = useMemo(() => getCurrencySymbol(selectedCurrency), [selectedCurrency]);
@@ -62,10 +100,21 @@ export const ProjectModal = ({
           end_date: initialValues.end_date
             ? dayjs(initialValues.end_date)
             : null,
+          custom_fields: initialValues.custom_fields ?? {},
         });
+        // Edit renders fields from the entity's captured snapshot (template
+        // binding is immutable post-create); the selector stays disabled.
+        // editFieldDefs is derived via useMemo above.
       } else {
         form.resetFields();
-        form.setFieldsValue({ currency: "EUR" });
+        form.setFieldsValue({ currency: "EUR", custom_fields: {} });
+        // No-cascade: child/standalone create starts with an empty selector.
+        // Resetting selection state when the modal re-opens for CREATE is the
+        // documented React exception to set-state-in-effect (reset on prop
+        // change). Key-based remount would fight the form's destroyOnHidden.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setSelectedTemplateRootId(null);
+        setSelectedFieldDefs(null);
       }
     }
   }, [open, initialValues, form]);
@@ -81,6 +130,12 @@ export const ProjectModal = ({
           ? values.start_date.format("YYYY-MM-DD")
           : null,
         end_date: values.end_date ? values.end_date.format("YYYY-MM-DD") : null,
+        custom_fields: serializeCustomFields(
+          values.custom_fields as Record<string, unknown> | undefined,
+        ),
+        custom_entity_template_root_id: isEdit
+          ? undefined
+          : (selectedTemplateRootId ?? null),
       };
 
       await onOk(formattedValues);
@@ -153,6 +208,39 @@ export const ProjectModal = ({
         <Form.Item name="description" label="Description">
           <Input.TextArea placeholder="Project description" rows={3} />
         </Form.Item>
+
+        {/* Custom fields (template-driven). CREATE: pick a template; EDIT:
+            immutable binding, render from the captured snapshot. */}
+        {!isEdit && (
+          <Form.Item
+            name="custom_entity_template_root_id"
+            label="Custom Fields Template"
+            tooltip="Optional. Selecting a template adds its custom fields below."
+          >
+            <TemplateSelector
+              targetType="PROJECT"
+              value={selectedTemplateRootId}
+              onChange={(rootId, fieldDefs) => {
+                setSelectedTemplateRootId(rootId);
+                setSelectedFieldDefs(fieldDefs ?? null);
+                form.setFieldValue(
+                  "custom_entity_template_root_id",
+                  rootId,
+                );
+              }}
+            />
+          </Form.Item>
+        )}
+
+        {fieldDefs && Object.keys(fieldDefs).length > 0 && (
+          <CollapsibleCard
+            id="project-custom-fields"
+            title="Custom Fields"
+            keepMounted
+          >
+            <CustomFieldsRenderer fieldDefinitions={fieldDefs} />
+          </CollapsibleCard>
+        )}
       </Form>
     </Modal>
   );

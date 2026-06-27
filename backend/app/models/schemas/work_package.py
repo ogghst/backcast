@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -26,6 +27,12 @@ class WorkPackageBase(BaseModel):
         default="open",
         pattern="^(open|closed)$",
         description="Work package lifecycle status",
+    )
+    custom_fields: dict[str, Any] | None = Field(
+        None, description="Admin-template custom field values"
+    )
+    custom_entity_template_root_id: UUID | None = Field(
+        None, description="Bound CustomEntityTemplate root ID"
     )
 
 
@@ -65,6 +72,11 @@ class WorkPackageCreate(WorkPackageBase):
         None,
         description="Basis of estimate for the WP's forecast (defaults to 'Initial forecast')",
     )
+    custom_field_definitions_snapshot: dict[str, Any] | None = Field(
+        None,
+        description="Server-captured field-definition snapshot (read-only)",
+        exclude=True,
+    )
 
 
 class WorkPackageUpdate(BaseModel):
@@ -90,6 +102,12 @@ class WorkPackageUpdate(BaseModel):
     # Forecast update params
     eac_amount: Decimal | None = Field(None, ge=0, decimal_places=2)
     basis_of_estimate: str | None = Field(None, max_length=5000)
+    custom_fields: dict[str, Any] | None = Field(
+        None, description="Admin-template custom field values"
+    )
+    custom_entity_template_root_id: UUID | None = Field(
+        None, description="Bound CustomEntityTemplate root ID"
+    )
 
 
 class WorkPackageRead(WorkPackageBase, TemporalComputedMixin, EntityMetadataMixin):
@@ -107,6 +125,10 @@ class WorkPackageRead(WorkPackageBase, TemporalComputedMixin, EntityMetadataMixi
     transaction_time: TemporalRange = None
     # Denormalized names for convenience
     control_account_name: str | None = None
+    custom_field_definitions_snapshot: dict[str, Any] | None = Field(
+        None,
+        description="Immutable field-definition snapshot captured at create",
+    )
 
     model_config = ConfigDict(from_attributes=True)
 

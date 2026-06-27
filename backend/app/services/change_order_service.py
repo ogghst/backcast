@@ -17,7 +17,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.branching.service import BranchableService
 from app.core.notifications import NotificationType
-from app.core.temporal_queries import is_current_version_on_branch
+from app.core.temporal_queries import (
+    is_current_version,
+    is_current_version_on_branch,
+)
 from app.core.versioning.commands import (
     CreateChangeOrderAuditLogCommand,
     CreateVersionCommand,
@@ -32,11 +35,15 @@ from app.models.schemas.change_order import ChangeOrderCreate, ChangeOrderUpdate
 from app.services.branch_service import BranchService
 from app.services.change_order_workflow_service import ChangeOrderWorkflowService
 from app.services.change_order_workflow_validation import ControlDateValidator
-from app.services.custom_field_service import CustomFieldService
+from app.services.custom_field_service import (
+    CustomFieldService,
+    CustomFieldValidationError,
+)
 from app.services.entity_discovery_service import EntityDiscoveryService
 from app.services.wbs_element_service import WBSElementService
 
 if TYPE_CHECKING:
+    from app.models.domain.custom_entity_template import CustomEntityTemplate
     from app.models.schemas.change_order import ChangeOrderPublic
     from app.models.schemas.impact_analysis import ImpactAnalysisResponse
 
@@ -146,10 +153,12 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             "project_id"
         )  # Already a UUID from Pydantic validation
 
-        # Validate custom field values against active config definitions
-        cfv = co_data.get("custom_field_values")
-        if cfv and project_id is not None:
-            await self._validate_custom_field_values(project_id, cfv)
+        # Phase 1C: custom_fields chokepoint — resolve the CO template (explicit
+        # custom_entity_template_root_id, else the default CHANGE_ORDER one),
+        # validate the supplied values, and stamp the IMMUTABLE snapshot onto
+        # co_data. Preserves the Phase-0 no-template no-op. ValueError
+        # propagates to the route (400 on create).
+        await self._prepare_co_custom_fields_for_create(co_data, actor_id)
 
         # Prevent duplicate drafts from AI agent loops
         title = co_data.get("title", "")
@@ -342,10 +351,10 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         # Extract comment for audit log (not stored in ChangeOrder model)
         comment = update_data.pop("comment", None)
 
-        # Validate custom field values against active config definitions
-        cfv = update_data.get("custom_field_values")
-        if cfv:
-            await self._validate_custom_field_values(current.project_id, cfv)
+        # Phase 1C: validate custom_fields against the IMMUTABLE snapshot
+        # captured at CO create (D11: only when the key is present; absent = skip).
+        # ``current`` was resolved above via get_as_of on the source branch.
+        await self._validate_co_custom_fields_for_update(current, update_data, actor_id)
 
         # Determine target branch
         target_branch = branch if branch is not None else current.branch
@@ -1959,37 +1968,126 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         except Exception:
             logger.exception("Failed to send change-order notification")
 
-    async def _validate_custom_field_values(
-        self, project_id: UUID, values: dict[str, Any]
-    ) -> None:
-        """Validate custom field values against the active config's field definitions.
+    async def _resolve_co_template(
+        self,
+    ) -> "CustomEntityTemplate | None":
+        """Resolve the current default CHANGE_ORDER CustomEntityTemplate.
 
-        Loads the workflow config's custom_fields, parses them into
-        CustomFieldDefinition objects, and runs validation. Raises ValueError
-        if any validation errors are found.
-
-        Args:
-            project_id: Project UUID to resolve the active config
-            values: Custom field values dict to validate
-
-        Raises:
-            ValueError: If validation errors exist
+        Used by :meth:`create_change_order` when ``co_data`` carries no explicit
+        ``custom_entity_template_root_id`` (the common case — COs bind to the
+        default CHANGE_ORDER template). Mirrors the original Phase-0 lookup.
         """
-        from app.models.schemas.custom_field import CustomFieldDefinition
-        from app.services.change_order_config_service import (
-            ChangeOrderConfigService,
+        from app.models.domain.custom_entity_template import CustomEntityTemplate
+
+        stmt = (
+            select(CustomEntityTemplate)
+            .where(
+                CustomEntityTemplate.target_entity_type == "CHANGE_ORDER",
+                is_current_version(
+                    CustomEntityTemplate.valid_time,
+                    CustomEntityTemplate.deleted_at,
+                ),
+            )
+            .order_by(CustomEntityTemplate.valid_time.desc())
+            .limit(1)
+        )
+        return (await self.session.execute(stmt)).scalar_one_or_none()
+
+    async def _prepare_co_custom_fields_for_create(
+        self,
+        co_data: dict[str, Any],
+        actor_id: UUID,
+    ) -> None:
+        """CO CREATE chokepoint: validate custom_fields + capture the snapshot.
+
+        Resolves the bound template (explicit ``custom_entity_template_root_id``
+        on the CO payload, else the default CHANGE_ORDER template), validates
+        the supplied custom_fields, and stamps ``co_data`` in place with both
+        the resolved ``custom_entity_template_root_id`` and the IMMUTABLE
+        ``custom_field_definitions_snapshot``. Preserves the Phase-0 behavior
+        where no template existing is a no-op (values stored as-is, no
+        snapshot) so the storage-only regression tests still pass.
+        """
+        cf_service = CustomFieldService(self.session)
+
+        # If the CO payload pins a template root id, honor it; otherwise resolve
+        # the default CHANGE_ORDER template (Phase-0 behavior).
+        template_root_id = co_data.get("custom_entity_template_root_id")
+        if template_root_id is not None:
+            template = await cf_service.resolve_template(template_root_id)
+        else:
+            template = await self._resolve_co_template()
+
+        if template is None:
+            # No CHANGE_ORDER template seeded yet (Phase-0 fallback): nothing
+            # to validate and no snapshot to capture. Custom_fields, if any,
+            # are stored verbatim. This keeps the storage regression green.
+            return
+
+        cf = co_data.get("custom_fields")
+        snapshot = dict(template.field_definitions)
+
+        if cf:
+            errors = await cf_service.validate_field_values(
+                snapshot, cf, actor_id=actor_id
+            )
+            if errors:
+                raise CustomFieldValidationError(
+                    f"Custom field validation failed: {'; '.join(errors)}"
+                )
+
+        # Stamp both the resolved template root id and the IMMUTABLE snapshot
+        # onto the CO payload so create_root persists them.
+        co_data["custom_entity_template_root_id"] = template.custom_entity_template_id
+        co_data["custom_field_definitions_snapshot"] = snapshot
+
+    async def _validate_co_custom_fields_for_update(
+        self,
+        current: ChangeOrder,
+        update_data: dict[str, Any],
+        actor_id: UUID,
+    ) -> None:
+        """CO UPDATE chokepoint: validate custom_fields against the CO's snapshot.
+
+        D11: only invoked when the ``custom_fields`` key is present. Validates
+        against the IMMUTABLE snapshot captured at CO create
+        (``current.custom_field_definitions_snapshot``) — never refreshed.
+        """
+        if "custom_fields" not in update_data:
+            return
+        cf_service = CustomFieldService(self.session)
+        await cf_service.validate_for_update(
+            snapshot=current.custom_field_definitions_snapshot,
+            custom_fields=update_data["custom_fields"],
+            actor_id=actor_id,
         )
 
-        config_service = ChangeOrderConfigService(self.session)
-        config = await config_service.get_active_config(project_id)
+    async def _validate_custom_fields(self, values: dict[str, Any]) -> None:
+        """Validate CO custom_fields against the current CHANGE_ORDER CustomEntityTemplate (keyed by .code).
 
-        raw_fields = config.custom_fields or []
-        definitions = [CustomFieldDefinition(**f) for f in raw_fields]
+        .. deprecated:: Phase 1C
+            Replaced by :meth:`_prepare_co_custom_fields_for_create` and
+            :meth:`_validate_co_custom_fields_for_update`, which capture and
+            reuse the IMMUTABLE field-definitions snapshot via the shared
+            :class:`CustomFieldService` chokepoint. Retained as a thin shim for
+            any in-flight callers; routes through the same chokepoint.
 
-        validator = CustomFieldService()
-        errors = validator.validate_field_values(definitions, values)
+        Args:
+            values: Custom field values dict to validate (keyed by field code)
+
+        Raises:
+            CustomFieldValidationError: If validation errors exist
+        """
+        template = await self._resolve_co_template()
+        if template is None:
+            return
+        errors = await CustomFieldService(self.session).validate_field_values(
+            template.field_definitions, values
+        )
         if errors:
-            raise ValueError(f"Custom field validation failed: {'; '.join(errors)}")
+            raise CustomFieldValidationError(
+                f"Custom field validation failed: {'; '.join(errors)}"
+            )
 
     async def _run_impact_analysis(
         self, change_order: ChangeOrder, branch_name: str
@@ -2512,7 +2610,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             "sla_status": co.sla_status,
             "assigned_approver": assigned_approver,
             "config_snapshot": co.config_snapshot,
-            "custom_field_values": co.custom_field_values,
+            "custom_fields": co.custom_fields,
         }
 
         return ChangeOrderPublic(**public_data)

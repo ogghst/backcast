@@ -43,6 +43,15 @@ vi.mock("../api/useWorkflowConfig", () => ({
   })),
 }));
 
+// Mock the custom-entity-template hook used by TemplateSelector so the
+// create-mode modal renders without a QueryClientProvider / backend.
+vi.mock("@/features/custom-fields/api/useCustomEntityTemplates", () => ({
+  useCustomEntityTemplates: vi.fn(() => ({
+    data: [],
+    isLoading: false,
+  })),
+}));
+
 // Mock the next code hook
 vi.mock("../api/useChangeOrders", () => ({
   useNextChangeOrderCode: vi.fn(() => ({
@@ -98,6 +107,11 @@ describe("ChangeOrderModal", () => {
     // Check for auto-generated code CO-{Year}-001
     const currentYear = new Date().getFullYear();
     expect(screen.getByDisplayValue(`CO-${currentYear}-001`)).toBeInTheDocument();
+    // Custom-fields template selector renders in CREATE mode (no template
+    // selected → no Custom Fields card yet).
+    expect(
+      screen.getByText("Custom Fields Template"),
+    ).toBeInTheDocument();
   });
 
   it("renders correctly in edit mode", async () => {

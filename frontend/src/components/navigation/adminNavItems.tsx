@@ -26,6 +26,7 @@
 
 import {
   ApiOutlined,
+  AppstoreOutlined,
   CloudServerOutlined,
   ControlOutlined,
   DatabaseOutlined,
@@ -85,6 +86,15 @@ export function useAdminNavItems(): NavigationItem[] {
         icon: <TagsOutlined />,
       },
       gate: can("cost-element-type-read"),
+    },
+    {
+      item: {
+        key: "/admin/custom-entity-templates",
+        label: "Custom Entity Templates",
+        path: "/admin/custom-entity-templates",
+        icon: <AppstoreOutlined />,
+      },
+      gate: can("custom-entity-template-read"),
     },
     {
       item: {

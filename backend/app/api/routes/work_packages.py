@@ -34,6 +34,7 @@ from app.models.schemas.work_package import (
     WorkPackageUpdate,
 )
 from app.services.cost_element_service import CostElementService
+from app.services.custom_field_service import CustomFieldValidationError
 from app.services.evm_service import EVMService
 from app.services.forecast_service import ForecastService
 from app.services.schedule_baseline_service import ScheduleBaselineService
@@ -285,6 +286,10 @@ async def update_work_package(
             data=wp_in,
             actor_id=current_user.user_id,
         )
+    except CustomFieldValidationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
+        ) from e
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

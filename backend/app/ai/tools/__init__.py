@@ -172,6 +172,7 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
         cost_element_template,
         cost_event_template,
         cost_event_type_template,
+        custom_field_template,
         diagram_template,
         forecast_cost_progress_template,
         project_template,
@@ -268,6 +269,7 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
     change_order_tools = [
         change_order_template.find_change_orders,
         change_order_template.create_change_order,
+        change_order_template.update_change_order,
         change_order_template.submit_change_order_for_approval,
         change_order_template.approve_change_order,
         change_order_template.reject_change_order,
@@ -282,6 +284,7 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
         analysis_template.get_project_analysis,
         advanced_analysis_template.get_project_forecast,
         project_tools.global_search,
+        custom_field_template.get_custom_field_definitions,
     ]
     tools.extend(analysis_tools)
 

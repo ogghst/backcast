@@ -1,11 +1,13 @@
 """Temporal query helpers for PostgreSQL TSTZRANGE fields.
 
-This module provides reusable query builders for temporal entities that use
-GIST-indexable patterns to avoid full table scans.
+This module provides reusable query builders for temporal entities.
 
-The key insight is that func.upper(valid_time).is_(None) cannot use the GIST
-index on TSTZRANGE columns. Instead, we use range overlap operator (&&) with
-an unbounded range to filter current versions efficiently.
+The range overlap operator (``&&``) plus ``upper_inf()`` predicate used here is
+GIST-indexable IF a GIST index on ``valid_time`` is defined for the table.
+Most temporal tables currently LACK such an index, so the predicate degrades
+to a sequential scan. The alternative form ``upper(valid_time) IS NULL`` (used
+by :func:`is_current_version_raw_sql`) is NEVER GIST-indexable because it
+applies a function to the column.
 """
 
 from typing import Any
@@ -21,15 +23,15 @@ def is_current_version(
     deleted_at_column: Any
     | None = None,  # InstrumentedAttribute[datetime | None] is compatible
 ) -> ColumnElement[Any]:
-    """Build WHERE clause for current temporal versions using GIST-indexable pattern.
+    """Build WHERE clause for current temporal versions.
 
-    This function creates a WHERE condition that efficiently filters for currently
-    valid versions by using the range overlap operator (&&) which leverages the
-    GIST index on TSTZRANGE columns.
+    This function creates a WHERE condition that filters for currently valid
+    versions using the range overlap operator (``&&``) combined with an
+    unbounded range, then narrows with ``upper_inf()`` to exclude closed ranges.
 
-    The pattern checks if the valid_time range overlaps with an unbounded range
-    [-infinity, infinity], which is equivalent to checking if upper(valid_time) IS NULL
-    but allows index usage.
+    The predicate is equivalent to ``upper(valid_time) IS NULL`` but, unlike that
+    form, is GIST-indexable IF a GIST index on ``valid_time`` is defined for the
+    table.
 
     Args:
         valid_time_column: The TSTZRANGE column to check (e.g., CostElementType.valid_time)
@@ -50,11 +52,10 @@ def is_current_version(
         ... )
 
     Performance:
-        This pattern uses the GIST index on valid_time, avoiding full table scans.
-        Replaces func.upper(valid_time).is_(None) which cannot use the index.
-
-        Before: Seq Scan on cost_element_types (332 seconds)
-        After:  Index Scan using cost_element_types_valid_time_idx (< 100ms)
+        The ``&&`` + ``upper_inf()`` predicate is GIST-indexable IF a GIST index on
+        ``valid_time`` is defined for the table. Most temporal tables currently LACK
+        such an index, so this degrades to a sequential scan. ``upper(valid_time) IS NULL``
+        (used by :func:`is_current_version_raw_sql`) is NEVER GIST-indexable.
     """
     conditions: list[ColumnElement[Any]] = [
         # Use range overlap operator with unbounded range for GIST index narrowing
@@ -110,7 +111,9 @@ def is_current_version_on_branch(
         ... )
 
     Performance:
-        Uses GIST index on valid_time, avoiding full table scans.
+        Inherits the GIST-indexability characteristics of :func:`is_current_version`:
+        index-accelerated only if a GIST index on ``valid_time`` is defined; otherwise
+        a sequential scan.
     """
     conditions = [
         is_current_version(valid_time_column, deleted_at_column),
