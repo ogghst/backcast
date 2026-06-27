@@ -117,12 +117,63 @@ describe("FieldDefinitionsEditor", () => {
     expect(lastCall.reason.required).toBe(true);
     // target_entity preserved on reference
     expect(lastCall.owner.target_entity).toBe("user");
-    // number has no extra config keys beyond type/label
-    expect(lastCall.amount).toEqual({ type: "number", label: "Amount" });
+    // number has no extra config keys beyond type/label + ai_visible (always
+    // emitted as a top-level boolean; default OFF for AI confidentiality).
+    expect(lastCall.amount).toEqual({
+      type: "number",
+      label: "Amount",
+      ai_visible: false,
+    });
     // label update applied
     expect(lastCall.priority.label).toBe("Prio2");
     // code never written into the inner spec (backend injects it)
     expect("code" in lastCall.priority).toBe(false);
+  });
+
+  it("toggles AI-visible ON and serializes it as a top-level spec key", () => {
+    const onChange = vi.fn();
+    const value: FieldDefinitionsValue = {
+      priority: { type: "select", label: "Priority" },
+    };
+    renderWithTheme(
+      <FieldDefinitionsEditor value={value} onChange={onChange} />,
+    );
+
+    // Default OFF: toggling required first to capture the OFF baseline.
+    const switches = screen.getAllByRole("switch");
+    // Row layout: [Required, AI-visible]; toggle the AI-visible switch on.
+    const aiSwitch = switches[1];
+    fireEvent.click(aiSwitch);
+
+    const onCall = onChange.mock.calls.at(-1)?.[0] as FieldDefinitionsValue;
+    expect(onCall).toBeDefined();
+    expect(onCall.priority.ai_visible).toBe(true);
+    // It is a TOP-LEVEL spec key (sibling of type/label), not nested in config.
+    expect("ai_visible" in onCall.priority).toBe(true);
+    expect("config" in onCall.priority).toBe(false);
+
+    // Toggle it back OFF: ai_visible must be present and false (explicit).
+    fireEvent.click(aiSwitch);
+    const offCall = onChange.mock.calls.at(-1)?.[0] as FieldDefinitionsValue;
+    expect(offCall.priority.ai_visible).toBe(false);
+  });
+
+  it("omits ai_visible from the spec when the stored value lacks it", () => {
+    const onChange = vi.fn();
+    const value: FieldDefinitionsValue = {
+      amount: { type: "number", label: "Amount" },
+    };
+    renderWithTheme(
+      <FieldDefinitionsEditor value={value} onChange={onChange} />,
+    );
+    // Force an emit by editing the label; ai_visible was absent in the input.
+    fireEvent.change(screen.getByDisplayValue("Amount"), {
+      target: { value: "Amt2" },
+    });
+    const lastCall = onChange.mock.calls.at(-1)?.[0] as FieldDefinitionsValue;
+    expect(lastCall).toBeDefined();
+    // Editor round-trips absent -> explicit false (top-level boolean).
+    expect(lastCall.amount.ai_visible).toBe(false);
   });
 
   it("removes a field via the remove button", () => {

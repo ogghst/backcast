@@ -7,6 +7,7 @@ import {
   Space,
   Switch,
   theme,
+  Tooltip,
   Typography,
 } from "antd";
 import { DeleteOutlined, PlusOutlined } from "@ant-design/icons";
@@ -64,6 +65,7 @@ interface FieldSpec {
   type: FieldType;
   label?: string;
   required?: boolean;
+  ai_visible?: boolean;
   options?: string[];
   max_length?: number;
   target_entity?: string;
@@ -94,6 +96,7 @@ const emptyRow = (): EditorRow => ({
   type: "text",
   label: "",
   required: false,
+  ai_visible: false,
 });
 
 /** Convert the stored dict shape into ordered editor rows. */
@@ -105,6 +108,7 @@ function dictToRows(value: FieldDefinitionsValue | undefined): EditorRow[] {
     type: (spec.type as FieldType) ?? "text",
     label: spec.label ?? "",
     required: spec.required ?? false,
+    ai_visible: spec.ai_visible ?? false,
     options: Array.isArray(spec.options) ? [...spec.options] : undefined,
     max_length: typeof spec.max_length === "number" ? spec.max_length : undefined,
     target_entity: spec.target_entity,
@@ -119,6 +123,9 @@ function rowsToDict(rows: EditorRow[]): FieldDefinitionsValue {
     if (!code) continue; // skip empty rows
     const spec: FieldSpec = { type: row.type, label: row.label || code };
     if (row.required) spec.required = true;
+    // Top-level boolean (default OFF); the backend filter reads
+    // `spec.get("ai_visible") is True`, so it must NOT be nested under config.
+    spec.ai_visible = row.ai_visible === true;
     if (OPTION_TYPES.has(row.type) && Array.isArray(row.options)) {
       spec.options = row.options;
     }
@@ -294,6 +301,25 @@ export const FieldDefinitionsEditor = ({
                       patch(row.rowId, { required: checked })
                     }
                   />
+                </div>
+
+                <div style={{ minWidth: 80, textAlign: "center" }}>
+                  <Typography.Text
+                    type="secondary"
+                    style={{ fontSize: token.fontSizeSM, display: "block" }}
+                  >
+                    AI-visible
+                  </Typography.Text>
+                  <Tooltip title="When ON, this field's values are visible to the AI assistant. Default OFF for confidentiality.">
+                    <Switch
+                      size="small"
+                      checked={!!row.ai_visible}
+                      disabled={disabled}
+                      onChange={(checked) =>
+                        patch(row.rowId, { ai_visible: checked })
+                      }
+                    />
+                  </Tooltip>
                 </div>
 
                 <Button

@@ -35,6 +35,12 @@ export interface FieldSpec {
   label: string;
   /** Marks the field required; the renderer adds an antd `required` rule. */
   required?: boolean;
+  /**
+   * When true, this field's values are surfaced to the AI assistant. Opt-in
+   * (default OFF) for confidentiality; the backend read tools filter on
+   * `spec.get("ai_visible") is True`, so this must be a top-level spec key.
+   */
+  ai_visible?: boolean;
   /** Default value applied when the field is unset. */
   default?: unknown;
   /** Options for select / multiselect / indicator fields. */
