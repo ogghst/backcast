@@ -10,12 +10,14 @@ hierarchy built via :func:`build_field`.
 Unknown keys are rejected (M1), required-null is rejected (D11 directive 3),
 and ``formula`` fields are skipped (no stored value, m13).
 
-Phase 1C adds the CREATE/UPDATE chokepoint: :meth:`prepare_for_create` resolves
-the template by root id, captures its ``field_definitions`` as an IMMUTABLE
-snapshot onto the entity row, and validates the supplied values;
-:meth:`validate_for_update` validates a subsequent edit against the snapshot
-captured at create (the snapshot is never refreshed — D11). The CHANGE_ORDER,
-project, WBS, and work-package services all funnel through this one path.
+Phase 1C adds the CREATE chokepoint: :meth:`prepare_for_create` resolves the
+template by root id, captures its ``field_definitions`` as an IMMUTABLE
+snapshot onto the entity row, and validates the supplied values.
+:meth:`prepare_for_update` is the UPDATE chokepoint: it refines frozen
+decision D2 — a template binding is IMMUTABLE once set, but the FIRST binding
+may happen on edit for a template-less existing entity (so legacy rows can be
+bound without a destructive re-create). The CHANGE_ORDER, project, WBS, and
+work-package services all funnel through these two paths.
 """
 
 from __future__ import annotations
@@ -49,11 +51,11 @@ class CustomFieldService:
 
     The unified async chokepoint for custom fields. ``__init__`` accepts an
     optional ``AsyncSession`` so the per-entity write services can construct it
-    once and share it with :meth:`prepare_for_create` / :meth:`validate_for_update`
-    for template resolution and the :class:`ReferenceField` existence check.
-    Existing no-arg construction (``CustomFieldService()``) still works —
-    ``session=None`` means async checks (target existence) are skipped, which is
-    the original Phase-0 behavior.
+    once and share it with :meth:`prepare_for_create` /
+    :meth:`prepare_for_update` for template resolution and the
+    :class:`ReferenceField` existence check. Existing no-arg construction
+    (``CustomFieldService()``) still works — ``session=None`` means async checks
+    (target existence) are skipped, which is the original Phase-0 behavior.
     """
 
     def __init__(self, session: AsyncSession | None = None) -> None:
@@ -175,7 +177,7 @@ class CustomFieldService:
         where ``snapshot`` is the template's ``field_definitions`` dict captured
         at create time. The snapshot is IMMUTABLE thereafter (the EVCS clone()
         carries it forward); update-time validation reuses it via
-        :meth:`validate_for_update` rather than re-resolving the template (D11).
+        :meth:`prepare_for_update` rather than re-resolving the template (D11).
 
         Behavior:
             * ``template_root_id is None``: if ``custom_fields`` is non-empty →
@@ -223,45 +225,119 @@ class CustomFieldService:
 
         return custom_fields, snapshot
 
-    async def validate_for_update(
+    async def prepare_for_update(
         self,
         *,
-        snapshot: dict[str, Any] | None,
+        current_template_root_id: UUID | None,
+        incoming_template_root_id: UUID | None,
+        current_snapshot: dict[str, Any] | None,
         custom_fields: dict[str, Any] | None,
         actor_id: UUID,
-    ) -> None:
-        """Validate a custom_fields edit against the snapshot captured at create.
+    ) -> dict[str, Any]:
+        """Compute the custom-fields update payload fields for an entity UPDATE.
 
-        The UPDATE chokepoint. D11: callers only invoke this when the
-        ``custom_fields`` key is PRESENT in the update payload (absent = skip).
-        A present ``{}`` is trivially valid; a present dict is validated against
-        the snapshot. The snapshot is the IMMUTABLE one captured at create — it
-        is never refreshed here.
+        The UPDATE chokepoint. Refines frozen decision D2 — a template binding
+        is IMMUTABLE once set, but the FIRST binding may happen on edit for a
+        template-less existing entity (so legacy rows created before custom
+        fields shipped can be bound without a destructive re-create).
+
+        Rules:
+            * FIRST-TIME BINDING — ``current_template_root_id is None`` AND
+              ``incoming_template_root_id`` is set: resolve the template,
+              capture ``snapshot = dict(template.field_definitions)``, and set
+              BOTH ``custom_entity_template_root_id`` and
+              ``custom_field_definitions_snapshot`` on the returned payload.
+            * IMMUTABLE ONCE SET — ``current_template_root_id`` is set AND
+              ``incoming_template_root_id`` is set AND
+              ``incoming != current``: raise
+              :class:`CustomFieldValidationError` (templates cannot be switched
+              after the first binding).
+            * SAME TEMPLATE — ``incoming == current`` (or ``incoming is None``
+              with a current binding): the binding is preserved; the snapshot is
+              the existing ``current_snapshot`` (NEVER re-captured — D11;
+              clone() carries it forward).
+            * ``custom_fields`` (when not ``None``) is validated against the
+              EFFECTIVE snapshot (the newly-captured one for first-time
+              binding, else the existing ``current_snapshot``). D11:
+              ``custom_fields is None`` → not included (absent = skip); ``{}`` →
+              included as ``{}`` (explicit clear); present dict → validated then
+              included.
+            * ``custom_fields`` provided without any template (no current AND no
+              incoming) → raise :class:`CustomFieldValidationError` (values
+              without a template to validate against).
 
         Args:
-            snapshot: The entity row's ``custom_field_definitions_snapshot``
-                (captured at create; ``None`` if no template was bound).
-            custom_fields: The ``{code: value}`` dict supplied at update.
+            current_template_root_id: The current version's
+                ``custom_entity_template_root_id`` (``None`` if unbound).
+            incoming_template_root_id: The template root id supplied on the
+                UPDATE (pulled out of ``update_data`` by the caller).
+            current_snapshot: The current version's
+                ``custom_field_definitions_snapshot`` (captured at create;
+                ``None`` if unbound). Never re-captured for an already-bound
+                entity.
+            custom_fields: The ``{code: value}`` dict supplied on the UPDATE
+                (pulled out of ``update_data`` by the caller). ``None`` means
+                the key was absent → skip (D11).
             actor_id: Actor for the async field checks.
 
+        Returns:
+            A dict to MERGE into the service's ``update_data``. Keys are
+            included only as needed: ``custom_entity_template_root_id``,
+            ``custom_field_definitions_snapshot``, ``custom_fields``.
+
         Raises:
-            CustomFieldValidationError: validation errors joined into one message.
+            CustomFieldValidationError: template-switch attempt, custom_fields
+                without any template, unknown template root, or per-field
+                validation errors (joined into one message).
         """
-        if custom_fields is None:
-            return
-        if snapshot is None:
-            # No snapshot was captured at create (no template was bound). An
-            # empty dict is trivially valid; a non-empty dict cannot be
-            # validated against anything, so reject it.
-            if custom_fields:
+        # The effective snapshot that custom_fields (if any) is validated
+        # against, and the payload under construction.
+        effective_snapshot: dict[str, Any] | None
+        updates: dict[str, Any] = {}
+
+        if current_template_root_id is None and incoming_template_root_id is not None:
+            # FIRST-TIME BINDING (D2 refinement): resolve + capture the snapshot.
+            template = await self.resolve_template(incoming_template_root_id)
+            if template is None:
                 raise CustomFieldValidationError(
-                    "custom_fields supplied but no field-definitions snapshot "
-                    "was captured at create"
+                    f"CustomEntityTemplate {incoming_template_root_id} not found"
                 )
-            return
+            effective_snapshot = dict(template.field_definitions)
+            updates["custom_entity_template_root_id"] = incoming_template_root_id
+            updates["custom_field_definitions_snapshot"] = effective_snapshot
+        elif (
+            current_template_root_id is not None
+            and incoming_template_root_id is not None
+            and incoming_template_root_id != current_template_root_id
+        ):
+            # IMMUTABLE ONCE SET (D2): cannot switch templates after creation.
+            raise CustomFieldValidationError(
+                "Template binding is immutable once set; cannot switch "
+                "templates after creation."
+            )
+        else:
+            # SAME TEMPLATE (incoming == current, or incoming is None with a
+            # current binding). The binding is preserved unchanged; the snapshot
+            # is the existing one — NEVER re-captured (D11; clone() carries it).
+            effective_snapshot = current_snapshot
+
+        if custom_fields is None:
+            # D11: absent key → skip (do not touch custom_fields on the row).
+            return updates
+
+        # custom_fields is present (possibly {}). Validate against the effective
+        # snapshot. A template-less entity reaching here with no incoming
+        # binding cannot validate anything → reject.
+        if effective_snapshot is None:
+            raise CustomFieldValidationError(
+                "custom_fields require a custom_entity_template_root_id"
+            )
 
         errors = await self.validate_field_values(
-            snapshot, custom_fields, actor_id=actor_id
+            effective_snapshot, custom_fields, actor_id=actor_id
         )
         if errors:
             raise CustomFieldValidationError("; ".join(errors))
+
+        updates["custom_fields"] = custom_fields
+        return updates

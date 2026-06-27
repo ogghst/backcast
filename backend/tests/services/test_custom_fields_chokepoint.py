@@ -555,3 +555,299 @@ class TestProjectUpdateApiReturns400OnBadCustomField:
                 "custom_entity_template_id",
                 template_root,
             )
+
+
+# ===========================================================================
+# First-time template binding on UPDATE (refines frozen decision D2):
+# immutable once SET, but the first binding may happen on edit for a
+# template-less existing entity.
+# ===========================================================================
+
+
+async def _create_templateless_project(
+    db: AsyncSession,
+    actor_id: UUID,
+    project_root: UUID,
+) -> None:
+    """Create a Project with NO custom_entity_template (legacy/template-less row)."""
+    service = ProjectService(db)
+    await service.create_project(
+        ProjectCreate(
+            project_id=project_root,
+            name="CF-Templateless",
+            code=f"P-TL-{project_root.hex[:6].upper()}",
+            status="active",
+            currency="EUR",
+            contract_value=1000000,
+        ),
+        actor_id,
+    )
+    await db.commit()
+
+
+class TestFirstTimeTemplateBindingOnUpdate:
+    """ProjectService.update_project binds a template on first edit (D2 refinement).
+
+    (1) UPDATE a template-less entity with a template_root_id + custom_fields
+        → binds + captures snapshot + stores values.
+    (2) UPDATE an already-bound entity with a DIFFERENT template_root_id
+        → CustomFieldValidationError ("immutable").
+    (3) UPDATE an already-bound entity with custom_fields (no template change)
+        → validates against the existing snapshot: accepts good / rejects bad.
+    (4) UPDATE with custom_fields but no template (entity has none)
+        → CustomFieldValidationError.
+    (5) UPDATE with custom_fields ABSENT → unchanged (D11).
+    """
+
+    @pytest.mark.asyncio
+    async def test_first_time_binding_captures_snapshot_and_stores_values(
+        self, db: AsyncSession, actor_id: UUID
+    ) -> None:
+        """(1) UPDATE a template-less project, supplying a template + values."""
+        template_root = await _seed_project_template(
+            db,
+            actor_id,
+            field_definitions={
+                "seismic_area": {
+                    "type": "select",
+                    "label": "Seismic",
+                    "options": ["1", "2", "3", "4"],
+                },
+                "notes": {"type": "text", "label": "Notes"},
+            },
+        )
+
+        project_root = uuid4()
+        try:
+            await _create_templateless_project(db, actor_id, project_root)
+
+            service = ProjectService(db)
+            updated = await service.update_project(
+                project_root,
+                ProjectUpdate(
+                    custom_entity_template_root_id=template_root,
+                    custom_fields={"seismic_area": "2", "notes": "bound on edit"},
+                    branch="main",
+                ),
+                actor_id,
+            )
+            await db.commit()
+
+            assert updated.custom_entity_template_root_id == template_root
+            assert updated.custom_field_definitions_snapshot is not None
+            assert "seismic_area" in updated.custom_field_definitions_snapshot
+            assert updated.custom_fields == {
+                "seismic_area": "2",
+                "notes": "bound on edit",
+            }
+
+            # Re-fetch the current version to confirm persistence.
+            current = await service.get_as_of(project_root)
+            assert current is not None
+            assert current.custom_entity_template_root_id == template_root
+            assert current.custom_field_definitions_snapshot is not None
+            assert (
+                current.custom_field_definitions_snapshot
+                == updated.custom_field_definitions_snapshot
+            )
+            assert current.custom_fields == {
+                "seismic_area": "2",
+                "notes": "bound on edit",
+            }
+        finally:
+            await _cleanup("projects", "project_id", project_root)
+            await _cleanup(
+                "custom_entity_templates",
+                "custom_entity_template_id",
+                template_root,
+            )
+
+    @pytest.mark.asyncio
+    async def test_switching_template_on_bound_entity_rejected(
+        self, db: AsyncSession, actor_id: UUID
+    ) -> None:
+        """(2) UPDATE an already-bound entity with a different template → error."""
+        template_a = await _seed_project_template(
+            db,
+            actor_id,
+            field_definitions={"a": {"type": "text", "label": "A"}},
+        )
+        template_b = await _seed_project_template(
+            db,
+            actor_id,
+            field_definitions={"b": {"type": "text", "label": "B"}},
+        )
+
+        project_root = uuid4()
+        try:
+            service = ProjectService(db)
+            await service.create_project(
+                ProjectCreate(
+                    project_id=project_root,
+                    name="CF-Bound",
+                    code=f"P-BD-{project_root.hex[:6].upper()}",
+                    status="active",
+                    currency="EUR",
+                    contract_value=1000000,
+                    custom_entity_template_root_id=template_a,
+                    custom_fields={"a": "x"},
+                ),
+                actor_id,
+            )
+            await db.commit()
+
+            # Switch to a different template on update → immutable violation.
+            with pytest.raises(CustomFieldValidationError, match="immutable once set"):
+                await service.update_project(
+                    project_root,
+                    ProjectUpdate(
+                        custom_entity_template_root_id=template_b,
+                        branch="main",
+                    ),
+                    actor_id,
+                )
+
+            # Confirm the rejected update did not mutate the binding.
+            current = await service.get_as_of(project_root)
+            assert current is not None
+            assert current.custom_entity_template_root_id == template_a
+        finally:
+            await _cleanup("projects", "project_id", project_root)
+            await _cleanup_by_ids(
+                "custom_entity_templates",
+                "custom_entity_template_id",
+                {template_a, template_b},
+            )
+
+    @pytest.mark.asyncio
+    async def test_update_custom_fields_validates_against_existing_snapshot(
+        self, db: AsyncSession, actor_id: UUID
+    ) -> None:
+        """(3) UPDATE an already-bound entity's custom_fields (no template change)."""
+        template_root = await _seed_project_template(
+            db,
+            actor_id,
+            field_definitions={
+                "seismic_area": {
+                    "type": "select",
+                    "label": "Seismic",
+                    "options": ["1", "2", "3", "4"],
+                },
+            },
+        )
+
+        project_root = uuid4()
+        try:
+            service = ProjectService(db)
+            await service.create_project(
+                ProjectCreate(
+                    project_id=project_root,
+                    name="CF-UpdBound",
+                    code=f"P-UB-{project_root.hex[:6].upper()}",
+                    status="active",
+                    currency="EUR",
+                    contract_value=1000000,
+                    custom_entity_template_root_id=template_root,
+                    custom_fields={"seismic_area": "2"},
+                ),
+                actor_id,
+            )
+            await db.commit()
+
+            # Good value accepted (validated against the existing snapshot).
+            updated = await service.update_project(
+                project_root,
+                ProjectUpdate(custom_fields={"seismic_area": "3"}, branch="main"),
+                actor_id,
+            )
+            await db.commit()
+            assert updated.custom_fields == {"seismic_area": "3"}
+
+            # Bad value rejected.
+            with pytest.raises(CustomFieldValidationError, match="Seismic"):
+                await service.update_project(
+                    project_root,
+                    ProjectUpdate(custom_fields={"seismic_area": "99"}, branch="main"),
+                    actor_id,
+                )
+
+            current = await service.get_as_of(project_root)
+            assert current is not None
+            assert current.custom_fields == {"seismic_area": "3"}
+        finally:
+            await _cleanup("projects", "project_id", project_root)
+            await _cleanup(
+                "custom_entity_templates",
+                "custom_entity_template_id",
+                template_root,
+            )
+
+    @pytest.mark.asyncio
+    async def test_update_custom_fields_without_any_template_rejected(
+        self, db: AsyncSession, actor_id: UUID
+    ) -> None:
+        """(4) UPDATE with custom_fields but no template (entity has none) → error."""
+        project_root = uuid4()
+        try:
+            await _create_templateless_project(db, actor_id, project_root)
+
+            service = ProjectService(db)
+            with pytest.raises(
+                CustomFieldValidationError,
+                match="custom_entity_template_root_id",
+            ):
+                await service.update_project(
+                    project_root,
+                    ProjectUpdate(custom_fields={"rogue": "x"}, branch="main"),
+                    actor_id,
+                )
+        finally:
+            await _cleanup("projects", "project_id", project_root)
+
+    @pytest.mark.asyncio
+    async def test_update_without_custom_fields_key_is_unchanged(
+        self, db: AsyncSession, actor_id: UUID
+    ) -> None:
+        """(5) UPDATE with custom_fields ABSENT → unchanged (D11)."""
+        template_root = await _seed_project_template(
+            db,
+            actor_id,
+            field_definitions={"notes": {"type": "text", "label": "Notes"}},
+        )
+
+        project_root = uuid4()
+        try:
+            service = ProjectService(db)
+            await service.create_project(
+                ProjectCreate(
+                    project_id=project_root,
+                    name="CF-Absent",
+                    code=f"P-AB-{project_root.hex[:6].upper()}",
+                    status="active",
+                    currency="EUR",
+                    contract_value=1000000,
+                    custom_entity_template_root_id=template_root,
+                    custom_fields={"notes": "original"},
+                ),
+                actor_id,
+            )
+            await db.commit()
+
+            # Update ONLY the name — custom_fields key absent.
+            updated = await service.update_project(
+                project_root,
+                ProjectUpdate(name="CF-Absent-Renamed", branch="main"),
+                actor_id,
+            )
+            await db.commit()
+            assert updated.name == "CF-Absent-Renamed"
+            assert updated.custom_fields == {"notes": "original"}
+            assert updated.custom_entity_template_root_id == template_root
+            assert updated.custom_field_definitions_snapshot is not None
+        finally:
+            await _cleanup("projects", "project_id", project_root)
+            await _cleanup(
+                "custom_entity_templates",
+                "custom_entity_template_id",
+                template_root,
+            )

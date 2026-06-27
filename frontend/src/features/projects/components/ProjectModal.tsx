@@ -53,24 +53,32 @@ export const ProjectModal = ({
   const [form] = Form.useForm();
   const isEdit = !!initialValues;
 
-  // Custom-fields template selection (CREATE only). Edit renders from the
-  // entity's captured snapshot, so the selector stays null/disabled there.
+  // A template is immutable ONCE SET (decision D2). On EDIT of an entity that
+  // already has a bound template, the selector is hidden and fields render from
+  // the captured snapshot. On EDIT of a template-less entity, the user may
+  // first-time bind one (backend captures the snapshot on UPDATE).
+  const hasBoundTemplate = isEdit && Boolean(
+    initialValues?.custom_entity_template_root_id,
+  );
+
+  // Custom-fields template selection. CREATE always shows the selector; EDIT
+  // shows it only when the entity has no bound template yet (first-time bind).
   const [selectedTemplateRootId, setSelectedTemplateRootId] = useState<
     string | null
   >(null);
   const [selectedFieldDefs, setSelectedFieldDefs] =
     useState<FieldDefinitions | null>(null);
 
-  // EDIT-mode field definitions are derived purely from the entity's captured
-  // snapshot (no user interaction), so useMemo — not state — to avoid
-  // setState-in-effect cascades. CREATE-mode defs live in selectedFieldDefs.
-  const editFieldDefs = useMemo<FieldDefinitions | null>(
+  // Bound-template field definitions are derived purely from the entity's
+  // captured snapshot (no user interaction), so useMemo — not state — to avoid
+  // setState-in-effect cascades. Template-less defs live in selectedFieldDefs.
+  const boundFieldDefs = useMemo<FieldDefinitions | null>(
     () =>
       (initialValues?.custom_field_definitions_snapshot as FieldDefinitions) ??
       null,
     [initialValues],
   );
-  const fieldDefs = isEdit ? editFieldDefs : selectedFieldDefs;
+  const fieldDefs = hasBoundTemplate ? boundFieldDefs : selectedFieldDefs;
 
   const selectedCurrency = Form.useWatch("currency", form) || initialValues?.currency || "EUR";
   const currencySymbol = useMemo(() => getCurrencySymbol(selectedCurrency), [selectedCurrency]);
@@ -102,9 +110,9 @@ export const ProjectModal = ({
             : null,
           custom_fields: initialValues.custom_fields ?? {},
         });
-        // Edit renders fields from the entity's captured snapshot (template
-        // binding is immutable post-create); the selector stays disabled.
-        // editFieldDefs is derived via useMemo above.
+        // Bound entities render fields from the captured snapshot; template-less
+        // entities show the selector for a first-time bind. boundFieldDefs is
+        // derived via useMemo above.
       } else {
         form.resetFields();
         form.setFieldsValue({ currency: "EUR", custom_fields: {} });
@@ -133,7 +141,11 @@ export const ProjectModal = ({
         custom_fields: serializeCustomFields(
           values.custom_fields as Record<string, unknown> | undefined,
         ),
-        custom_entity_template_root_id: isEdit
+        // Template binding is immutable once set. Send the template id on
+        // CREATE, and on EDIT only when first-time-binding a template-less
+        // entity (the backend captures the snapshot). Already-bound entities
+        // never re-send it.
+        custom_entity_template_root_id: hasBoundTemplate
           ? undefined
           : (selectedTemplateRootId ?? null),
       };
@@ -209,13 +221,19 @@ export const ProjectModal = ({
           <Input.TextArea placeholder="Project description" rows={3} />
         </Form.Item>
 
-        {/* Custom fields (template-driven). CREATE: pick a template; EDIT:
-            immutable binding, render from the captured snapshot. */}
-        {!isEdit && (
+        {/* Custom fields (template-driven). CREATE: pick a template. EDIT:
+            shown only when the entity has no bound template yet (first-time
+            bind); an already-bound entity renders from its captured snapshot
+            (immutable binding). */}
+        {!hasBoundTemplate && (
           <Form.Item
             name="custom_entity_template_root_id"
             label="Custom Fields Template"
-            tooltip="Optional. Selecting a template adds its custom fields below."
+            tooltip={
+              isEdit
+                ? "Apply a template to add custom fields. Once saved, the template is bound permanently."
+                : "Optional. Selecting a template adds its custom fields below."
+            }
           >
             <TemplateSelector
               targetType="PROJECT"

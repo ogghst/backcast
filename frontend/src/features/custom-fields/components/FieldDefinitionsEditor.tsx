@@ -145,11 +145,20 @@ export const FieldDefinitionsEditor = ({
   // reference changes (form reset / setFieldsValue), using the React-idiomatic
   // "derived state with prev-tracking" pattern (no useEffect — avoids the
   // set-state-in-effect and cascading-render rules).
+  //
+  // The content-equality guard skips re-derivation when `value` is just our
+  // own serialized state echoing back from the parent (Antd Form stores the
+  // emitted dict and passes it back as `value`). Without it, a freshly-added
+  // empty-code row would be serialized-out by rowsToDict, then dropped when
+  // the echoed dict re-derives `rows`. Only EXTERNAL changes (different
+  // content than what the current rows serialize to) trigger re-derivation.
   const [prevValue, setPrevValue] = useState(value);
   const [rows, setRows] = useState<EditorRow[]>(() => dictToRows(value));
   if (prevValue !== value) {
     setPrevValue(value);
-    setRows(dictToRows(value));
+    if (JSON.stringify(rowsToDict(rows)) !== JSON.stringify(value)) {
+      setRows(dictToRows(value));
+    }
   }
 
   const commit = (next: EditorRow[]) => {

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import { App, ConfigProvider } from "antd";
+import { useState } from "react";
 
 import {
   FieldDefinitionsEditor,
@@ -48,6 +49,40 @@ describe("FieldDefinitionsEditor", () => {
     expect(onChange).toHaveBeenCalledTimes(1);
     // An empty-code row serializes to an empty dict (empty codes skipped).
     expect(onChange).toHaveBeenCalledWith({});
+  });
+
+  // Regression: when the parent ECHOES onChange back as value (as Antd Form
+  // does for a controlled Form.Item child), an in-progress empty-code row
+  // must persist. Previously, the round-trip serialized the empty row out,
+  // the echo re-derived rows from the now-empty dict, and the row vanished —
+  // so "Add Field" appeared to do nothing and typing into a new row dropped
+  // it. The non-echoing harness above misses this; this test is the guard.
+  it("persists a newly-added empty-code row under an echoing (form-controlled) parent", () => {
+    function Controlled() {
+      const [v, setV] = useState<FieldDefinitionsValue>({});
+      return (
+        <FieldDefinitionsEditor value={v} onChange={setV} />
+      );
+    }
+    renderWithTheme(<Controlled />);
+
+    const codeInputsBefore = screen.queryAllByPlaceholderText("priority");
+    expect(codeInputsBefore).toHaveLength(0);
+
+    fireEvent.click(screen.getByRole("button", { name: /add field/i }));
+    // The empty-code row survives the value round-trip and stays rendered.
+    expect(screen.getAllByPlaceholderText("priority")).toHaveLength(1);
+
+    // Typing into the new row's Code input must keep the row (it must not be
+    // dropped by the echo + re-derive cycle while the code is mid-edit).
+    const codeInput = screen.getByPlaceholderText("priority");
+    fireEvent.change(codeInput, { target: { value: "p" } });
+    expect((codeInput as HTMLInputElement).value).toBe("p");
+    expect(screen.getAllByPlaceholderText("priority")).toHaveLength(1);
+
+    // A re-render / act tick must not drop the row either.
+    act(() => {});
+    expect(screen.getAllByPlaceholderText("priority")).toHaveLength(1);
   });
 
   it("serializes type-specific config (options, max_length, target_entity)", () => {

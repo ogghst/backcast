@@ -79,6 +79,20 @@ const mockChangeOrder: ChangeOrderPublic = {
   can_edit_status: true,
 };
 
+// A template-less change order: existing entity with NO bound template yet.
+// On edit the selector must be shown (first-time binding allowed).
+const mockTemplateLessChangeOrder: ChangeOrderPublic = { ...mockChangeOrder };
+
+// A change order that already has a bound template. On edit the selector must
+// be HIDDEN (template binding is immutable once set — decision D2).
+const mockBoundChangeOrder: ChangeOrderPublic = {
+  ...mockChangeOrder,
+  custom_entity_template_root_id: "tpl-root-abc",
+  custom_field_definitions_snapshot: {
+    region: { code: "region", label: "Region", type: "text" as const },
+  },
+};
+
 describe("ChangeOrderModal", () => {
   const onOk = vi.fn();
   const onCancel = vi.fn();
@@ -129,9 +143,55 @@ describe("ChangeOrderModal", () => {
     await waitFor(() => {
         expect(screen.getByText("Edit Change Order")).toBeInTheDocument();
     }, { timeout: 5000 });
-    
+
     expect(screen.getByDisplayValue("CO-2026-001")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Test Change Order")).toBeInTheDocument();
+  });
+
+  it("shows the template selector on edit when the change order has no bound template (first-time bind)", async () => {
+    render(
+      <ChangeOrderModal
+        open={true}
+        onOk={onOk}
+        onCancel={onCancel}
+        confirmLoading={false}
+        projectId="proj-123"
+        initialValues={mockTemplateLessChangeOrder}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Edit Change Order")).toBeInTheDocument();
+    }, { timeout: 5000 });
+
+    // Selector is rendered so the user can first-time-bind a template.
+    expect(
+      screen.getByText("Custom Fields Template"),
+    ).toBeInTheDocument();
+  });
+
+  it("hides the template selector on edit when the change order already has a bound template (immutable binding)", async () => {
+    render(
+      <ChangeOrderModal
+        open={true}
+        onOk={onOk}
+        onCancel={onCancel}
+        confirmLoading={false}
+        projectId="proj-123"
+        initialValues={mockBoundChangeOrder}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Edit Change Order")).toBeInTheDocument();
+    }, { timeout: 5000 });
+
+    // Selector is hidden (immutable binding); fields render from the snapshot.
+    expect(
+      screen.queryByText("Custom Fields Template"),
+    ).not.toBeInTheDocument();
+    // Snapshot field label still renders.
+    expect(screen.getByText("Region")).toBeInTheDocument();
   });
 
   it("validates required fields on submit", async () => {

@@ -351,10 +351,27 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         # Extract comment for audit log (not stored in ChangeOrder model)
         comment = update_data.pop("comment", None)
 
-        # Phase 1C: validate custom_fields against the IMMUTABLE snapshot
-        # captured at CO create (D11: only when the key is present; absent = skip).
-        # ``current`` was resolved above via get_as_of on the source branch.
-        await self._validate_co_custom_fields_for_update(current, update_data, actor_id)
+        # Phase 1C: custom_fields chokepoint — pull the template-root id,
+        # snapshot, and custom_fields out of update_data so the helper controls
+        # them, then merge its result back. Refines D2: immutable once set, but
+        # first binding may happen on edit. ``current`` was resolved above via
+        # get_as_of on the source branch. CO-specific: when the CO has NO
+        # template (current AND incoming both None), preserve the Phase-0
+        # behavior — do NOT force a binding, do NOT capture a snapshot, do NOT
+        # error; custom_fields (if any) flow through verbatim.
+        incoming_template_root_id = update_data.pop(
+            "custom_entity_template_root_id", None
+        )
+        update_data.pop("custom_field_definitions_snapshot", None)
+        custom_fields = update_data.pop("custom_fields", None)
+
+        await self._apply_co_custom_fields_for_update(
+            current=current,
+            update_data=update_data,
+            incoming_template_root_id=incoming_template_root_id,
+            custom_fields=custom_fields,
+            actor_id=actor_id,
+        )
 
         # Determine target branch
         target_branch = branch if branch is not None else current.branch
@@ -2041,33 +2058,51 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         co_data["custom_entity_template_root_id"] = template.custom_entity_template_id
         co_data["custom_field_definitions_snapshot"] = snapshot
 
-    async def _validate_co_custom_fields_for_update(
+    async def _apply_co_custom_fields_for_update(
         self,
+        *,
         current: ChangeOrder,
         update_data: dict[str, Any],
+        incoming_template_root_id: UUID | None,
+        custom_fields: dict[str, Any] | None,
         actor_id: UUID,
     ) -> None:
-        """CO UPDATE chokepoint: validate custom_fields against the CO's snapshot.
+        """CO UPDATE chokepoint: apply the custom-fields policy in place.
 
-        D11: only invoked when the ``custom_fields`` key is present. Validates
-        against the IMMUTABLE snapshot captured at CO create
-        (``current.custom_field_definitions_snapshot``) — never refreshed.
+        Routes through the shared :meth:`CustomFieldService.prepare_for_update`
+        with one CO-specific carve-out: a CO that has NO template at all
+        (``current.custom_entity_template_root_id`` is None AND no incoming
+        template root id) keeps the Phase-0 behavior — no forced binding, no
+        snapshot capture, no error; ``custom_fields`` (if any) is put back onto
+        ``update_data`` verbatim. In every other case (any template, current or
+        incoming) the standard D2-refined policy applies via the shared helper.
         """
-        if "custom_fields" not in update_data:
+        if (
+            current.custom_entity_template_root_id is None
+            and incoming_template_root_id is None
+        ):
+            # Phase-0 fallback: nothing to validate or bind. custom_fields, if
+            # supplied, flows through unchanged (D11: None → skip).
+            if custom_fields is not None:
+                update_data["custom_fields"] = custom_fields
             return
+
         cf_service = CustomFieldService(self.session)
-        await cf_service.validate_for_update(
-            snapshot=current.custom_field_definitions_snapshot,
-            custom_fields=update_data["custom_fields"],
+        cf_updates = await cf_service.prepare_for_update(
+            current_template_root_id=current.custom_entity_template_root_id,
+            incoming_template_root_id=incoming_template_root_id,
+            current_snapshot=current.custom_field_definitions_snapshot,
+            custom_fields=custom_fields,
             actor_id=actor_id,
         )
+        update_data.update(cf_updates)
 
     async def _validate_custom_fields(self, values: dict[str, Any]) -> None:
         """Validate CO custom_fields against the current CHANGE_ORDER CustomEntityTemplate (keyed by .code).
 
         .. deprecated:: Phase 1C
             Replaced by :meth:`_prepare_co_custom_fields_for_create` and
-            :meth:`_validate_co_custom_fields_for_update`, which capture and
+            :meth:`_apply_co_custom_fields_for_update`, which capture and
             reuse the IMMUTABLE field-definitions snapshot via the shared
             :class:`CustomFieldService` chokepoint. Retained as a thin shim for
             any in-flight callers; routes through the same chokepoint.

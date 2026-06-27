@@ -1,8 +1,8 @@
 # Custom Fields — Functional Analysis
 
-**Document status:** ✅ Approved / Frozen for Implementation (v4.2 — adversarial review incorporated; open decisions resolved 2026-06-26: dev/seed ⇒ **C2 deferred**, D1 NOT NULL+GLOBAL, M12 defer-all-others; `ai_visible` default OFF, ReferenceField→User only, single-org/GLOBAL UX deferred)
+**Document status:** ✅ Approved / Frozen for Implementation (v4.2 — adversarial review incorporated; open decisions resolved 2026-06-26: dev/seed ⇒ **C2 deferred**, D1 NOT NULL+GLOBAL, M12 defer-all-others; `ai_visible` default OFF, ReferenceField→User only, single-org/GLOBAL UX deferred) · **v5 (2026-06-27): Phase 0 + Phase 1 IMPLEMENTED — D2 refined to allow first-time binding on edit for template-less entities (§11.3).**
 **Sign-off:** 2026-06-26 — D1–D13 frozen; ChangeOrder refactoring directive (§7.9); critical implementation directives (§11.1)
-**Revision history:** v1 analysis → v2 (critique) → v3 (sign-off: ChangeOrder unified, D1–D13 frozen) → **v4 (adversarial review: DB-serialized concurrency, backup/history preservation, unknown-key rejection, snapshot/live validation rule, D11 realignment, D8 confidentiality, current-version indexes, CO-migration safety)**
+**Revision history:** v1 analysis → v2 (critique) → v3 (sign-off: ChangeOrder unified, D1–D13 frozen) → **v4 (adversarial review: DB-serialized concurrency, backup/history preservation, unknown-key rejection, snapshot/live validation rule, D11 realignment, D8 confidentiality, current-version indexes, CO-migration safety)** → **v5 (2026-06-27): Phase 0+1 shipped; D2 first-time-binding refinement; false CO-AI-leak premise retracted (§11.3)**
 **Audience:** Tech lead, Product owner, Dev team
 **Author:** Architecture
 **Date:** 2026-06-24 (analysis) · 2026-06-26 (sign-off + review revisions)
@@ -507,7 +507,7 @@ Create/update tools use **explicit typed parameters, not passthrough** — `upda
 
 **Risks:** (a) **arbitrary-key writes** — mitigate by routing every write through `CustomFieldService.validate_field_values`, which **rejects unknown keys** (M1, §7.6); (b) **prompt-injection from custom-field VALUES (M6)** — values reach the LLM verbatim via `get_project`; a manager can set a value to an instruction. Mitigate: delimit values from instructions in tool output (marked JSON block, never inline prose), cap per-field max length in `FieldDefinition.validate_shape`, and consider confirmation-gating any destructive tool call in a turn that consumed custom-field values (`delete_project` is `risk_level=CRITICAL`); (c) **D8 confidentiality bypass (M5)** — the AI must NOT inherit UI-searchable fields blindly; respect an independent `ai_visible` flag (§7.5); (d) validation silent-failure (validator returns error strings — AI tools convert to `{'error': ...}`, decorator rolls back); (e) stale specialist knowledge (cache field definitions + snapshot, TTL pattern in `db_loader.py`).
 
-> **`include_custom_fields` param must be created (coverage gap).** The param does not exist today (grep-confirmed across `backend/app/ai/tools`). Without it, `list_projects` either always includes custom fields (token bloat) or never (US-8 regression). **Phase 1 must add the param** before relying on it. *(Also: the CO AI leak lives in `templates/change_order_template.py:69,161-184`, not `project_tools.py` — the whitelist gap spans the `templates/` subdir — m5.)*
+> **`include_custom_fields` param must be created (coverage gap).** The param does not exist today (grep-confirmed across `backend/app/ai/tools`). Without it, `list_projects` either always includes custom fields (token bloat) or never (US-8 regression). **Phase 1 must add the param** before relying on it. *(RETRACTED v5: a grep during implementation found ZERO custom-field references in `change_order_template.py` — the cited "CO AI leak at :69,161-184" was a false premise; those lines are the find/list result-mapping. The file was not modified. CO custom-field AI surfacing was done additively in Phase 1E. See §11.3.)*
 
 ### 7.3 RBAC & Admin
 
@@ -880,7 +880,7 @@ All decisions D1–D13 are **frozen** per the architectural sign-off. Subsequent
 | # | Decision | Options | **Decision (frozen)** | Trade-off |
 |---|----------|---------|----------------|-----------|
 | D1 | **Template scope axis** | Global only / Org-scoped / Hybrid | **Org-unit `NOT NULL` + seeded 'GLOBAL' org unit** (M16) | Matches `CostElementType`/`ControlAccount` convention (all org-scoped models are `NOT NULL`); reuses the existing single-org filter. v3's nullable-NULL=global had no precedent and no resolution layer (US-3 was unimplementable). |
-| D2 | **Template binding immutability** | Immutable `template_root_id` / Reassignable | **Immutable** (gate selector `disabled={isEdit}`) | Reassignable needs value reconciliation + snapshot re-capture; simpler to forbid |
+| D2 | **Template binding immutability** | Immutable `template_root_id` / Reassignable / First-time binding on edit | **Immutable once set; first-time binding allowed on edit for template-less entities** (selector shown on edit only when `custom_entity_template_root_id` is null; switching a bound template is rejected — §11.3) | Pure immutability (v4) stranded every entity that pre-dated its template — no path to custom fields without recreating it. First-time binding closes that gap without the value-reconciliation cost of full reassignment (still out of scope). |
 | D3 | **Simple vs Versionable template** | Simple + audit log / Versionable (TemporalService) | **Versionable** (mirror `CostElementType`) | Heavier migration + as-of read cost; gives `/history` + self-contained snapshot (§6.6) |
 | D4 | **Field-level RBAC** | Template-level CRUD / Per-field ACL | **Template-level only** | Field-level needs a new authz layer; P6/Jira/SAP all show it rarely pays off |
 | D5 | **Formula/rollup fields in-scope** | MVP / Deferred | **Deferred (Phase 4)** | Computed-on-read only; a real expression engine is a project unto itself; blocks budget coupling (§7.8) |
@@ -916,6 +916,18 @@ Four review-reopened decisions were resolved with the sponsor:
 | **Org-unit UX scope** | **Single-org today** — seed all templates under GLOBAL. | Build only the column + single-org filter now; defer per-BU template browsing/assignment UX until a second BU appears. |
 
 > **US-9 is not weakened by the C2 deferral.** Historical *entity* rendering reads `custom_field_definitions_snapshot` captured on each version row (D12) — it does not depend on template `/history` surviving backup. Only the *template-admin audit trail* (`custom_entity_templates` `/history`) is lost on restore, which the dev/seed decision accepts.
+
+### 11.3 Implementation refinements (post-implementation, 2026-06-27)
+
+Phase 0 + Phase 1 shipped (commit on the `custom-fields` branch). Three refinements to the frozen decisions, made (and noted here) during implementation:
+
+| Refinement | Change | Rationale |
+|---|---|---|
+| **D2 — first-time binding on edit** | A template is **immutable once set**, but the first binding may happen on EDIT for a template-less existing entity (select a template on edit → bind + capture the snapshot, exactly like create). Switching a *bound* template is still rejected (`CustomFieldValidationError`). | Pure immutability (v4) stranded every entity that pre-dated its template — no path to custom fields without recreating the entity. First-time binding closes that gap without the value-reconciliation cost of full reassignment (which remains out of scope). UI: the template selector is shown on edit ONLY when `custom_entity_template_root_id` is null. Enforced by `CustomFieldService.prepare_for_update` across all 4 entity update services. |
+| **CO repurpose, not additive** | `change_orders.custom_field_values` was **renamed** to `custom_fields` (and gained the template-root + snapshot columns), not added-alongside as §6.8 line 578 literally specified. | The column was empty across all seed; rename avoids a 5th redundant JSONB column (M11 write-amplification) and dual code paths. Reversible; documented in migration `c93e9767de59`. |
+| **§7.2 "CO AI leak" retracted** | The claim that `templates/change_order_template.py:69,161-184` leaked `custom_field_values` is **FALSE** — grep-confirmed zero custom-field references there. The file was not modified. | CO custom-field AI surfacing was done additively in Phase 1E (`include_custom_fields` + the `ai_visible` gate), not by fixing a non-existent leak. |
+
+Also confirmed/finalized during implementation: the C1 unique partial indexes are declared in **both** the migration and the 4 branchable ORM `__table_args__` (the repo bootstraps fresh DBs via `Base.metadata.create_all`, so the model declaration is required); `CustomFieldValidationError(ValueError)` → HTTP 400 on all 4 update routes (a global `IntegrityError`→409 handler covers the C1 race); `ReferenceField.validate_async` does a User-existence check; and `ai_visible` is the sole AI-visibility gate (D8) — non-`ai_visible` field values AND labels never reach the LLM.
 
 ---
 

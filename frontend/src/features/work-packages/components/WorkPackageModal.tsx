@@ -57,23 +57,31 @@ export const WorkPackageModal = ({
   const { spacing } = useThemeTokens();
   const isEdit = !!initialValues;
 
-  // Custom-fields template (CREATE only; EDIT renders from the snapshot).
+  // A template is immutable ONCE SET (decision D2). On EDIT of an entity that
+  // already has a bound template, the selector is hidden and fields render from
+  // the captured snapshot. On EDIT of a template-less entity, the user may
+  // first-time bind one (backend captures the snapshot on UPDATE).
+  const hasBoundTemplate = isEdit && Boolean(
+    initialValues?.custom_entity_template_root_id,
+  );
+
+  // Custom-fields template selection. CREATE always shows the selector; EDIT
+  // shows it only when the entity has no bound template yet (first-time bind).
   const [selectedTemplateRootId, setSelectedTemplateRootId] = useState<
     string | null
   >(null);
   const [selectedFieldDefs, setSelectedFieldDefs] =
     useState<FieldDefinitions | null>(null);
 
-  // EDIT-mode field definitions are derived purely from the entity's captured
-  // snapshot (no user interaction), so useMemo — not state — to avoid
-  // setState-in-effect cascades.
-  const editFieldDefs = useMemo<FieldDefinitions | null>(
+  // Bound-template field definitions from the captured snapshot. Derived via
+  // useMemo (not state) to avoid setState-in-effect cascades.
+  const boundFieldDefs = useMemo<FieldDefinitions | null>(
     () =>
       (initialValues?.custom_field_definitions_snapshot as FieldDefinitions) ??
       null,
     [initialValues],
   );
-  const fieldDefs = isEdit ? editFieldDefs : selectedFieldDefs;
+  const fieldDefs = hasBoundTemplate ? boundFieldDefs : selectedFieldDefs;
 
   // Control Account options — scoped to a specific WBS element when provided
   const { data: caData } = useControlAccounts(
@@ -124,7 +132,7 @@ export const WorkPackageModal = ({
           control_account_id: initialValues.control_account_id,
           custom_fields: initialValues.custom_fields ?? {},
         });
-        // editFieldDefs is derived via useMemo above.
+        // boundFieldDefs is derived via useMemo above.
       } else {
         form.resetFields();
         form.setFieldsValue({
@@ -151,7 +159,10 @@ export const WorkPackageModal = ({
         custom_fields: serializeCustomFields(
           values.custom_fields as Record<string, unknown> | undefined,
         ),
-        custom_entity_template_root_id: isEdit
+        // Template binding is immutable once set. Send on CREATE, and on EDIT
+        // only when first-time-binding a template-less entity. Already-bound
+        // entities never re-send it.
+        custom_entity_template_root_id: hasBoundTemplate
           ? undefined
           : (selectedTemplateRootId ?? null),
       });
@@ -249,13 +260,19 @@ export const WorkPackageModal = ({
           />
         </Form.Item>
 
-        {/* Custom fields (template-driven). CREATE: pick a template; EDIT:
-            immutable binding, render from the captured snapshot. */}
-        {!isEdit && (
+        {/* Custom fields (template-driven). CREATE: pick a template. EDIT:
+            shown only when the entity has no bound template yet (first-time
+            bind); an already-bound entity renders from its captured snapshot
+            (immutable binding). */}
+        {!hasBoundTemplate && (
           <Form.Item
             name="custom_entity_template_root_id"
             label="Custom Fields Template"
-            tooltip="Optional. Selecting a template adds its custom fields below."
+            tooltip={
+              isEdit
+                ? "Apply a template to add custom fields. Once saved, the template is bound permanently."
+                : "Optional. Selecting a template adds its custom fields below."
+            }
           >
             <TemplateSelector
               targetType="WORK_PACKAGE"

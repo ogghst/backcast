@@ -680,17 +680,26 @@ class WBSElementService(BranchableService[WBSElement]):  # type: ignore[type-var
 
         project_id = current.project_id
 
-        # Phase 1C: validate custom_fields against the IMMUTABLE snapshot
-        # captured at create (D11: only when the key is present; absent = skip).
-        # ``current`` was already resolved above via get_as_of.
-        if "custom_fields" in update_data:
-            from app.services.custom_field_service import CustomFieldService
+        # Phase 1C: custom_fields chokepoint — pull the template-root id,
+        # snapshot, and custom_fields out of update_data so the helper controls
+        # them, then merge its result back. Refines D2: immutable once set, but
+        # first binding may happen on edit. ``current`` was resolved above.
+        incoming_template_root_id = update_data.pop(
+            "custom_entity_template_root_id", None
+        )
+        update_data.pop("custom_field_definitions_snapshot", None)
+        custom_fields = update_data.pop("custom_fields", None)
 
-            await CustomFieldService(self.session).validate_for_update(
-                snapshot=current.custom_field_definitions_snapshot,
-                custom_fields=update_data["custom_fields"],
-                actor_id=actor_id,
-            )
+        from app.services.custom_field_service import CustomFieldService
+
+        cf_updates = await CustomFieldService(self.session).prepare_for_update(
+            current_template_root_id=current.custom_entity_template_root_id,
+            incoming_template_root_id=incoming_template_root_id,
+            current_snapshot=current.custom_field_definitions_snapshot,
+            custom_fields=custom_fields,
+            actor_id=actor_id,
+        )
+        update_data.update(cf_updates)
 
         # Handle re-leveling if parent changes
         if "parent_wbs_element_id" in update_data:

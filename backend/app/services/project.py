@@ -451,20 +451,35 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
         update_data.pop("control_date", None)
         update_data.pop("branch", None)
 
-        # Phase 1C: validate custom_fields against the IMMUTABLE snapshot
-        # captured at create (D11: only when the key is present; absent = skip).
-        # The snapshot is never refreshed on update.
-        if "custom_fields" in update_data:
-            from app.services.custom_field_service import CustomFieldService
+        # Phase 1C: custom_fields chokepoint — pull the template-root id,
+        # snapshot, and custom_fields out of update_data so the helper controls
+        # them, then merge its result back. Refines D2: a template binding is
+        # IMMUTABLE once set, but the FIRST binding may happen on edit for a
+        # template-less existing entity. custom_fields ABSENT → skip (D11).
+        incoming_template_root_id = update_data.pop(
+            "custom_entity_template_root_id", None
+        )
+        # Never user-settable on update — defensive (schema shouldn't carry it).
+        update_data.pop("custom_field_definitions_snapshot", None)
+        custom_fields = update_data.pop("custom_fields", None)
 
-            current = await self.get_as_of(project_id, branch=branch)
-            await CustomFieldService(self.session).validate_for_update(
-                snapshot=(
-                    current.custom_field_definitions_snapshot if current else None
-                ),
-                custom_fields=update_data["custom_fields"],
-                actor_id=actor_id,
+        from app.services.custom_field_service import CustomFieldService
+
+        current = await self.get_as_of(project_id, branch=branch)
+        cf_updates = await CustomFieldService(self.session).prepare_for_update(
+            current_template_root_id=getattr(
+                current, "custom_entity_template_root_id", None
             )
+            if current is not None
+            else None,
+            incoming_template_root_id=incoming_template_root_id,
+            current_snapshot=getattr(current, "custom_field_definitions_snapshot", None)
+            if current is not None
+            else None,
+            custom_fields=custom_fields,
+            actor_id=actor_id,
+        )
+        update_data.update(cf_updates)
 
         cmd = UpdateCommand(
             entity_class=Project,  # type: ignore[type-var,unused-ignore]
