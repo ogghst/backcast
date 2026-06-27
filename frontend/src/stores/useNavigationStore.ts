@@ -6,7 +6,7 @@ import { immer } from "zustand/middleware/immer";
  * Content section shown in the rail-mode inline flyout (desktop), or null.
  * `mobileOpen` and `flyout` are transient UI state; only `expanded` persists.
  */
-export type NavFlyout = "account" | "entity" | null;
+export type NavFlyout = "account" | "entity" | "admin" | null;
 
 interface NavigationState {
   /** Desktop sidebar expanded (true) or collapsed rail (false). Persisted. */

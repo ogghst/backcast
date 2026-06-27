@@ -1,7 +1,7 @@
 /**
  * useAdminNavItems tests.
  *
- * The hook filters its 12 candidate admin items by per-item gate only. The
+ * The hook filters its 11 candidate admin items by per-item gate only. The
  * section-level `hasRole("admin")` guard lives in the sidebar (SidebarContent),
  * NOT here — so a non-admin who holds a granular permission still receives
  * that item from this hook. Each test asserts that contract.
@@ -36,7 +36,6 @@ const ALL_LABELS = [
   "AI Providers",
   "AI Assistants",
   "MCP Servers",
-  "Agent Schedules",
   "RBAC Configuration",
   "Change Order Config",
   "System Admin",
@@ -51,7 +50,6 @@ const ALL_PATHS = [
   "/admin/ai-providers",
   "/admin/ai-assistants",
   "/admin/mcp-servers",
-  "/admin/agent-schedules",
   "/admin/rbac",
   "/admin/change-order-config",
   "/admin/system",
@@ -65,7 +63,7 @@ function resetState() {
 describe("useAdminNavItems", () => {
   beforeEach(resetState);
 
-  it("full-admin (all gates pass) → all 12 items, in order, key===path", () => {
+  it("full-admin (all gates pass) → all 11 items, in order, key===path", () => {
     mockCan = () => true;
     mockHasRole = () => true;
 
@@ -101,9 +99,9 @@ describe("useAdminNavItems", () => {
 
   it("does NOT enforce the admin-role section gate — non-admin still gets permitted items", () => {
     // Every per-item `can(...)` gate passes, but hasRole("admin") is false.
-    // The hook must still return all 12 (the two `hasRole("admin")` items —
+    // The hook must still return all 11 (the two `hasRole("admin")` items —
     // Role Assignments and RBAC Configuration — are gated by role and thus
-    // drop out; the other 10 survive).
+    // drop out; the other 9 survive).
     mockCan = () => true;
     mockHasRole = () => false;
 
@@ -117,7 +115,6 @@ describe("useAdminNavItems", () => {
       "AI Providers",
       "AI Assistants",
       "MCP Servers",
-      "Agent Schedules",
       "Change Order Config",
       "System Admin",
     ]);

@@ -203,3 +203,20 @@ async def test_get_settings_for_project_returns_none_without_settings(
     service = ProjectBudgetSettingsService(db)
     settings = await service.get_settings_for_project(project.project_id)
     assert settings is None
+
+
+@pytest.mark.asyncio
+async def test_get_settings_for_project_populates_created_by_name(
+    db: AsyncSession, actor_id: UUID
+) -> None:
+    """get_settings_for_project should populate created_by_name from the creator."""
+    project = await create_test_project(db, actor_id)
+    await db.commit()
+
+    service = ProjectBudgetSettingsService(db)
+    await service.upsert_settings(project.project_id, actor_id)
+    await db.commit()
+
+    settings = await service.get_settings_for_project(project.project_id)
+    assert settings is not None
+    assert settings.created_by_name == "Admin User"

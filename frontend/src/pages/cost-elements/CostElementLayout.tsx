@@ -4,7 +4,6 @@ import { Button, Modal } from "antd";
 import {
   EditOutlined,
   DeleteOutlined,
-  RobotOutlined,
 } from "@ant-design/icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
@@ -37,16 +36,6 @@ export const CostElementLayout: React.FC = () => {
     id!,
   );
   const { data: breadcrumb, isLoading: breadcrumbLoading } = useCostElementBreadcrumb(id);
-
-  // Project root id from the breadcrumb (may be undefined while loading).
-  const projectId = breadcrumb?.project?.project_id;
-
-  const handleOpenChat = () => {
-    const projectRider = projectId ? `&p=${projectId}` : "";
-    navigate(`/chat?ctx=cost_element:${id}${projectRider}`, {
-      state: { returnTo: `/cost-elements/${id}` },
-    });
-  };
 
   // Modal/drawer state
   const {
@@ -136,14 +125,6 @@ export const CostElementLayout: React.FC = () => {
         title={displayTitle}
         actions={
           <>
-            <Can permission="ai-chat">
-              <Button
-                icon={<RobotOutlined />}
-                onClick={handleOpenChat}
-              >
-                AI Chat
-              </Button>
-            </Can>
             <Can permission="cost-element-update">
               <Button
                 type="primary"

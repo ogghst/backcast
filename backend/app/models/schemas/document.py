@@ -46,6 +46,7 @@ class DocumentFolderPublic(BaseModel):
     name: str
     path: str
     created_by: UUID
+    created_by_name: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -95,6 +96,7 @@ class DocumentPublic(BaseModel):
     is_locked: bool
     locked_by: UUID | None
     created_by: UUID
+    created_by_name: str | None = None
     size_bytes: int
     created_at: datetime
     updated_at: datetime

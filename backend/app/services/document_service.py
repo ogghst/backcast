@@ -240,7 +240,10 @@ class DocumentService:
             .options(selectinload(Document.current_version))
         )
         result = await self.db.execute(stmt)
-        return result.scalar_one_or_none()
+        document = result.scalar_one_or_none()
+        if document is not None:
+            await self._populate_creator_names([document])
+        return document
 
     async def list_documents(
         self,
@@ -272,7 +275,9 @@ class DocumentService:
             stmt = stmt.where(Document.folder_id == folder_id)
 
         result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+        documents = list(result.scalars().all())
+        await self._populate_creator_names(documents)
+        return documents
 
     async def search_documents(
         self,
@@ -304,7 +309,9 @@ class DocumentService:
             .limit(limit)
         )
         result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+        documents = list(result.scalars().all())
+        await self._populate_creator_names(documents)
+        return documents
 
     # --- Metadata updates ---
 
@@ -719,7 +726,40 @@ class DocumentService:
             .options(selectinload(Document.current_version))
         )
         result = await self.db.execute(stmt)
-        return result.scalar_one_or_none()
+        document = result.scalar_one_or_none()
+        if document is not None:
+            await self._populate_creator_names([document])
+        return document
+
+    async def _populate_creator_names(self, documents: list[Document]) -> None:
+        """Populate created_by_name on each document from the user table.
+
+        Uses a single batched lookup keyed by each document's created_by.
+        """
+        if not documents:
+            return
+        from typing import Any, cast
+
+        from app.models.domain.user import User
+
+        user_ids = {d.created_by for d in documents if d.created_by}
+        if not user_ids:
+            return
+        # created_by is stored as PG_UUID; compare against user_id (UUID).
+        UserAlias = cast(Any, User)
+        creator_subq = (
+            select(UserAlias.user_id, UserAlias.full_name)
+            .distinct(UserAlias.user_id)
+            .order_by(UserAlias.user_id, UserAlias.transaction_time.desc())
+            .subquery("creator_lookup")
+        )
+        stmt = select(creator_subq.c.user_id, creator_subq.c.full_name).where(
+            creator_subq.c.user_id.in_(list(user_ids))
+        )
+        result = await self.db.execute(stmt)
+        name_map: dict[str, str] = {str(row[0]): row[1] for row in result.all()}
+        for document in documents:
+            cast(Any, document).created_by_name = name_map.get(str(document.created_by))
 
     async def _get_document(self, document_id: UUID) -> Document | None:
         """Fetch a document by primary key with current_version eagerly loaded."""

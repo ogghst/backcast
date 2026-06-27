@@ -24,6 +24,14 @@ export type WorkPackageCreate = {
      */
     status?: string;
     /**
+     * Admin-template custom field values
+     */
+    custom_fields?: (Record<string, any> | null);
+    /**
+     * Bound CustomEntityTemplate root ID
+     */
+    custom_entity_template_root_id?: (string | null);
+    /**
      * Root Work Package ID
      */
     work_package_id?: string;
@@ -40,24 +48,28 @@ export type WorkPackageCreate = {
      */
     control_date?: (string | null);
     /**
-     * Optional start date for the auto-created schedule baseline
+     * Start date for the WP's schedule baseline (defaults to control_date if omitted)
      */
     schedule_start_date?: (string | null);
     /**
-     * Optional end date for the auto-created schedule baseline
+     * End date for the WP's schedule baseline (defaults to start + 90 days if omitted)
      */
     schedule_end_date?: (string | null);
     /**
-     * Optional progression type for the schedule (LINEAR, GAUSSIAN, LOGARITHMIC)
+     * Progression type for the schedule baseline (LINEAR, GAUSSIAN, LOGARITHMIC)
      */
     schedule_progression_type?: (string | null);
     /**
-     * Optional EAC amount for auto-created forecast (defaults to budget_amount)
+     * EAC amount for the WP's forecast (defaults to budget_amount if omitted)
      */
     eac_amount?: (number | string | null);
     /**
-     * Optional basis of estimate for auto-created forecast (defaults to 'Initial forecast')
+     * Basis of estimate for the WP's forecast (defaults to 'Initial forecast')
      */
     basis_of_estimate?: (string | null);
+    /**
+     * Server-captured field-definition snapshot (read-only)
+     */
+    custom_field_definitions_snapshot?: (Record<string, any> | null);
 };
 

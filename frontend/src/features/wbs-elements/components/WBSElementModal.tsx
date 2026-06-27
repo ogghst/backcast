@@ -1,9 +1,27 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Modal, Form, Input, InputNumber, Tooltip } from "antd";
+import dayjs, { type Dayjs } from "dayjs";
 import type { WBSElementRead, WBSElementCreate, WBSElementUpdate } from "@/api/generated";
 import { useTimeMachine } from "@/contexts/TimeMachineContext";
 import { getCurrencySymbol } from "@/utils/formatters";
 import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
+import { CollapsibleCard } from "@/components/common/CollapsibleCard";
+import { TemplateSelector } from "@/features/custom-fields/components/TemplateSelector";
+import { CustomFieldsRenderer } from "@/features/custom-fields/components/CustomFieldsRenderer";
+import { useLiveTemplateStatuses } from "@/features/custom-fields/hooks/useLiveTemplateStatuses";
+import type { FieldDefinitions } from "@/features/custom-fields/types/fieldSpec";
+
+/** Serialize custom-field dayjs values to ISO strings for the API. */
+function serializeCustomFields(
+  values: Record<string, unknown> | undefined | null,
+): Record<string, unknown> | undefined {
+  if (!values) return undefined;
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(values)) {
+    out[key] = dayjs.isDayjs(value) ? (value as Dayjs).toISOString() : value;
+  }
+  return out;
+}
 
 interface WBSElementModalProps {
   open: boolean;
@@ -28,6 +46,42 @@ export const WBSElementModal = ({
 }: WBSElementModalProps) => {
   const [form] = Form.useForm();
   const isEdit = !!initialValues;
+
+  // A template is immutable ONCE SET (decision D2). On EDIT of an entity that
+  // already has a bound template, the selector is hidden and fields render from
+  // the captured snapshot. On EDIT of a template-less entity, the user may
+  // first-time bind one (backend captures the snapshot on UPDATE).
+  const hasBoundTemplate = isEdit && Boolean(
+    initialValues?.custom_entity_template_root_id,
+  );
+
+  // Custom-fields template selection. CREATE always shows the selector; EDIT
+  // shows it only when the entity has no bound template yet (first-time bind).
+  const [selectedTemplateRootId, setSelectedTemplateRootId] = useState<
+    string | null
+  >(null);
+  const [selectedFieldDefs, setSelectedFieldDefs] =
+    useState<FieldDefinitions | null>(null);
+
+  // Bound-template field definitions from the captured snapshot. Derived via
+  // useMemo (not state) to avoid setState-in-effect cascades.
+  const boundFieldDefs = useMemo<FieldDefinitions | null>(
+    () =>
+      (initialValues?.custom_field_definitions_snapshot as FieldDefinitions) ??
+      null,
+    [initialValues],
+  );
+  const fieldDefs = hasBoundTemplate ? boundFieldDefs : selectedFieldDefs;
+
+  // Bound EDIT: overlay the LIVE template's field statuses so deprecated /
+  // retired fields render read-only. CREATE / first-time-bind skips this
+  // (field defs already come from the live template → create-mode filter).
+  const liveStatuses = useLiveTemplateStatuses(
+    hasBoundTemplate
+      ? initialValues?.custom_entity_template_root_id
+      : undefined,
+  );
+
   const { branch } = useTimeMachine();
   const currency = useProjectCurrency(projectId);
   const currencySymbol = getCurrencySymbol(currency);
@@ -49,9 +103,14 @@ export const WBSElementModal = ({
   useEffect(() => {
     if (open) {
       if (initialValues) {
-        form.setFieldsValue(initialValues);
+        form.setFieldsValue({
+          ...initialValues,
+          custom_fields: initialValues.custom_fields ?? {},
+        });
+        // boundFieldDefs is derived via useMemo above.
       } else {
         form.resetFields();
+        form.setFieldsValue({ custom_fields: {} });
         if (projectId) {
           form.setFieldValue("project_id", projectId);
         }
@@ -59,6 +118,14 @@ export const WBSElementModal = ({
         if (parentWbsElementId !== undefined) {
           form.setFieldValue("parent_wbs_element_id", parentWbsElementId);
         }
+        // No-cascade: start with an empty selector (never inherit the parent
+        // project's template). Resetting selection state when the modal
+        // re-opens for CREATE is the documented React exception to
+        // set-state-in-effect (reset on prop change). Key-based remount would
+        // fight the form's destroyOnHidden.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setSelectedTemplateRootId(null);
+        setSelectedFieldDefs(null);
       }
     }
   }, [open, initialValues, projectId, parentWbsElementId, form]);
@@ -74,7 +141,18 @@ export const WBSElementModal = ({
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
-      await onOk(values);
+      await onOk({
+        ...values,
+        custom_fields: serializeCustomFields(
+          values.custom_fields as Record<string, unknown> | undefined,
+        ),
+        // Template binding is immutable once set. Send on CREATE, and on EDIT
+        // only when first-time-binding a template-less entity. Already-bound
+        // entities never re-send it.
+        custom_entity_template_root_id: hasBoundTemplate
+          ? undefined
+          : (selectedTemplateRootId ?? null),
+      });
     } catch (error) {
       console.error("Form submission error:", error);
     }
@@ -174,6 +252,49 @@ export const WBSElementModal = ({
         <Form.Item name="description" label="Description">
           <Input.TextArea placeholder="WBS Element description" rows={3} />
         </Form.Item>
+
+        {/* Custom fields (template-driven). CREATE: pick a template. EDIT:
+            shown only when the entity has no bound template yet (first-time
+            bind); an already-bound entity renders from its captured snapshot
+            (immutable binding). */}
+        {!hasBoundTemplate && (
+          <Form.Item
+            name="custom_entity_template_root_id"
+            label="Custom Fields Template"
+            tooltip={
+              isEdit
+                ? "Apply a template to add custom fields. Once saved, the template is bound permanently."
+                : "Optional. Selecting a template adds its custom fields below."
+            }
+          >
+            <TemplateSelector
+              targetType="WBS_ELEMENT"
+              value={selectedTemplateRootId}
+              onChange={(rootId, fieldDefs) => {
+                setSelectedTemplateRootId(rootId);
+                setSelectedFieldDefs(fieldDefs ?? null);
+                form.setFieldValue(
+                  "custom_entity_template_root_id",
+                  rootId,
+                );
+              }}
+            />
+          </Form.Item>
+        )}
+
+        {fieldDefs && Object.keys(fieldDefs).length > 0 && (
+          <CollapsibleCard
+            id="wbs-custom-fields"
+            title="Custom Fields"
+            keepMounted
+          >
+            <CustomFieldsRenderer
+              fieldDefinitions={fieldDefs}
+              mode={hasBoundTemplate ? "edit" : "create"}
+              liveStatuses={hasBoundTemplate ? liveStatuses : undefined}
+            />
+          </CollapsibleCard>
+        )}
       </Form>
     </Modal>
   );

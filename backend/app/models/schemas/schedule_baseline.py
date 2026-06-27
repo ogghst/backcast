@@ -81,5 +81,6 @@ class ScheduleBaselineRead(ScheduleBaselineBase):
     id: UUID
     schedule_baseline_id: UUID
     created_by: UUID
+    created_by_name: str | None = None
     branch: str
     work_package_name: str | None = None

@@ -15,6 +15,7 @@ from app.api.dependencies.auth import (
     UserIdentity,
     get_current_user,
 )
+from app.api.dependencies.errors import is_unique_violation
 from app.core.rbac_unified import get_unified_rbac_service, set_unified_rbac_session
 from app.core.versioning.enums import BranchMode
 from app.db.session import get_db
@@ -25,6 +26,7 @@ from app.models.schemas.project import (
     ProjectPublic,
     ProjectUpdate,
 )
+from app.services.custom_field_service import CustomFieldValidationError
 from app.services.project import ProjectService
 
 router = APIRouter()
@@ -234,9 +236,18 @@ async def update_project(
             actor_id=current_user.user_id,
         )
         return updated_project
+    except CustomFieldValidationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
+        ) from e
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     except IntegrityError as e:
+        if is_unique_violation(e):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Concurrent modification detected: another edit created a conflicting current version. Please re-fetch and retry.",
+            ) from e
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database integrity error during project update",

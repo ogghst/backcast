@@ -6,6 +6,9 @@
  * Schema for reading Control Account data.
  */
 export type ControlAccountRead = {
+    created_by_name?: (string | null);
+    created_at?: (string | null);
+    updated_at?: (string | null);
     /**
      * Control account name
      */
@@ -24,7 +27,6 @@ export type ControlAccountRead = {
     organizational_unit_id: string;
     branch: string;
     created_by: string;
-    created_by_name?: (string | null);
     deleted_by?: (string | null);
     valid_time?: (string | null);
     transaction_time?: (string | null);

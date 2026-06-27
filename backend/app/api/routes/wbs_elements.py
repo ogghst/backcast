@@ -17,6 +17,7 @@ from app.models.schemas.wbs_element import (
     WBSElementPublic,
     WBSElementUpdate,
 )
+from app.services.custom_field_service import CustomFieldValidationError
 from app.services.wbs_element_service import WBSElementService
 
 router = APIRouter()
@@ -270,6 +271,10 @@ async def update_wbs_element(
             wbe_in=wbs_in,
             actor_id=current_user.user_id,
         )
+    except CustomFieldValidationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
+        ) from e
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
 
@@ -310,7 +315,7 @@ async def read_wbs_element_history(
     service: WBSElementService = Depends(get_wbs_element_service),
 ) -> Sequence[WBSElement]:
     """Get version history for a WBS Element. Requires read permission."""
-    history = await service.get_history(wbs_element_id)
+    history = await service.get_wbe_history(wbs_element_id)
     if not history:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

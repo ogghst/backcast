@@ -34,6 +34,9 @@ class ChangeOrderBase(BaseModel):
         default=ChangeOrderStatus.DRAFT, description="Workflow state"
     )
     impact_level: str | None = Field(None, description="Financial impact level")
+    custom_entity_template_root_id: UUID | None = Field(
+        None, description="Bound CustomEntityTemplate root ID"
+    )
 
 
 class ChangeOrderCreate(ChangeOrderBase):
@@ -52,9 +55,14 @@ class ChangeOrderCreate(ChangeOrderBase):
     sla_assigned_at: datetime | None = Field(None, description="SLA assigned timestamp")
     sla_due_date: datetime | None = Field(None, description="SLA due date")
     sla_status: str | None = Field(None, description="SLA status")
-    custom_field_values: dict[str, Any] | None = Field(
+    custom_fields: dict[str, Any] | None = Field(
         None,
-        description="Custom field values matching config.custom_fields definitions",
+        description="Custom field values (CHANGE_ORDER CustomEntityTemplate)",
+    )
+    custom_field_definitions_snapshot: dict[str, Any] | None = Field(
+        None,
+        description="Server-captured field-definition snapshot (read-only)",
+        exclude=True,
     )
 
 
@@ -83,9 +91,12 @@ class ChangeOrderUpdate(BaseModel):
         None,
         description="Optional comment for status transitions (Submit, Approve, Reject, Merge)",
     )
-    custom_field_values: dict[str, Any] | None = Field(
+    custom_fields: dict[str, Any] | None = Field(
         None,
-        description="Custom field values matching config.custom_fields definitions",
+        description="Custom field values (CHANGE_ORDER CustomEntityTemplate)",
+    )
+    custom_entity_template_root_id: UUID | None = Field(
+        None, description="Bound CustomEntityTemplate root ID"
     )
     assigned_approver_id: UUID | None = Field(
         None, description="Assigned approver (None to clear)"
@@ -123,6 +134,7 @@ class ChangeOrderPublic(ChangeOrderBase):
     change_order_id: UUID = Field(..., description="Root UUID identifier")
     id: UUID = Field(..., description="Version ID (primary key)")
     created_by: UUID = Field(..., description="User who created this version")
+    created_by_name: str | None = None
     created_at: datetime | None = Field(
         None,
         description="When this version was created (derived from transaction_time)",
@@ -182,9 +194,13 @@ class ChangeOrderPublic(ChangeOrderBase):
         "Immutable record of the rules, thresholds, and weights that were active "
         "when this change order was submitted for approval.",
     )
-    custom_field_values: dict[str, Any] | None = Field(
+    custom_field_definitions_snapshot: dict[str, Any] | None = Field(
         None,
-        description="Custom field values matching config.custom_fields definitions",
+        description="Immutable field-definition snapshot captured at create time",
+    )
+    custom_fields: dict[str, Any] | None = Field(
+        None,
+        description="Custom field values (CHANGE_ORDER CustomEntityTemplate)",
     )
 
 

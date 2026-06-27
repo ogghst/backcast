@@ -33,8 +33,14 @@ vi.mock("antd", async () => {
 });
 
 let mockCan: (p: string) => boolean = () => true;
+let mockCanAny: (perms: string[]) => boolean = () => true;
+let mockHasRole: (role: string) => boolean = () => false;
 vi.mock("@/hooks/usePermission", () => ({
-  usePermission: () => ({ can: mockCan, hasRole: () => false }),
+  usePermission: () => ({
+    can: mockCan,
+    canAny: mockCanAny,
+    hasRole: mockHasRole,
+  }),
 }));
 
 // The effective chat context is serialized into the /chat nav URL. Default to
@@ -46,6 +52,12 @@ let mockEffectiveCtx: {
 } = { type: "general" };
 vi.mock("@/hooks/navigation/useEffectiveChatContext", () => ({
   useEffectiveChatContext: () => mockEffectiveCtx,
+}));
+
+// The Agents rail button polls running executions. Default to 0 (badge hidden).
+let mockRunningCount = 0;
+vi.mock("@/features/ai/chat/api/useAgentExecutions", () => ({
+  useRunningExecutionsCount: () => ({ data: mockRunningCount }),
 }));
 
 // Mock the nav store with mutable state. The store must expose state AND
@@ -91,6 +103,9 @@ function resetState() {
   mockPathname = "/";
   mockScreens = { md: true };
   mockCan = () => true;
+  mockCanAny = () => true;
+  mockHasRole = () => false;
+  mockRunningCount = 0;
   storeState = { expanded: false, flyout: null, toggleExpanded, setFlyout };
   mockEntityNav = null;
   mockEffectiveCtx = { type: "general" };
@@ -195,6 +210,90 @@ describe("AppSidebar", () => {
       render(<AppSidebar />);
       await user.click(screen.getByRole("button", { name: "Chat" }));
       expect(mockNavigate).not.toHaveBeenCalled();
+    });
+
+    describe("Agents rail button", () => {
+      it("is shown when the user has ai-chat (and lacks agent-schedule-manage) and navigates to /agents-history", async () => {
+        // ai-chat yes, agent-schedule-manage no → chat-only destination.
+        mockCan = (p: string) => p === "ai-chat";
+        mockCanAny = (perms: string[]) => perms.includes("ai-chat");
+        const user = userEvent.setup();
+        render(<AppSidebar />);
+        await user.click(screen.getByRole("button", { name: "Agents" }));
+        expect(mockNavigate).toHaveBeenCalledWith("/agents-history");
+      });
+
+      it("navigates to /admin/agent-schedules when the user has agent-schedule-manage", async () => {
+        mockCan = (p: string) => p === "agent-schedule-manage";
+        mockCanAny = (perms: string[]) => perms.includes("agent-schedule-manage");
+        const user = userEvent.setup();
+        render(<AppSidebar />);
+        await user.click(screen.getByRole("button", { name: "Agents" }));
+        expect(mockNavigate).toHaveBeenCalledWith("/admin/agent-schedules");
+      });
+
+      it("is hidden for a viewer (neither permission)", () => {
+        mockCan = () => false;
+        mockCanAny = () => false;
+        render(<AppSidebar />);
+        expect(screen.queryByRole("button", { name: "Agents" })).toBeNull();
+      });
+
+      it("is active-highlighted when on /admin/agent-schedules", () => {
+        mockPathname = "/admin/agent-schedules";
+        render(<AppSidebar />);
+        const agents = screen.getByRole("button", {
+          name: "Agents",
+        }) as HTMLButtonElement;
+        expect(agents.style.borderRight).not.toBe("3px solid transparent");
+      });
+
+      it("is active-highlighted when on /agents-history", () => {
+        mockPathname = "/agents-history";
+        render(<AppSidebar />);
+        const agents = screen.getByRole("button", {
+          name: "Agents",
+        }) as HTMLButtonElement;
+        expect(agents.style.borderRight).not.toBe("3px solid transparent");
+      });
+    });
+
+    describe("Admin rail button", () => {
+      // The Admin rail button requires both the admin role and at least one
+      // visible admin item (the Users item needs `user-read`).
+      const grantAdmin = () => {
+        mockHasRole = (r: string) => r === "admin";
+        mockCan = (p: string) => p === "user-read";
+      };
+
+      it("is active-highlighted when on a real admin route (/admin/users)", () => {
+        grantAdmin();
+        mockPathname = "/admin/users";
+        render(<AppSidebar />);
+        const admin = screen.getByRole("button", {
+          name: "Admin",
+        }) as HTMLButtonElement;
+        expect(admin.style.borderRight).not.toBe("3px solid transparent");
+      });
+
+      it("is NOT active-highlighted on /admin/agent-schedules (Agents route, regression guard)", () => {
+        grantAdmin();
+        // Agents button is visible too (manager perm granted below) so both
+        // buttons render in the same assertion block.
+        mockCanAny = (perms: string[]) =>
+          perms.includes("agent-schedule-manage");
+        mockPathname = "/admin/agent-schedules";
+        render(<AppSidebar />);
+        const admin = screen.getByRole("button", {
+          name: "Admin",
+        }) as HTMLButtonElement;
+        expect(admin.style.borderRight).toBe("3px solid transparent");
+        // …while the Agents button stays active (existing behavior preserved).
+        const agents = screen.getByRole("button", {
+          name: "Agents",
+        }) as HTMLButtonElement;
+        expect(agents.style.borderRight).not.toBe("3px solid transparent");
+      });
     });
 
     // NOTE: there is intentionally NO in-sidebar expand/collapse control —

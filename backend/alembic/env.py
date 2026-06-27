@@ -26,6 +26,7 @@ from app.models.domain import (  # noqa: F401
     cost_event_type,
     cost_registration,
     cost_registration_attachment,
+    custom_entity_template,
     dashboard_layout,
     document,
     document_entity_link,

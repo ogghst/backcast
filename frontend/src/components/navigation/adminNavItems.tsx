@@ -26,7 +26,7 @@
 
 import {
   ApiOutlined,
-  ClockCircleOutlined,
+  AppstoreOutlined,
   CloudServerOutlined,
   ControlOutlined,
   DatabaseOutlined,
@@ -89,6 +89,15 @@ export function useAdminNavItems(): NavigationItem[] {
     },
     {
       item: {
+        key: "/admin/custom-entity-templates",
+        label: "Custom Entity Templates",
+        path: "/admin/custom-entity-templates",
+        icon: <AppstoreOutlined />,
+      },
+      gate: can("custom-entity-template-read"),
+    },
+    {
+      item: {
         key: "/admin/cost-event-types",
         label: "Cost Event Types",
         path: "/admin/cost-event-types",
@@ -122,15 +131,6 @@ export function useAdminNavItems(): NavigationItem[] {
         icon: <CloudServerOutlined />,
       },
       gate: can("ai-config-read"),
-    },
-    {
-      item: {
-        key: "/admin/agent-schedules",
-        label: "Agent Schedules",
-        path: "/admin/agent-schedules",
-        icon: <ClockCircleOutlined />,
-      },
-      gate: can("agent-schedule-manage"),
     },
     {
       item: {

@@ -201,8 +201,8 @@ export const ProgressEntriesTab = ({
     },
     {
       title: "Reported By",
-      dataIndex: "created_by",
-      key: "created_by",
+      dataIndex: "created_by_name",
+      key: "created_by_name",
       render: (name) => name || "-",
     },
     {

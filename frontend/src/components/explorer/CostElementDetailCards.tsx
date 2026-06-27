@@ -324,7 +324,7 @@ export const CostElementDetailCards = ({
                 {costElement.cost_element_id}
               </Descriptions.Item>
               <Descriptions.Item label="Created By">
-                {costElement.created_by_name || costElement.created_by}
+                {costElement.created_by_name || "System"}
               </Descriptions.Item>
               <Descriptions.Item label="Valid Time">
                 {costElement.valid_time_formatted

@@ -1,12 +1,17 @@
 import React from "react";
 import { useParams, useNavigate, useOutletContext } from "react-router-dom";
-import { Card, Descriptions, Table, Tag, Grid } from "antd";
+import { useState } from "react";
+import { Button, Card, Descriptions, Table, Tag, Grid } from "antd";
+import { HistoryOutlined } from "@ant-design/icons";
 import { useWorkPackages } from "@/features/work-packages/api/useWorkPackages";
 import { useWBSElement } from "@/features/wbs-elements/api/useWBSElements";
 import { formatCurrency } from "@/utils/formatters";
-import { getBranchColor } from "@/utils/formatters";
-import type { ControlAccountRead } from "@/api/generated";
+import { ControlAccountsService, type ControlAccountRead } from "@/api/generated";
 import { PageContent } from "@/components/layout";
+import { EntityMetadataCard } from "@/components/common/EntityMetadataCard";
+import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
+import { useEntityHistory } from "@/hooks/useEntityHistory";
+import { Can } from "@/components/auth/Can";
 
 /** Status color map for work packages */
 const WP_STATUS_COLOR_MAP: Record<string, string> = {
@@ -44,6 +49,15 @@ export const ControlAccountOverview: React.FC = () => {
 
   // Linked WBS element for display
   const { data: wbsElement } = useWBSElement(ca?.wbs_element_id || "");
+
+  // Version history state
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const { data: historyVersions, isLoading: historyLoading } = useEntityHistory({
+    resource: "control-accounts",
+    entityId: controlAccountId,
+    fetchFn: (id) => ControlAccountsService.getControlAccountHistory(id),
+    enabled: historyOpen,
+  });
 
   return (
     <PageContent>
@@ -92,20 +106,6 @@ export const ControlAccountOverview: React.FC = () => {
               key: "orgUnit",
               label: "Organizational Unit",
               children: ca?.organizational_unit_name || "-",
-            },
-            {
-              key: "branch",
-              label: "Branch",
-              children: ca?.branch ? (
-                <Tag color={getBranchColor(ca.branch)}>{ca.branch}</Tag>
-              ) : (
-                "-"
-              ),
-            },
-            {
-              key: "createdBy",
-              label: "Created By",
-              children: ca?.created_by_name || "-",
             },
           ]}
         />
@@ -168,6 +168,68 @@ export const ControlAccountOverview: React.FC = () => {
           ]}
         />
       </Card>
+
+      {/* Control Account metadata footer — standardized across entity pages */}
+      {ca && (
+        <EntityMetadataCard
+          entityId={ca.control_account_id}
+          entityIdLabel="Control Account ID"
+          parentId={ca.wbs_element_id}
+          parentLabel="WBS Element"
+          parentValue={ca.wbs_element_name}
+          createdAt={ca.created_at}
+          updatedAt={ca.updated_at}
+          createdBy={ca.created_by_name}
+          validTime={ca.valid_time_formatted}
+          cardId="control-account-metadata-card"
+          extra={
+            <Can permission="control-account-read">
+              <Button
+                icon={<HistoryOutlined />}
+                onClick={() => setHistoryOpen(true)}
+              >
+                {isMobile ? undefined : "History"}
+              </Button>
+            </Can>
+          }
+        />
+      )}
+
+      {/* Version history drawer */}
+      {ca && (
+        <VersionHistoryDrawer
+          open={historyOpen}
+          onClose={() => setHistoryOpen(false)}
+          entityName={`CA: ${ca.code || ""} - ${ca.name}`}
+          isLoading={historyLoading}
+          versions={(historyVersions || []).map((version: Record<string, unknown>, idx: number, arr: unknown[]) => {
+            const validTimeFormatted = version.valid_time_formatted as {
+              lower: string | null;
+              upper: string | null;
+              lower_formatted: string;
+              upper_formatted: string;
+              is_currently_valid: boolean;
+            } | undefined;
+            const transactionTimeFormatted = version.transaction_time_formatted as {
+              lower: string | null;
+              upper: string | null;
+              lower_formatted: string;
+              upper_formatted: string;
+              is_currently_valid: boolean;
+            } | undefined;
+
+            return {
+              id: `v${arr.length - idx}`,
+              valid_from: validTimeFormatted?.lower || "",
+              valid_to: validTimeFormatted?.upper || null,
+              transaction_time: transactionTimeFormatted?.lower || "",
+              changed_by: (version.created_by_name as string) || "System",
+              valid_time_formatted: validTimeFormatted,
+              transaction_time_formatted: transactionTimeFormatted,
+            };
+          })}
+        />
+      )}
     </PageContent>
   );
 };

@@ -1553,3 +1553,41 @@ async def test_get_aggregated_costs_by_entity_wbs_element(
     )
     assert len(result) >= 1
     assert result[0]["total_amount"] == 3500.0
+
+
+# ---------------------------------------------------------------------------
+# created_by_name population
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_by_id_populates_created_by_name(
+    db: AsyncSession, actor_id: UUID, service: CostRegistrationService
+) -> None:
+    """get_by_id should populate created_by_name from the creator user."""
+    h = await create_full_hierarchy(db, actor_id)
+    cr = await create_test_cost_registration(
+        db, actor_id, h["ce"].cost_element_id, amount=Decimal("1000")
+    )
+    await db.commit()
+
+    result = await service.get_by_id(cr.cost_registration_id)
+    assert result is not None
+    assert result.created_by_name == "Admin User"
+
+
+@pytest.mark.asyncio
+async def test_get_cost_registrations_populates_created_by_name(
+    db: AsyncSession, actor_id: UUID, service: CostRegistrationService
+) -> None:
+    """get_cost_registrations should populate created_by_name on each item."""
+    h = await create_full_hierarchy(db, actor_id)
+    await create_test_cost_registration(db, actor_id, h["ce"].cost_element_id)
+    await db.commit()
+
+    items, _total, _wp_map = await service.get_cost_registrations(
+        filters={"cost_element_id": h["ce"].cost_element_id}
+    )
+    assert len(items) >= 1
+    assert all(hasattr(i, "created_by_name") for i in items)
+    assert any(i.created_by_name == "Admin User" for i in items)

@@ -9,6 +9,7 @@ from typing import Annotated, Any
 
 from langchain_core.tools import InjectedToolArg
 
+from app.ai.tools.custom_fields_helpers import filter_ai_visible_custom_fields
 from app.ai.tools.decorator import ai_tool
 from app.ai.tools.templates._pagination import (
     calc_page_count,
@@ -44,6 +45,7 @@ async def list_projects(
     limit: int | None = None,
     sort_field: str | None = None,
     sort_order: str = "asc",
+    include_custom_fields: bool = False,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """List all projects in the system with filtering and pagination.
@@ -59,6 +61,10 @@ async def list_projects(
         limit: Maximum number of records to return per page (default from env)
         sort_field: Optional field to sort by (e.g., 'name', 'code')
         sort_order: Sort order, either 'asc' or 'desc' (default 'asc')
+        include_custom_fields: When True, include each project's ai_visible
+            custom fields (filtered by the entity's snapshot). Default False to
+            avoid token bloat over many rows; use get_project for a single
+            entity's full custom_fields.
         context: Injected tool execution context
 
     Returns:
@@ -164,6 +170,16 @@ async def list_projects(
                     "currency": p.currency,
                     "start_date": p.start_date.isoformat() if p.start_date else None,
                     "end_date": p.end_date.isoformat() if p.end_date else None,
+                    **(
+                        {
+                            "custom_fields": filter_ai_visible_custom_fields(
+                                getattr(p, "custom_fields", None),
+                                getattr(p, "custom_field_definitions_snapshot", None),
+                            )
+                        }
+                        if include_custom_fields
+                        else {}
+                    ),
                 }
                 for p in accessible_projects
             ],
@@ -217,6 +233,8 @@ async def get_project(
             - start_date: Project start date (ISO format)
             - end_date: Project end date (ISO format)
             - branch: Git branch for the project
+            - custom_fields: ai_visible custom fields ({code: value}); fields
+              not marked ai_visible in the entity's snapshot are hidden (D8)
             - _temporal_context: Temporal parameters used for the query
 
     Raises:
@@ -269,6 +287,10 @@ async def get_project(
             else None,
             "end_date": project.end_date.isoformat() if project.end_date else None,
             "branch": project.branch,
+            "custom_fields": filter_ai_visible_custom_fields(
+                getattr(project, "custom_fields", None),
+                getattr(project, "custom_field_definitions_snapshot", None),
+            ),
         }
 
         return add_temporal_metadata(result, context)
@@ -360,6 +382,7 @@ async def global_search(
             branch_mode=branch_mode,
             as_of=context.as_of,
             limit=limit,
+            search_mode="ai",
         )
 
         result = response.model_dump()

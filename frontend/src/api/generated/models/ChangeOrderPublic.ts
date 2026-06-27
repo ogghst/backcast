@@ -40,6 +40,10 @@ export type ChangeOrderPublic = {
      */
     impact_level?: (string | null);
     /**
+     * Bound CustomEntityTemplate root ID
+     */
+    custom_entity_template_root_id?: (string | null);
+    /**
      * Root UUID identifier
      */
     change_order_id: string;
@@ -51,6 +55,7 @@ export type ChangeOrderPublic = {
      * User who created this version
      */
     created_by: string;
+    created_by_name?: (string | null);
     /**
      * When this version was created (derived from transaction_time)
      */
@@ -116,8 +121,12 @@ export type ChangeOrderPublic = {
      */
     config_snapshot?: (Record<string, any> | null);
     /**
-     * Custom field values matching config.custom_fields definitions
+     * Immutable field-definition snapshot captured at create time
      */
-    custom_field_values?: (Record<string, any> | null);
+    custom_field_definitions_snapshot?: (Record<string, any> | null);
+    /**
+     * Custom field values (CHANGE_ORDER CustomEntityTemplate)
+     */
+    custom_fields?: (Record<string, any> | null);
 };
 

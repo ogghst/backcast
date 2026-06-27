@@ -98,6 +98,26 @@ class WorkPackageService(BranchableService[WorkPackage]):  # type: ignore[type-v
         root_id = data.work_package_id
         wp_data["work_package_id"] = root_id
 
+        # Phase 1C: custom_fields chokepoint — resolve template, validate,
+        # capture the IMMUTABLE snapshot. ValueError propagates to the route
+        # (400 on create).
+        from app.services.custom_field_service import CustomFieldService
+
+        template_root_id = wp_data.get("custom_entity_template_root_id")
+        cf = wp_data.get("custom_fields")
+        cf_to_store, snapshot = await CustomFieldService(
+            self.session
+        ).prepare_for_create(
+            template_root_id=template_root_id,
+            custom_fields=cf,
+            actor_id=actor_id,
+        )
+        wp_data["custom_fields"] = cf_to_store
+        if snapshot is not None:
+            wp_data["custom_field_definitions_snapshot"] = snapshot
+        else:
+            wp_data.pop("custom_field_definitions_snapshot", None)
+
         # Validate Control Account existence
         ca_exists = await self.session.execute(
             select(ControlAccount.id)
@@ -198,6 +218,39 @@ class WorkPackageService(BranchableService[WorkPackage]):  # type: ignore[type-v
         update_data = data.model_dump(exclude_unset=True)
         update_data.pop("control_date", None)
         branch = update_data.pop("branch", None) or "main"
+
+        # Phase 1C: custom_fields chokepoint — pull the template-root id,
+        # snapshot, and custom_fields out of update_data so the helper controls
+        # them, then merge its result back. Refines D2: immutable once set, but
+        # first binding may happen on edit. custom_fields ABSENT → skip (D11).
+        incoming_template_root_id = update_data.pop(
+            "custom_entity_template_root_id", None
+        )
+        update_data.pop("custom_field_definitions_snapshot", None)
+        custom_fields = update_data.pop("custom_fields", None)
+
+        from app.services.custom_field_service import CustomFieldService
+
+        current = await self.get_as_of(
+            entity_id=work_package_id, as_of=None, branch=branch
+        )
+        cf_updates = await CustomFieldService(self.session).prepare_for_update(
+            current_template_root_id=getattr(
+                current, "custom_entity_template_root_id", None
+            )
+            if current is not None
+            else None,
+            incoming_template_root_id=incoming_template_root_id,
+            current_snapshot=getattr(current, "custom_field_definitions_snapshot", None)
+            if current is not None
+            else None,
+            custom_fields=custom_fields,
+            actor_id=actor_id,
+            stored_custom_fields=getattr(current, "custom_fields", None)
+            if current is not None
+            else None,
+        )
+        update_data.update(cf_updates)
 
         # Extract schedule/forecast fields before WP update
         schedule_fields = {
@@ -341,7 +394,16 @@ class WorkPackageService(BranchableService[WorkPackage]):  # type: ignore[type-v
         stmt = stmt.offset(skip).limit(limit)
 
         result = await self.session.execute(stmt)
-        return list(result.scalars().all()), total
+        work_packages = list(result.scalars().all())
+        # Resolve created_by_name + created_at/updated_at across all versions.
+        from app.core.versioning.creator_resolver import (
+            populate_creator_names,
+            populate_entity_timestamps,
+        )
+
+        await populate_creator_names(self.session, work_packages)
+        await populate_entity_timestamps(self.session, work_packages)
+        return work_packages, total
 
     async def get_breadcrumb(self, work_package_id: UUID) -> dict[str, Any]:
         """Get breadcrumb trail for a Work Package.
@@ -659,4 +721,12 @@ class WorkPackageService(BranchableService[WorkPackage]):  # type: ignore[type-v
             stmt = stmt.where(func.upper(cast(Any, WorkPackage).valid_time).is_(None))
 
         rows = await self.session.execute(stmt)
-        return {e.work_package_id: e for e in rows.scalars()}
+        entities = list(rows.scalars())
+        from app.core.versioning.creator_resolver import (
+            populate_creator_names,
+            populate_entity_timestamps,
+        )
+
+        await populate_creator_names(self.session, entities)
+        await populate_entity_timestamps(self.session, entities)
+        return {e.work_package_id: e for e in entities}

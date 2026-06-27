@@ -447,3 +447,25 @@ async def test_get_base_stmt_returns_select(db: AsyncSession, actor_id: UUID) ->
     service = ScheduleBaselineService(db)
     stmt = service._get_base_stmt()
     assert stmt is not None
+
+
+# ---------------------------------------------------------------------------
+# created_by_name population
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_by_id_populates_created_by_name(
+    db: AsyncSession, actor_id: UUID
+) -> None:
+    """get_by_id should populate created_by_name from the creator user."""
+    hierarchy = await create_full_hierarchy(db, actor_id)
+    baseline = await create_test_schedule_baseline(
+        db, actor_id, hierarchy["wp"].work_package_id
+    )
+    await db.commit()
+
+    service = ScheduleBaselineService(db)
+    found = await service.get_by_id(baseline.schedule_baseline_id)
+    assert found is not None
+    assert found.created_by_name == "Admin User"

@@ -13,5 +13,6 @@ export type CostElementTypeRead = {
     cost_element_type_id: string;
     organizational_unit_id: string;
     created_by: string;
+    created_by_name?: (string | null);
 };
 

@@ -43,6 +43,7 @@ class ProjectBudgetSettingsRead(ProjectBudgetSettingsBase):
     project_budget_settings_id: UUID
     project_id: UUID
     created_by: UUID
+    created_by_name: str | None = None
 
 
 class BudgetWarning(BaseModel):

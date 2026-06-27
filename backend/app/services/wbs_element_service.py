@@ -234,7 +234,19 @@ class WBSElementService(BranchableService[WBSElement]):  # type: ignore[type-var
     async def _resolve_parent_names(
         self, query_results: Sequence[Any]
     ) -> list[WBSElement]:
-        """Resolve parent names for a list of WBS Element results."""
+        """Resolve parent names for a list of WBS Element results.
+
+        Also batch-derives `created_at` (true creation = MIN over all versions)
+        and `updated_at` (MAX over all versions), and batch-resolves
+        `created_by_name` from the User table. Centralizing this here means
+        every WBS list path (get_wbs_elements, get_by_project, get_by_parent,
+        get_by_code, ...) emits all fields populated.
+        """
+        from app.core.versioning.creator_resolver import (
+            populate_creator_names,
+            populate_entity_timestamps,
+        )
+
         resolved = []
         for item in query_results:
             if hasattr(item, "__iter__") and not isinstance(item, (str, bytes)):
@@ -249,6 +261,9 @@ class WBSElementService(BranchableService[WBSElement]):  # type: ignore[type-var
                     resolved.append(item)
             else:
                 resolved.append(item)
+
+        await populate_creator_names(self.session, resolved)
+        await populate_entity_timestamps(self.session, resolved)
         return resolved
 
     def _get_base_stmt(self, as_of: datetime | None = None) -> Any:
@@ -320,7 +335,7 @@ class WBSElementService(BranchableService[WBSElement]):  # type: ignore[type-var
         """
         from sqlalchemy import and_
 
-        from app.core.filtering import FilterParser
+        from app.core.filtering import FilterParser, _custom_field_order_by
 
         base_stmt = self._get_base_stmt(as_of=as_of)
 
@@ -351,11 +366,23 @@ class WBSElementService(BranchableService[WBSElement]):  # type: ignore[type-var
                 )
             )
 
+        # Phase 2: resolve searchable custom-field specs once (searchable gate).
+        from app.services.custom_field_service import CustomFieldService
+
+        cf_specs: dict[str, dict[str, Any]] = {}
+        if filters or sort_field:
+            cf_specs = await CustomFieldService(self.session).list_current_field_codes(
+                "WBS_ELEMENT", flag="searchable"
+            )
+
         if filters:
             allowed_fields = ["level", "code", "name"]
             parsed_filters = FilterParser.parse_filters(filters)
             filter_expressions = FilterParser.build_sqlalchemy_filters(
-                cast(Any, WBSElement), parsed_filters, allowed_fields=allowed_fields
+                cast(Any, WBSElement),
+                parsed_filters,
+                allowed_fields=allowed_fields,
+                custom_field_specs=cf_specs,
             )
             if filter_expressions:
                 stmt = stmt.where(and_(*filter_expressions))
@@ -366,13 +393,24 @@ class WBSElementService(BranchableService[WBSElement]):  # type: ignore[type-var
         total = total_result.scalar_one()
 
         if sort_field:
-            if not hasattr(WBSElement, sort_field):
-                raise ValueError(f"Invalid sort field: {sort_field}")
-            column = getattr(WBSElement, sort_field)
-            if sort_order.lower() == "desc":
-                stmt = stmt.order_by(column.desc())
+            if hasattr(WBSElement, sort_field):
+                column = getattr(WBSElement, sort_field)
+                if sort_order.lower() == "desc":
+                    stmt = stmt.order_by(column.desc())
+                else:
+                    stmt = stmt.order_by(column.asc())
+            elif sort_field in cf_specs:
+                # Phase 2: sort by a JSONB custom-field key (NULLs last).
+                stmt = stmt.order_by(
+                    _custom_field_order_by(
+                        cast(Any, WBSElement),
+                        sort_field,
+                        cf_specs[sort_field],
+                        sort_order,
+                    )
+                )
             else:
-                stmt = stmt.order_by(column.asc())
+                raise ValueError(f"Invalid sort field: {sort_field}")
         else:
             stmt = stmt.order_by(cast(Any, WBSElement).valid_time.desc())
 
@@ -558,6 +596,26 @@ class WBSElementService(BranchableService[WBSElement]):  # type: ignore[type-var
         root_id = wbe_in.wbs_element_id or uuid4()
         element_data["wbs_element_id"] = root_id
 
+        # Phase 1C: custom_fields chokepoint — resolve template, validate,
+        # capture the IMMUTABLE snapshot. ValueError propagates to the route
+        # (400 on create).
+        from app.services.custom_field_service import CustomFieldService
+
+        template_root_id = element_data.get("custom_entity_template_root_id")
+        cf = element_data.get("custom_fields")
+        cf_to_store, snapshot = await CustomFieldService(
+            self.session
+        ).prepare_for_create(
+            template_root_id=template_root_id,
+            custom_fields=cf,
+            actor_id=actor_id,
+        )
+        element_data["custom_fields"] = cf_to_store
+        if snapshot is not None:
+            element_data["custom_field_definitions_snapshot"] = snapshot
+        else:
+            element_data.pop("custom_field_definitions_snapshot", None)
+
         # Validate Parent Project existence
         project_exists = await self.session.execute(
             select(Project.id)
@@ -598,10 +656,15 @@ class WBSElementService(BranchableService[WBSElement]):  # type: ignore[type-var
         )
         element = await cmd.execute(self.session)
 
-        await self._validate_revenue_allocation(
-            project_id=wbe_in.project_id,
-            branch=element_data.get("branch", "main"),
-        )
+        # The revenue cap is a project-wide pool. A new element with no (or zero)
+        # revenue allocation contributes nothing to it, so it must be allowed even
+        # when the project is already over-allocated. Only enforce the cap when the
+        # new element actually carries a positive allocation.
+        if wbe_in.revenue_allocation:
+            await self._validate_revenue_allocation(
+                project_id=wbe_in.project_id,
+                branch=element_data.get("branch", "main"),
+            )
 
         element.budget_allocation = await self._compute_wbs_budget(
             root_id, branch=element_data.get("branch", "main")
@@ -640,6 +703,28 @@ class WBSElementService(BranchableService[WBSElement]):  # type: ignore[type-var
 
         project_id = current.project_id
 
+        # Phase 1C: custom_fields chokepoint — pull the template-root id,
+        # snapshot, and custom_fields out of update_data so the helper controls
+        # them, then merge its result back. Refines D2: immutable once set, but
+        # first binding may happen on edit. ``current`` was resolved above.
+        incoming_template_root_id = update_data.pop(
+            "custom_entity_template_root_id", None
+        )
+        update_data.pop("custom_field_definitions_snapshot", None)
+        custom_fields = update_data.pop("custom_fields", None)
+
+        from app.services.custom_field_service import CustomFieldService
+
+        cf_updates = await CustomFieldService(self.session).prepare_for_update(
+            current_template_root_id=current.custom_entity_template_root_id,
+            incoming_template_root_id=incoming_template_root_id,
+            current_snapshot=current.custom_field_definitions_snapshot,
+            custom_fields=custom_fields,
+            actor_id=actor_id,
+            stored_custom_fields=current.custom_fields,
+        )
+        update_data.update(cf_updates)
+
         # Handle re-leveling if parent changes
         if "parent_wbs_element_id" in update_data:
             new_parent_id = update_data["parent_wbs_element_id"]
@@ -663,10 +748,15 @@ class WBSElementService(BranchableService[WBSElement]):  # type: ignore[type-var
         )
         updated = await cmd.execute(self.session)
 
-        await self._validate_revenue_allocation(
-            project_id=project_id,
-            branch=branch,
-        )
+        # Revenue allocation is a project-wide invariant. Only re-validate it when
+        # this update actually changes a revenue_allocation value; otherwise a plain
+        # text edit (e.g. description) would be blocked by a pre-existing
+        # over-allocation in the project.
+        if "revenue_allocation" in update_data:
+            await self._validate_revenue_allocation(
+                project_id=project_id,
+                branch=branch,
+            )
 
         updated.budget_allocation = await self._compute_wbs_budget(
             wbe_id, branch=branch
@@ -1046,6 +1136,11 @@ class WBSElementService(BranchableService[WBSElement]):  # type: ignore[type-var
                 wbe_id, branch=element.branch
             )
             history.append(element)
+
+        # Derive created_at (true creation) + updated_at across all versions.
+        from app.core.versioning.creator_resolver import populate_entity_timestamps
+
+        await populate_entity_timestamps(self.session, history)
 
         return history
 

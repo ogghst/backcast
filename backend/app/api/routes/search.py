@@ -66,4 +66,5 @@ async def global_search(
         branch_mode=branch_mode,
         as_of=as_of,
         limit=limit,
+        search_mode="ui",
     )

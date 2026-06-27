@@ -415,3 +415,49 @@ async def test_backward_compat_alias_for_cost_elements(
 
     assert wp_id in result
     assert result[wp_id].progress_percentage == Decimal("45.00")
+
+
+# ---------------------------------------------------------------------------
+# created_by_name population
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_by_id_populates_created_by_name(
+    db: AsyncSession, actor_id: UUID
+) -> None:
+    """get_by_id should populate created_by_name from the creator user."""
+    hierarchy = await create_full_hierarchy(db, actor_id)
+    service = ProgressEntryService(db)
+
+    entry = await service.create(
+        actor_id=actor_id,
+        work_package_id=hierarchy["wp"].work_package_id,
+        progress_percentage=Decimal("30.00"),
+        notes="Creator name test",
+    )
+    await db.commit()
+
+    found = await service.get_by_id(entry.progress_entry_id)
+    assert found is not None
+    assert found.created_by_name == "Admin User"
+
+
+@pytest.mark.asyncio
+async def test_get_progress_history_populates_created_by_name(
+    db: AsyncSession, actor_id: UUID
+) -> None:
+    """get_progress_history should populate created_by_name on each entry."""
+    hierarchy = await create_full_hierarchy(db, actor_id)
+    wp_id = hierarchy["wp"].work_package_id
+
+    await create_test_progress_entry(
+        db, actor_id, wp_id, progress_percentage=Decimal("40.00")
+    )
+    await db.commit()
+
+    service = ProgressEntryService(db)
+    items, _ = await service.get_progress_history(work_package_id=wp_id)
+    assert len(items) >= 1
+    assert all(hasattr(i, "created_by_name") for i in items)
+    assert any(i.created_by_name == "Admin User" for i in items)

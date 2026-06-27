@@ -5,6 +5,12 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+      # Align the container OS clock and Postgres session/display timezone with
+      # the host (Europe/Rome). PGTZ seeds timezone/log_timezone on a fresh
+      # initdb; the live DB is set via ALTER SYSTEM. timestamptz stays absolute
+      # UTC regardless — these only affect display/logging.
+      TZ: Europe/Rome
+      PGTZ: Europe/Rome
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:

@@ -24,22 +24,26 @@
  */
 
 import { useEffect } from "react";
-import { Button, Grid, Layout, Tooltip, theme } from "antd";
+import { Badge, Button, Grid, Layout, Tooltip, theme } from "antd";
 import {
   AppstoreOutlined,
   HomeOutlined,
   MessageOutlined,
   ProjectOutlined,
+  RobotOutlined,
+  SettingOutlined,
   ThunderboltOutlined,
   UserOutlined,
 } from "@ant-design/icons";
 import { useLocation, useNavigate } from "react-router-dom";
 
+import { useAdminNavItems } from "@/components/navigation/adminNavItems";
 import { SidebarContent } from "@/components/navigation/SidebarContent";
 import { SidebarFlyout } from "@/components/navigation/SidebarFlyout";
 import { useEntityNav } from "@/components/navigation/useEntityNav";
 import { serializeCtx } from "@/hooks/navigation/useChatContextFromUrl";
 import { useEffectiveChatContext } from "@/hooks/navigation/useEffectiveChatContext";
+import { useRunningExecutionsCount } from "@/features/ai/chat/api/useAgentExecutions";
 import type { NavFlyout } from "@/stores/useNavigationStore";
 import { useNavigationStore } from "@/stores/useNavigationStore";
 import { usePermission } from "@/hooks/usePermission";
@@ -65,14 +69,30 @@ function RailButton({
   active,
   onClick,
   stopsMouseDown = false,
+  badge,
 }: {
   label: string;
   icon: React.ReactNode;
   active?: boolean;
   onClick: () => void;
   stopsMouseDown?: boolean;
+  /** Optional count to badge the icon corner (auto-hidden at 0 by antd). */
+  badge?: number;
 }) {
   const { token } = theme.useToken();
+  const inner = (
+    <span style={{ fontSize: token.fontSizeLG, display: "inline-flex" }}>
+      {icon}
+    </span>
+  );
+  const iconEl =
+    badge !== undefined ? (
+      <Badge count={badge} offset={[-2, 2]}>
+        {inner}
+      </Badge>
+    ) : (
+      inner
+    );
   return (
     <Tooltip title={label} placement="right">
       <Button
@@ -93,11 +113,7 @@ function RailButton({
             ? `3px solid ${token.colorPrimary}`
             : "3px solid transparent",
         }}
-        icon={
-          <span style={{ fontSize: token.fontSizeLG, display: "inline-flex" }}>
-            {icon}
-          </span>
-        }
+        icon={iconEl}
       />
     </Tooltip>
   );
@@ -118,8 +134,29 @@ export function AppSidebar(): React.JSX.Element | null {
 
   const effectiveCtx = useEffectiveChatContext();
 
-  const { can } = usePermission();
+  const { can, canAny, hasRole } = usePermission();
   const canChat = can("ai-chat");
+  const canAgents = canAny(["ai-chat", "agent-schedule-manage"]);
+  const agentsDest = can("agent-schedule-manage")
+    ? "/admin/agent-schedules"
+    : "/agents-history";
+  const agentsActive =
+    isPrimaryActive(location.pathname, "/admin/agent-schedules") ||
+    isPrimaryActive(location.pathname, "/agents-history");
+  // Poll unconditionally (Rules of Hooks); gate the value so unauthorized users
+  // never show a badge. TanStack stops polling when the component unmounts.
+  const runningCountQuery = useRunningExecutionsCount();
+  const runningCount = canAgents ? (runningCountQuery.data ?? 0) : 0;
+
+  const adminItems = useAdminNavItems();
+  const showAdmin = hasRole("admin") && adminItems.length > 0;
+  // Admin header highlights only when a visible admin item's route is active
+  // (mirrors SidebarContent). A bare `/admin` prefix match would wrongly light
+  // Admin on `/admin/agent-schedules` (the Agents destination, not an admin
+  // section item — see `useAdminNavItems`). Derive active state from the items.
+  const adminActive = adminItems.some((item) =>
+    isPrimaryActive(location.pathname, item.path),
+  );
 
   const expanded = useNavigationStore((s) => s.expanded);
   const flyout = useNavigationStore((s) => s.flyout);
@@ -259,6 +296,31 @@ export function AppSidebar(): React.JSX.Element | null {
             icon={<MessageOutlined />}
             active={isPrimaryActive(location.pathname, "/chat")}
             onClick={handleChatNav}
+          />
+        )}
+
+        {/* Agents — a single button below Chat. Managers (agent-schedule-manage)
+            land on Schedules; chat-only users land on History. Badged with the
+            running-executions count. Active on either destination route. */}
+        {canAgents && (
+          <RailButton
+            label="Agents"
+            icon={<RobotOutlined />}
+            active={agentsActive}
+            onClick={() => navigate(agentsDest)}
+            badge={runningCount > 0 ? runningCount : undefined}
+          />
+        )}
+
+        {/* Admin — opens a flyout of the permission-gated admin pages (mirrors the
+            entity rail→flyout). Admin-only; expanded mode shows the inline section. */}
+        {showAdmin && (
+          <RailButton
+            label="Admin"
+            icon={<SettingOutlined />}
+            active={flyout === "admin" || adminActive}
+            stopsMouseDown
+            onClick={() => toggleFlyout("admin")}
           />
         )}
 

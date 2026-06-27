@@ -3355,6 +3355,417 @@
         }
       }
     },
+    "/api/v1/custom-entity-templates": {
+      "get": {
+        "tags": [
+          "Custom Entity Templates"
+        ],
+        "summary": "Read Custom Entity Templates",
+        "description": "Retrieve custom entity templates with server-side features.",
+        "operationId": "get_custom_entity_templates",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page number (1-indexed)",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number (1-indexed)"
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Items per page",
+              "default": 20,
+              "title": "Per Page"
+            },
+            "description": "Items per page"
+          },
+          {
+            "name": "organizational_unit_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by Organizational Unit ID",
+              "title": "Organizational Unit Id"
+            },
+            "description": "Filter by Organizational Unit ID"
+          },
+          {
+            "name": "target_entity_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by target entity type (PROJECT|WBS_ELEMENT|WORK_PACKAGE|CHANGE_ORDER)",
+              "title": "Target Entity Type"
+            },
+            "description": "Filter by target entity type (PROJECT|WBS_ELEMENT|WORK_PACKAGE|CHANGE_ORDER)"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Search term (code, name)",
+              "title": "Search"
+            },
+            "description": "Search term (code, name)"
+          },
+          {
+            "name": "filters",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filters in format 'column:value;column:value1,value2'",
+              "title": "Filters"
+            },
+            "description": "Filters in format 'column:value;column:value1,value2'"
+          },
+          {
+            "name": "sort_field",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Field to sort by",
+              "title": "Sort Field"
+            },
+            "description": "Field to sort by"
+          },
+          {
+            "name": "sort_order",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(asc|desc)$",
+              "description": "Sort order (asc or desc)",
+              "default": "asc",
+              "title": "Sort Order"
+            },
+            "description": "Sort order (asc or desc)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Custom Entity Templates"
+        ],
+        "summary": "Create Custom Entity Template",
+        "description": "Create a new custom entity template.",
+        "operationId": "create_custom_entity_template",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomEntityTemplateCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomEntityTemplateRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/custom-entity-templates/{custom_entity_template_id}": {
+      "get": {
+        "tags": [
+          "Custom Entity Templates"
+        ],
+        "summary": "Read Custom Entity Template",
+        "description": "Get a specific custom entity template by id.",
+        "operationId": "get_custom_entity_template",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "custom_entity_template_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Custom Entity Template Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomEntityTemplateRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Custom Entity Templates"
+        ],
+        "summary": "Update Custom Entity Template",
+        "description": "Update a custom entity template.",
+        "operationId": "update_custom_entity_template",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "custom_entity_template_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Custom Entity Template Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomEntityTemplateUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomEntityTemplateRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Custom Entity Templates"
+        ],
+        "summary": "Delete Custom Entity Template",
+        "description": "Soft delete a custom entity template.",
+        "operationId": "delete_custom_entity_template",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "custom_entity_template_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Custom Entity Template Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/custom-entity-templates/{custom_entity_template_id}/history": {
+      "get": {
+        "tags": [
+          "Custom Entity Templates"
+        ],
+        "summary": "Get Custom Entity Template History",
+        "description": "Get version history for a custom entity template.",
+        "operationId": "get_custom_entity_template_history",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "custom_entity_template_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Custom Entity Template Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CustomEntityTemplateRead"
+                  },
+                  "title": "Response Get Custom Entity Template History"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/cost-event-types": {
       "get": {
         "tags": [
@@ -4137,6 +4548,59 @@
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cost-elements/{cost_element_id}/history": {
+      "get": {
+        "tags": [
+          "Cost Elements"
+        ],
+        "summary": "Read Cost Element History",
+        "description": "Get version history for a cost element. Requires read permission.",
+        "operationId": "get_cost_element_history",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cost_element_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Cost Element Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CostElementRead"
+                  },
+                  "title": "Response Get Cost Element History"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -13111,7 +13575,7 @@
           "Agent Schedules"
         ],
         "summary": "Trigger Agent Schedule",
-        "description": "Launch a run for a schedule from a FRESH conversation session.\n\nAuthorization: the schedule's owner, or an admin. No ``RoleChecker`` \u2014\ntriggering an existing schedule is authorized by its existence (it was\ncreated under ``agent-schedule-manage``), so a later permission revocation\ndoes not silently halt already-scheduled runs.\n\nOverlap guard: a transaction-scoped advisory lock serializes concurrent\ntriggers for the same schedule, and the RUNNING ``AIAgentExecution`` row is\ncreated INSIDE the locked transaction (before commit) so a concurrent\ntrigger's overlap check sees it \u2192 409. The actual run then launches\nfire-and-forget via ``asyncio.create_task`` in the backend process (the\nin-memory lifecycle/event-bus singletons require this).",
+        "description": "Launch a run for a schedule (\"Run now\"). Owner or admin.\n\nDelegates to ``trigger_schedule_run`` \u2014 the same overlap-guarded launcher\nthe in-process scheduler tick uses \u2014 so manual and scheduled runs traverse\nidentical code. Authorization is by the schedule's existence (created under\n``agent-schedule-manage``); a later permission revocation does not silently\nhalt already-scheduled runs.",
         "operationId": "trigger_agent_schedule",
         "security": [
           {
@@ -17097,7 +17561,7 @@
           "name"
         ],
         "title": "AIAssistantConfigCreate",
-        "description": "Schema for creating an assistant config."
+        "description": "Schema for creating an assistant config.\n\nThe ``model_id``-required-for-main-agents invariant is enforced HERE (write\ntime), mirroring ``AIConfigService._enforce_main_agent_has_model``. It is\nintentionally NOT on the read schema ``AIAssistantConfigPublic``: a legacy\nmisconfigured row must not 500 the list endpoint (the invariant guards\nnew writes; existing bad rows are surfaced, not fatal, on read)."
       },
       "AIAssistantConfigPublic": {
         "properties": {
@@ -19758,6 +20222,19 @@
             "title": "Impact Level",
             "description": "Financial impact level"
           },
+          "custom_entity_template_root_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Entity Template Root Id",
+            "description": "Bound CustomEntityTemplate root ID"
+          },
           "control_date": {
             "anyOf": [
               {
@@ -19822,7 +20299,7 @@
             "title": "Sla Status",
             "description": "SLA status"
           },
-          "custom_field_values": {
+          "custom_fields": {
             "anyOf": [
               {
                 "additionalProperties": true,
@@ -19832,8 +20309,21 @@
                 "type": "null"
               }
             ],
-            "title": "Custom Field Values",
-            "description": "Custom field values matching config.custom_fields definitions"
+            "title": "Custom Fields",
+            "description": "Custom field values (CHANGE_ORDER CustomEntityTemplate)"
+          },
+          "custom_field_definitions_snapshot": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Field Definitions Snapshot",
+            "description": "Server-captured field-definition snapshot (read-only)"
           }
         },
         "type": "object",
@@ -19955,6 +20445,19 @@
             "title": "Impact Level",
             "description": "Financial impact level (LOW/MEDIUM/HIGH/CRITICAL)"
           },
+          "custom_entity_template_root_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Entity Template Root Id",
+            "description": "Bound CustomEntityTemplate root ID"
+          },
           "change_order_id": {
             "type": "string",
             "format": "uuid",
@@ -19972,6 +20475,17 @@
             "format": "uuid",
             "title": "Created By",
             "description": "User who created this version"
+          },
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
           },
           "created_at": {
             "anyOf": [
@@ -20159,7 +20673,7 @@
             "title": "Config Snapshot",
             "description": "Workflow configuration snapshot at submission time. Immutable record of the rules, thresholds, and weights that were active when this change order was submitted for approval."
           },
-          "custom_field_values": {
+          "custom_field_definitions_snapshot": {
             "anyOf": [
               {
                 "additionalProperties": true,
@@ -20169,8 +20683,21 @@
                 "type": "null"
               }
             ],
-            "title": "Custom Field Values",
-            "description": "Custom field values matching config.custom_fields definitions"
+            "title": "Custom Field Definitions Snapshot",
+            "description": "Immutable field-definition snapshot captured at create time"
+          },
+          "custom_fields": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Fields",
+            "description": "Custom field values (CHANGE_ORDER CustomEntityTemplate)"
           }
         },
         "type": "object",
@@ -20513,7 +21040,7 @@
             "title": "Comment",
             "description": "Optional comment for status transitions (Submit, Approve, Reject, Merge)"
           },
-          "custom_field_values": {
+          "custom_fields": {
             "anyOf": [
               {
                 "additionalProperties": true,
@@ -20523,8 +21050,21 @@
                 "type": "null"
               }
             ],
-            "title": "Custom Field Values",
-            "description": "Custom field values matching config.custom_fields definitions"
+            "title": "Custom Fields",
+            "description": "Custom field values (CHANGE_ORDER CustomEntityTemplate)"
+          },
+          "custom_entity_template_root_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Entity Template Root Id",
+            "description": "Bound CustomEntityTemplate root ID"
           },
           "assigned_approver_id": {
             "anyOf": [
@@ -20705,6 +21245,41 @@
       },
       "ControlAccountRead": {
         "properties": {
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
           "name": {
             "type": "string",
             "maxLength": 255,
@@ -20765,17 +21340,6 @@
             "type": "string",
             "format": "uuid",
             "title": "Created By"
-          },
-          "created_by_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Created By Name"
           },
           "deleted_by": {
             "anyOf": [
@@ -21040,6 +21604,41 @@
       },
       "CostElementRead": {
         "properties": {
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
           "cost_element_type_id": {
             "type": "string",
             "format": "uuid",
@@ -21076,17 +21675,6 @@
             "type": "string",
             "format": "uuid",
             "title": "Created By"
-          },
-          "created_by_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Created By Name"
           },
           "deleted_by": {
             "anyOf": [
@@ -21340,6 +21928,17 @@
             "type": "string",
             "format": "uuid",
             "title": "Created By"
+          },
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
           }
         },
         "type": "object",
@@ -22664,6 +23263,17 @@
             "format": "uuid",
             "title": "Created By"
           },
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
+          },
           "registration_date_formatted": {
             "additionalProperties": {
               "anyOf": [
@@ -22816,6 +23426,279 @@
         "type": "object",
         "title": "CostRegistrationUpdate",
         "description": "Properties that can be updated on a Cost Registration."
+      },
+      "CustomEntityTemplateCreate": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Code"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "target_entity_type": {
+            "type": "string",
+            "enum": [
+              "PROJECT",
+              "WBS_ELEMENT",
+              "WORK_PACKAGE",
+              "CHANGE_ORDER"
+            ],
+            "title": "Target Entity Type"
+          },
+          "field_definitions": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Field Definitions"
+          },
+          "custom_entity_template_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Entity Template Id",
+            "description": "Root Custom Entity Template ID (internal use only for seeding)"
+          },
+          "organizational_unit_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Organizational Unit Id"
+          },
+          "control_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Control Date",
+            "description": "Optional control date for creation (valid_time start)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "name",
+          "target_entity_type",
+          "field_definitions",
+          "organizational_unit_id"
+        ],
+        "title": "CustomEntityTemplateCreate",
+        "description": "Properties required for creating a Custom Entity Template."
+      },
+      "CustomEntityTemplateRead": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Code"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "target_entity_type": {
+            "type": "string",
+            "enum": [
+              "PROJECT",
+              "WBS_ELEMENT",
+              "WORK_PACKAGE",
+              "CHANGE_ORDER"
+            ],
+            "title": "Target Entity Type"
+          },
+          "field_definitions": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Field Definitions"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "custom_entity_template_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Custom Entity Template Id"
+          },
+          "organizational_unit_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Organizational Unit Id"
+          },
+          "created_by": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Created By"
+          },
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
+          },
+          "valid_time": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Time"
+          },
+          "transaction_time": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transaction Time"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "name",
+          "target_entity_type",
+          "field_definitions",
+          "id",
+          "custom_entity_template_id",
+          "organizational_unit_id",
+          "created_by"
+        ],
+        "title": "CustomEntityTemplateRead",
+        "description": "Properties returned to client."
+      },
+      "CustomEntityTemplateUpdate": {
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "target_entity_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "PROJECT",
+                  "WBS_ELEMENT",
+                  "WORK_PACKAGE",
+                  "CHANGE_ORDER"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Entity Type"
+          },
+          "field_definitions": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field Definitions"
+          },
+          "control_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Control Date",
+            "description": "Optional control date for the update (valid_time start)"
+          }
+        },
+        "type": "object",
+        "title": "CustomEntityTemplateUpdate",
+        "description": "Properties that can be updated.\n\n`target_entity_type` is included so the service can reject it explicitly\nwith a clear 400 message (immutability enforced in the service, not via\nschema omission). It defaults to None like the other optional fields."
       },
       "CustomFieldDefinition": {
         "properties": {
@@ -23307,6 +24190,17 @@
             "format": "uuid",
             "title": "Created By"
           },
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -23536,6 +24430,17 @@
             "type": "string",
             "format": "uuid",
             "title": "Created By"
+          },
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
           },
           "size_bytes": {
             "type": "integer",
@@ -24390,6 +25295,17 @@
             "type": "string",
             "format": "uuid",
             "title": "Created By"
+          },
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
           },
           "approved_date": {
             "anyOf": [
@@ -26294,6 +27210,17 @@
             "format": "uuid",
             "title": "Created By"
           },
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
+          },
           "valid_time": {
             "anyOf": [
               {
@@ -26457,6 +27384,17 @@
             "type": "string",
             "format": "uuid",
             "title": "Created By"
+          },
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
           }
         },
         "type": "object",
@@ -26552,6 +27490,32 @@
             "title": "Description",
             "description": "Description"
           },
+          "custom_fields": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Fields",
+            "description": "Admin-template custom field values"
+          },
+          "custom_entity_template_root_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Entity Template Root Id",
+            "description": "Bound CustomEntityTemplate root ID"
+          },
           "project_id": {
             "anyOf": [
               {
@@ -26583,6 +27547,19 @@
             ],
             "title": "Control Date",
             "description": "Optional control date for creation (valid_time start)"
+          },
+          "custom_field_definitions_snapshot": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Field Definitions Snapshot",
+            "description": "Server-captured field-definition snapshot (read-only)"
           }
         },
         "type": "object",
@@ -26641,6 +27618,41 @@
       },
       "ProjectRead": {
         "properties": {
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
           "name": {
             "type": "string",
             "maxLength": 200,
@@ -26718,6 +27730,32 @@
             "title": "Description",
             "description": "Description"
           },
+          "custom_fields": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Fields",
+            "description": "Admin-template custom field values"
+          },
+          "custom_entity_template_root_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Entity Template Root Id",
+            "description": "Bound CustomEntityTemplate root ID"
+          },
           "id": {
             "type": "string",
             "format": "uuid",
@@ -26739,18 +27777,6 @@
             "description": "Computed project budget (sum of all cost element budgets)",
             "default": "0"
           },
-          "created_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Created At"
-          },
           "created_by": {
             "anyOf": [
               {
@@ -26762,17 +27788,6 @@
               }
             ],
             "title": "Created By"
-          },
-          "created_by_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Created By Name"
           },
           "deleted_by": {
             "anyOf": [
@@ -26807,6 +27822,19 @@
               }
             ],
             "title": "Transaction Time"
+          },
+          "custom_field_definitions_snapshot": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Field Definitions Snapshot",
+            "description": "Immutable field-definition snapshot captured at create"
           },
           "valid_time_formatted": {
             "additionalProperties": {
@@ -27039,6 +28067,32 @@
             ],
             "title": "Control Date",
             "description": "Optional control date for update (valid_time start)"
+          },
+          "custom_fields": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Fields",
+            "description": "Admin-template custom field values"
+          },
+          "custom_entity_template_root_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Entity Template Root Id",
+            "description": "Bound CustomEntityTemplate root ID"
           }
         },
         "type": "object",
@@ -27559,6 +28613,17 @@
             "type": "string",
             "format": "uuid",
             "title": "Created By"
+          },
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
           },
           "branch": {
             "type": "string",
@@ -29168,6 +30233,32 @@
             "title": "Description",
             "description": "Description"
           },
+          "custom_fields": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Fields",
+            "description": "Admin-template custom field values"
+          },
+          "custom_entity_template_root_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Entity Template Root Id",
+            "description": "Bound CustomEntityTemplate root ID"
+          },
           "wbs_element_id": {
             "anyOf": [
               {
@@ -29199,6 +30290,19 @@
             ],
             "title": "Control Date",
             "description": "Optional control date for creation (valid_time start)"
+          },
+          "custom_field_definitions_snapshot": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Field Definitions Snapshot",
+            "description": "Server-captured field-definition snapshot (read-only)"
           }
         },
         "type": "object",
@@ -29212,6 +30316,41 @@
       },
       "WBSElementRead": {
         "properties": {
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
           "id": {
             "type": "string",
             "format": "uuid",
@@ -29286,33 +30425,10 @@
             "type": "string",
             "title": "Branch"
           },
-          "created_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Created At"
-          },
           "created_by": {
             "type": "string",
             "format": "uuid",
             "title": "Created By"
-          },
-          "created_by_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Created By Name"
           },
           "parent_name": {
             "anyOf": [
@@ -29358,6 +30474,45 @@
               }
             ],
             "title": "Transaction Time"
+          },
+          "custom_fields": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Fields",
+            "description": "Admin-template custom field values"
+          },
+          "custom_entity_template_root_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Entity Template Root Id",
+            "description": "Bound CustomEntityTemplate root ID"
+          },
+          "custom_field_definitions_snapshot": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Field Definitions Snapshot",
+            "description": "Immutable field-definition snapshot captured at create"
           },
           "valid_time_formatted": {
             "additionalProperties": {
@@ -29504,6 +30659,32 @@
             ],
             "title": "Control Date",
             "description": "Optional control date for update (valid_time start)"
+          },
+          "custom_fields": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Fields",
+            "description": "Admin-template custom field values"
+          },
+          "custom_entity_template_root_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Entity Template Root Id",
+            "description": "Bound CustomEntityTemplate root ID"
           }
         },
         "type": "object",
@@ -29587,6 +30768,32 @@
             "description": "Work package lifecycle status",
             "default": "open"
           },
+          "custom_fields": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Fields",
+            "description": "Admin-template custom field values"
+          },
+          "custom_entity_template_root_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Entity Template Root Id",
+            "description": "Bound CustomEntityTemplate root ID"
+          },
           "work_package_id": {
             "type": "string",
             "format": "uuid",
@@ -29629,7 +30836,7 @@
               }
             ],
             "title": "Schedule Start Date",
-            "description": "Optional start date for the auto-created schedule baseline"
+            "description": "Start date for the WP's schedule baseline (defaults to control_date if omitted)"
           },
           "schedule_end_date": {
             "anyOf": [
@@ -29642,7 +30849,7 @@
               }
             ],
             "title": "Schedule End Date",
-            "description": "Optional end date for the auto-created schedule baseline"
+            "description": "End date for the WP's schedule baseline (defaults to start + 90 days if omitted)"
           },
           "schedule_progression_type": {
             "anyOf": [
@@ -29654,7 +30861,7 @@
               }
             ],
             "title": "Schedule Progression Type",
-            "description": "Optional progression type for the schedule (LINEAR, GAUSSIAN, LOGARITHMIC)"
+            "description": "Progression type for the schedule baseline (LINEAR, GAUSSIAN, LOGARITHMIC)"
           },
           "eac_amount": {
             "anyOf": [
@@ -29670,7 +30877,7 @@
               }
             ],
             "title": "Eac Amount",
-            "description": "Optional EAC amount for auto-created forecast (defaults to budget_amount)"
+            "description": "EAC amount for the WP's forecast (defaults to budget_amount if omitted)"
           },
           "basis_of_estimate": {
             "anyOf": [
@@ -29682,7 +30889,20 @@
               }
             ],
             "title": "Basis Of Estimate",
-            "description": "Optional basis of estimate for auto-created forecast (defaults to 'Initial forecast')"
+            "description": "Basis of estimate for the WP's forecast (defaults to 'Initial forecast')"
+          },
+          "custom_field_definitions_snapshot": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Field Definitions Snapshot",
+            "description": "Server-captured field-definition snapshot (read-only)"
           }
         },
         "type": "object",
@@ -29696,6 +30916,41 @@
       },
       "WorkPackageRead": {
         "properties": {
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
           "name": {
             "type": "string",
             "maxLength": 255,
@@ -29734,6 +30989,32 @@
             "title": "Status",
             "description": "Work package lifecycle status",
             "default": "open"
+          },
+          "custom_fields": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Fields",
+            "description": "Admin-template custom field values"
+          },
+          "custom_entity_template_root_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Entity Template Root Id",
+            "description": "Bound CustomEntityTemplate root ID"
           },
           "id": {
             "type": "string",
@@ -29783,17 +31064,6 @@
             "format": "uuid",
             "title": "Created By"
           },
-          "created_by_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Created By Name"
-          },
           "deleted_by": {
             "anyOf": [
               {
@@ -29838,6 +31108,19 @@
               }
             ],
             "title": "Control Account Name"
+          },
+          "custom_field_definitions_snapshot": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Field Definitions Snapshot",
+            "description": "Immutable field-definition snapshot captured at create"
           },
           "valid_time_formatted": {
             "additionalProperties": {
@@ -30068,6 +31351,32 @@
               }
             ],
             "title": "Basis Of Estimate"
+          },
+          "custom_fields": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Fields",
+            "description": "Admin-template custom field values"
+          },
+          "custom_entity_template_root_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Entity Template Root Id",
+            "description": "Bound CustomEntityTemplate root ID"
           }
         },
         "type": "object",
@@ -30116,6 +31425,17 @@
             "format": "uuid",
             "title": "Created By",
             "description": "User who created this config"
+          },
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
           },
           "updated_by": {
             "anyOf": [

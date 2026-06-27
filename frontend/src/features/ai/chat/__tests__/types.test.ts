@@ -15,6 +15,7 @@ import {
   type WSServerMessage,
   type WSApprovalRequestMessage,
   type WSApprovalResponseMessage,
+  type WSProjectContextChangeMessage,
   isTokenMessage,
   isToolCallMessage,
   isToolResultMessage,
@@ -22,6 +23,7 @@ import {
   isErrorMessage,
   isApprovalRequestMessage,
   isApprovalResponseMessage,
+  isProjectContextChangeMessage,
 } from "../types";
 
 describe("WebSocket Types", () => {
@@ -436,6 +438,32 @@ describe("WebSocket Types", () => {
         };
 
         expect(isApprovalResponseMessage(errorMessage)).toBe(false);
+      });
+    });
+
+    describe("isProjectContextChangeMessage type guard", () => {
+      it("should identify project context change messages", () => {
+        const message: WSProjectContextChangeMessage = {
+          type: "project_context_change",
+          project_id: "proj-123",
+          project_name: "Alpha Line",
+          project_code: "ALPHA-01",
+        };
+
+        expect(isProjectContextChangeMessage(message)).toBe(true);
+        if (isProjectContextChangeMessage(message)) {
+          expect(message.project_id).toBe("proj-123");
+          expect(message.project_code).toBe("ALPHA-01");
+        }
+      });
+
+      it("should reject other message types", () => {
+        const errorMessage: WSErrorMessage = {
+          type: "error",
+          message: "Error occurred",
+        };
+
+        expect(isProjectContextChangeMessage(errorMessage)).toBe(false);
       });
     });
   });

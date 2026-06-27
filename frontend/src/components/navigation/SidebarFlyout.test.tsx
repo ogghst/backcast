@@ -38,19 +38,31 @@ vi.mock("@/components/navigation/useEntityNav", () => ({
   useEntityNav: () => mockEntityNav,
 }));
 
+// Mock the admin nav items the AdminPanel consumes. Default to a non-empty
+// list so the panel renders its menu; tests override to [] for the empty-state
+// branch. Each item carries an icon (the AdminPanel forwards it to the Menu).
+let mockAdminItems: { key: string; label: string; path: string; icon: unknown }[] =
+  [
+    { key: "/admin/users", label: "Users", path: "/admin/users", icon: null },
+    { key: "/admin/rbac", label: "RBAC Configuration", path: "/admin/rbac", icon: null },
+  ];
+vi.mock("@/components/navigation/adminNavItems", () => ({
+  useAdminNavItems: () => mockAdminItems,
+}));
+
 // Mock the nav store with mutable state. `setFlyout` actually mutates the
 // shared `storeState` so the component's next selector read observes the new
 // `flyout` value (mirrors AppSidebar.test.tsx).
 let storeState: {
   expanded: boolean;
-  flyout: "account" | "entity" | null;
+  flyout: "account" | "entity" | "admin" | null;
   toggleExpanded: () => void;
-  setFlyout: (f: "account" | "entity" | null) => void;
+  setFlyout: (f: "account" | "entity" | "admin" | null) => void;
 };
 const toggleExpanded = vi.fn(() => {
   storeState = { ...storeState, expanded: !storeState.expanded };
 });
-const setFlyout = vi.fn((f: "account" | "entity" | null) => {
+const setFlyout = vi.fn((f: "account" | "entity" | "admin" | null) => {
   storeState = { ...storeState, flyout: f };
 });
 storeState = { expanded: false, flyout: "entity", toggleExpanded, setFlyout };
@@ -76,6 +88,10 @@ function resetState() {
       { key: "schedule", label: "Schedule", path: "/projects/p1/schedule" },
     ],
   };
+  mockAdminItems = [
+    { key: "/admin/users", label: "Users", path: "/admin/users", icon: null },
+    { key: "/admin/rbac", label: "RBAC Configuration", path: "/admin/rbac", icon: null },
+  ];
 }
 
 describe("SidebarFlyout", () => {
@@ -120,5 +136,35 @@ describe("SidebarFlyout", () => {
     await user.click(screen.getByText("Overview"));
     expect(mockNavigate).toHaveBeenCalledWith("/projects/p1");
     expect(setFlyout).toHaveBeenCalledWith(null);
+  });
+
+  describe("admin panel", () => {
+    beforeEach(() => {
+      storeState = { expanded: false, flyout: "admin", toggleExpanded, setFlyout };
+    });
+
+    it("renders the 'Admin' header label when flyout is 'admin'", () => {
+      render(<SidebarFlyout />);
+      expect(screen.getByText("Admin")).toBeInTheDocument();
+      expect(screen.getByText("Users")).toBeInTheDocument();
+    });
+
+    it("navigates to the clicked admin path and closes the flyout", async () => {
+      const user = userEvent.setup();
+      render(<SidebarFlyout />);
+
+      await user.click(screen.getByText("RBAC Configuration"));
+      expect(mockNavigate).toHaveBeenCalledWith("/admin/rbac");
+      expect(setFlyout).toHaveBeenCalledWith(null);
+      expect(storeState.flyout).toBeNull();
+    });
+
+    it("renders the 'No admin pages available.' fallback when there are no items", () => {
+      mockAdminItems = [];
+      render(<SidebarFlyout />);
+      expect(
+        screen.getByText("No admin pages available."),
+      ).toBeInTheDocument();
+    });
   });
 });

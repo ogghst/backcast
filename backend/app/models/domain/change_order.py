@@ -9,7 +9,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from sqlalchemy import String, Text
+from sqlalchemy import Index, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB, NUMERIC, TIMESTAMP
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -94,6 +94,18 @@ class ChangeOrder(EntityBase, VersionableMixin, BranchableMixin):
 
     __tablename__ = "change_orders"
 
+    __table_args__ = (
+        # C1: exactly one current (open valid_time, non-deleted) version per
+        # (root, branch). Mirrors the migration's unique partial index.
+        Index(
+            "ix_change_orders_current_version",
+            "change_order_id",
+            "branch",
+            unique=True,
+            postgresql_where=text("upper(valid_time) IS NULL AND deleted_at IS NULL"),
+        ),
+    )
+
     # Root ID (stable identity across versions and branches) - UUID for EVCS
     change_order_id: Mapped[UUID] = mapped_column(PG_UUID, nullable=False, index=True)
 
@@ -164,11 +176,17 @@ class ChangeOrder(EntityBase, VersionableMixin, BranchableMixin):
         comment="Workflow config snapshot at submission time (thresholds, SLA, approval matrix)",
     )
 
-    # Custom field values (Phase C: populated from config.custom_fields definitions)
+    # Custom field values, validated against the CHANGE_ORDER CustomEntityTemplate (keyed by .code)
     # Example: {"region": "EMEA", "priority": "High"}
-    custom_field_values: Mapped[dict[str, Any] | None] = mapped_column(
+    custom_fields: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB,
         nullable=True,
+    )
+    custom_entity_template_root_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID, nullable=True
+    )
+    custom_field_definitions_snapshot: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB, nullable=True
     )
 
     # Relationships

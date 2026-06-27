@@ -24,7 +24,7 @@ import { ProjectsService } from "@/api/generated";
 import { ProjectEditModal } from "@/components/projects/ProjectEditModal";
 import { CostHistoryChart } from "@/features/cost-registration/components/CostHistoryChart";
 import { ProjectHeaderCard } from "@/components/projects/ProjectHeaderCard";
-import { ProjectInfoCard } from "@/components/projects/ProjectInfoCard";
+import { EntityMetadataCard } from "@/components/common/EntityMetadataCard";
 import { PageContent } from "@/components/layout/PageContent";
 import { ProjectPage } from "@/features/projects/components/ProjectPage";
 
@@ -139,14 +139,6 @@ export const ProjectOverview = () => {
               {isMobile ? undefined : "Edit"}
             </Button>
           </Can>
-          <Can permission="project-read">
-            <Button
-              icon={<HistoryOutlined />}
-              onClick={() => setHistoryOpen(true)}
-            >
-              {isMobile ? undefined : "History"}
-            </Button>
-          </Can>
           <Can permission="project-delete">
             <Button
               danger
@@ -213,8 +205,28 @@ export const ProjectOverview = () => {
             />
           </Card>
 
-          {/* Project Info - collapsible system metadata (replaces System Info card) */}
-          <ProjectInfoCard project={project} />
+          {/* Project metadata footer — standardized across entity pages */}
+          <EntityMetadataCard
+            entityId={project.project_id}
+            entityIdLabel="Project ID"
+            createdAt={project.created_at}
+            updatedAt={project.updated_at}
+            createdBy={project.created_by_name}
+            validTime={project.valid_time_formatted}
+            cardId="project-metadata-card"
+            customFieldDefinitions={project.custom_field_definitions_snapshot}
+            customFields={project.custom_fields}
+            extra={
+              <Can permission="project-read">
+                <Button
+                  icon={<HistoryOutlined />}
+                  onClick={() => setHistoryOpen(true)}
+                >
+                  {isMobile ? undefined : "History"}
+                </Button>
+              </Can>
+            }
+          />
         </PageContent>
       )}
 

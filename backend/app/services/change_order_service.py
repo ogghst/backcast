@@ -17,7 +17,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.branching.service import BranchableService
 from app.core.notifications import NotificationType
-from app.core.temporal_queries import is_current_version_on_branch
+from app.core.temporal_queries import (
+    is_current_version,
+    is_current_version_on_branch,
+)
 from app.core.versioning.commands import (
     CreateChangeOrderAuditLogCommand,
     CreateVersionCommand,
@@ -32,11 +35,15 @@ from app.models.schemas.change_order import ChangeOrderCreate, ChangeOrderUpdate
 from app.services.branch_service import BranchService
 from app.services.change_order_workflow_service import ChangeOrderWorkflowService
 from app.services.change_order_workflow_validation import ControlDateValidator
-from app.services.custom_field_service import CustomFieldService
+from app.services.custom_field_service import (
+    CustomFieldService,
+    CustomFieldValidationError,
+)
 from app.services.entity_discovery_service import EntityDiscoveryService
 from app.services.wbs_element_service import WBSElementService
 
 if TYPE_CHECKING:
+    from app.models.domain.custom_entity_template import CustomEntityTemplate
     from app.models.schemas.change_order import ChangeOrderPublic
     from app.models.schemas.impact_analysis import ImpactAnalysisResponse
 
@@ -146,10 +153,12 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             "project_id"
         )  # Already a UUID from Pydantic validation
 
-        # Validate custom field values against active config definitions
-        cfv = co_data.get("custom_field_values")
-        if cfv and project_id is not None:
-            await self._validate_custom_field_values(project_id, cfv)
+        # Phase 1C: custom_fields chokepoint — resolve the CO template (explicit
+        # custom_entity_template_root_id, else the default CHANGE_ORDER one),
+        # validate the supplied values, and stamp the IMMUTABLE snapshot onto
+        # co_data. Preserves the Phase-0 no-template no-op. ValueError
+        # propagates to the route (400 on create).
+        await self._prepare_co_custom_fields_for_create(co_data, actor_id)
 
         # Prevent duplicate drafts from AI agent loops
         title = co_data.get("title", "")
@@ -342,10 +351,27 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         # Extract comment for audit log (not stored in ChangeOrder model)
         comment = update_data.pop("comment", None)
 
-        # Validate custom field values against active config definitions
-        cfv = update_data.get("custom_field_values")
-        if cfv:
-            await self._validate_custom_field_values(current.project_id, cfv)
+        # Phase 1C: custom_fields chokepoint — pull the template-root id,
+        # snapshot, and custom_fields out of update_data so the helper controls
+        # them, then merge its result back. Refines D2: immutable once set, but
+        # first binding may happen on edit. ``current`` was resolved above via
+        # get_as_of on the source branch. CO-specific: when the CO has NO
+        # template (current AND incoming both None), preserve the Phase-0
+        # behavior — do NOT force a binding, do NOT capture a snapshot, do NOT
+        # error; custom_fields (if any) flow through verbatim.
+        incoming_template_root_id = update_data.pop(
+            "custom_entity_template_root_id", None
+        )
+        update_data.pop("custom_field_definitions_snapshot", None)
+        custom_fields = update_data.pop("custom_fields", None)
+
+        await self._apply_co_custom_fields_for_update(
+            current=current,
+            update_data=update_data,
+            incoming_template_root_id=incoming_template_root_id,
+            custom_fields=custom_fields,
+            actor_id=actor_id,
+        )
 
         # Determine target branch
         target_branch = branch if branch is not None else current.branch
@@ -663,7 +689,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
 
         from sqlalchemy import and_, func, or_
 
-        from app.core.filtering import FilterParser
+        from app.core.filtering import FilterParser, _custom_field_order_by
 
         # Base query: versions in specified branch for this project
         stmt = select(ChangeOrder).where(
@@ -696,6 +722,15 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
                 )
             )
 
+        # Phase 2: resolve searchable custom-field specs once (searchable gate).
+        from app.services.custom_field_service import CustomFieldService
+
+        cf_specs: dict[str, dict[str, Any]] = {}
+        if filters or sort_field:
+            cf_specs = await CustomFieldService(self.session).list_current_field_codes(
+                "CHANGE_ORDER", flag="searchable"
+            )
+
         # Apply filters
         if filters:
             # Define allowed filterable fields for security
@@ -703,7 +738,10 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
 
             parsed_filters = FilterParser.parse_filters(filters)
             filter_expressions = FilterParser.build_sqlalchemy_filters(
-                cast(Any, ChangeOrder), parsed_filters, allowed_fields=allowed_fields
+                cast(Any, ChangeOrder),
+                parsed_filters,
+                allowed_fields=allowed_fields,
+                custom_field_specs=cf_specs,
             )
             if filter_expressions:
                 stmt = stmt.where(and_(*filter_expressions))
@@ -716,14 +754,24 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         # Apply sorting
         if sort_field:
             # Validate sort field exists on model
-            if not hasattr(ChangeOrder, sort_field):
-                raise ValueError(f"Invalid sort field: {sort_field}")
-
-            column = getattr(ChangeOrder, sort_field)
-            if sort_order.lower() == "desc":
-                stmt = stmt.order_by(column.desc())
+            if hasattr(ChangeOrder, sort_field):
+                column = getattr(ChangeOrder, sort_field)
+                if sort_order.lower() == "desc":
+                    stmt = stmt.order_by(column.desc())
+                else:
+                    stmt = stmt.order_by(column.asc())
+            elif sort_field in cf_specs:
+                # Phase 2: sort by a JSONB custom-field key (NULLs last).
+                stmt = stmt.order_by(
+                    _custom_field_order_by(
+                        cast(Any, ChangeOrder),
+                        sort_field,
+                        cf_specs[sort_field],
+                        sort_order,
+                    )
+                )
             else:
-                stmt = stmt.order_by(column.asc())
+                raise ValueError(f"Invalid sort field: {sort_field}")
         else:
             # Default sort by valid_time descending (newest versions first)
             # Or usually for lists, maybe created_at/transaction_time or valid_time is best.
@@ -732,9 +780,31 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         # Apply pagination
         stmt = stmt.offset(skip).limit(limit)
 
+        # Add creator-name outerjoin so created_by_name is populated per row.
+        from app.models.domain.user import User
+
+        UserAlias = cast(Any, User)
+        creator_subq = (
+            select(UserAlias.user_id, UserAlias.full_name)
+            .distinct(UserAlias.user_id)
+            .order_by(UserAlias.user_id, UserAlias.transaction_time.desc())
+            .subquery("creator_lookup")
+        )
+        fetch_stmt = stmt.with_only_columns(
+            ChangeOrder,
+            creator_subq.c.full_name.label("created_by_name"),
+        ).outerjoin(
+            creator_subq,
+            ChangeOrder.created_by == creator_subq.c.user_id,
+        )
+
         # Execute query
-        result = await self.session.execute(stmt)
-        change_orders = list(result.scalars().all())
+        result = await self.session.execute(fetch_stmt)
+        change_orders: list[ChangeOrder] = []
+        for row in result.all():
+            entity = row[0]
+            entity.created_by_name = row[1]
+            change_orders.append(entity)
 
         return change_orders, total
 
@@ -1860,10 +1930,32 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         stmt = stmt.offset(skip).limit(limit)
         stmt = stmt.order_by(ChangeOrder.sla_due_date.asc())
 
-        result = await self.session.execute(stmt)
-        change_orders = result.scalars().all()
+        # Add creator-name outerjoin so created_by_name is populated per row.
+        from app.models.domain.user import User
 
-        return list(change_orders), total
+        UserAlias = cast(Any, User)
+        creator_subq = (
+            select(UserAlias.user_id, UserAlias.full_name)
+            .distinct(UserAlias.user_id)
+            .order_by(UserAlias.user_id, UserAlias.transaction_time.desc())
+            .subquery("creator_lookup")
+        )
+        fetch_stmt = stmt.with_only_columns(
+            ChangeOrder,
+            creator_subq.c.full_name.label("created_by_name"),
+        ).outerjoin(
+            creator_subq,
+            ChangeOrder.created_by == creator_subq.c.user_id,
+        )
+
+        result = await self.session.execute(fetch_stmt)
+        change_orders: list[ChangeOrder] = []
+        for row in result.all():
+            entity = row[0]
+            entity.created_by_name = row[1]
+            change_orders.append(entity)
+
+        return change_orders, total
 
     async def _send_notification(
         self,
@@ -1915,37 +2007,145 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         except Exception:
             logger.exception("Failed to send change-order notification")
 
-    async def _validate_custom_field_values(
-        self, project_id: UUID, values: dict[str, Any]
-    ) -> None:
-        """Validate custom field values against the active config's field definitions.
+    async def _resolve_co_template(
+        self,
+    ) -> "CustomEntityTemplate | None":
+        """Resolve the current default CHANGE_ORDER CustomEntityTemplate.
 
-        Loads the workflow config's custom_fields, parses them into
-        CustomFieldDefinition objects, and runs validation. Raises ValueError
-        if any validation errors are found.
+        Used by :meth:`create_change_order` when ``co_data`` carries no explicit
+        ``custom_entity_template_root_id`` (the common case — COs bind to the
+        default CHANGE_ORDER template). Mirrors the original Phase-0 lookup.
+        """
+        from app.models.domain.custom_entity_template import CustomEntityTemplate
+
+        stmt = (
+            select(CustomEntityTemplate)
+            .where(
+                CustomEntityTemplate.target_entity_type == "CHANGE_ORDER",
+                is_current_version(
+                    CustomEntityTemplate.valid_time,
+                    CustomEntityTemplate.deleted_at,
+                ),
+            )
+            .order_by(CustomEntityTemplate.valid_time.desc())
+            .limit(1)
+        )
+        return (await self.session.execute(stmt)).scalar_one_or_none()
+
+    async def _prepare_co_custom_fields_for_create(
+        self,
+        co_data: dict[str, Any],
+        actor_id: UUID,
+    ) -> None:
+        """CO CREATE chokepoint: validate custom_fields + capture the snapshot.
+
+        Resolves the bound template (explicit ``custom_entity_template_root_id``
+        on the CO payload, else the default CHANGE_ORDER template), validates
+        the supplied custom_fields, and stamps ``co_data`` in place with both
+        the resolved ``custom_entity_template_root_id`` and the IMMUTABLE
+        ``custom_field_definitions_snapshot``. Preserves the Phase-0 behavior
+        where no template existing is a no-op (values stored as-is, no
+        snapshot) so the storage-only regression tests still pass.
+        """
+        cf_service = CustomFieldService(self.session)
+
+        # If the CO payload pins a template root id, honor it; otherwise resolve
+        # the default CHANGE_ORDER template (Phase-0 behavior).
+        template_root_id = co_data.get("custom_entity_template_root_id")
+        if template_root_id is not None:
+            template = await cf_service.resolve_template(template_root_id)
+        else:
+            template = await self._resolve_co_template()
+
+        if template is None:
+            # No CHANGE_ORDER template seeded yet (Phase-0 fallback): nothing
+            # to validate and no snapshot to capture. Custom_fields, if any,
+            # are stored verbatim. This keeps the storage regression green.
+            return
+
+        cf = co_data.get("custom_fields")
+        snapshot = dict(template.field_definitions)
+
+        if cf:
+            errors = await cf_service.validate_field_values(
+                snapshot, cf, actor_id=actor_id
+            )
+            if errors:
+                raise CustomFieldValidationError(
+                    f"Custom field validation failed: {'; '.join(errors)}"
+                )
+
+        # Stamp both the resolved template root id and the IMMUTABLE snapshot
+        # onto the CO payload so create_root persists them.
+        co_data["custom_entity_template_root_id"] = template.custom_entity_template_id
+        co_data["custom_field_definitions_snapshot"] = snapshot
+
+    async def _apply_co_custom_fields_for_update(
+        self,
+        *,
+        current: ChangeOrder,
+        update_data: dict[str, Any],
+        incoming_template_root_id: UUID | None,
+        custom_fields: dict[str, Any] | None,
+        actor_id: UUID,
+    ) -> None:
+        """CO UPDATE chokepoint: apply the custom-fields policy in place.
+
+        Routes through the shared :meth:`CustomFieldService.prepare_for_update`
+        with one CO-specific carve-out: a CO that has NO template at all
+        (``current.custom_entity_template_root_id`` is None AND no incoming
+        template root id) keeps the Phase-0 behavior — no forced binding, no
+        snapshot capture, no error; ``custom_fields`` (if any) is put back onto
+        ``update_data`` verbatim. In every other case (any template, current or
+        incoming) the standard D2-refined policy applies via the shared helper.
+        """
+        if (
+            current.custom_entity_template_root_id is None
+            and incoming_template_root_id is None
+        ):
+            # Phase-0 fallback: nothing to validate or bind. custom_fields, if
+            # supplied, flows through unchanged (D11: None → skip).
+            if custom_fields is not None:
+                update_data["custom_fields"] = custom_fields
+            return
+
+        cf_service = CustomFieldService(self.session)
+        cf_updates = await cf_service.prepare_for_update(
+            current_template_root_id=current.custom_entity_template_root_id,
+            incoming_template_root_id=incoming_template_root_id,
+            current_snapshot=current.custom_field_definitions_snapshot,
+            custom_fields=custom_fields,
+            actor_id=actor_id,
+            stored_custom_fields=current.custom_fields,
+        )
+        update_data.update(cf_updates)
+
+    async def _validate_custom_fields(self, values: dict[str, Any]) -> None:
+        """Validate CO custom_fields against the current CHANGE_ORDER CustomEntityTemplate (keyed by .code).
+
+        .. deprecated:: Phase 1C
+            Replaced by :meth:`_prepare_co_custom_fields_for_create` and
+            :meth:`_apply_co_custom_fields_for_update`, which capture and
+            reuse the IMMUTABLE field-definitions snapshot via the shared
+            :class:`CustomFieldService` chokepoint. Retained as a thin shim for
+            any in-flight callers; routes through the same chokepoint.
 
         Args:
-            project_id: Project UUID to resolve the active config
-            values: Custom field values dict to validate
+            values: Custom field values dict to validate (keyed by field code)
 
         Raises:
-            ValueError: If validation errors exist
+            CustomFieldValidationError: If validation errors exist
         """
-        from app.models.schemas.custom_field import CustomFieldDefinition
-        from app.services.change_order_config_service import (
-            ChangeOrderConfigService,
+        template = await self._resolve_co_template()
+        if template is None:
+            return
+        errors = await CustomFieldService(self.session).validate_field_values(
+            template.field_definitions, values
         )
-
-        config_service = ChangeOrderConfigService(self.session)
-        config = await config_service.get_active_config(project_id)
-
-        raw_fields = config.custom_fields or []
-        definitions = [CustomFieldDefinition(**f) for f in raw_fields]
-
-        validator = CustomFieldService()
-        errors = validator.validate_field_values(definitions, values)
         if errors:
-            raise ValueError(f"Custom field validation failed: {'; '.join(errors)}")
+            raise CustomFieldValidationError(
+                f"Custom field validation failed: {'; '.join(errors)}"
+            )
 
     async def _run_impact_analysis(
         self, change_order: ChangeOrder, branch_name: str
@@ -2468,7 +2668,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             "sla_status": co.sla_status,
             "assigned_approver": assigned_approver,
             "config_snapshot": co.config_snapshot,
-            "custom_field_values": co.custom_field_values,
+            "custom_fields": co.custom_fields,
         }
 
         return ChangeOrderPublic(**public_data)

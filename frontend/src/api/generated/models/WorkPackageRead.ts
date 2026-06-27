@@ -6,6 +6,9 @@
  * Schema for reading Work Package data.
  */
 export type WorkPackageRead = {
+    created_by_name?: (string | null);
+    created_at?: (string | null);
+    updated_at?: (string | null);
     /**
      * Work package name
      */
@@ -23,6 +26,14 @@ export type WorkPackageRead = {
      * Work package lifecycle status
      */
     status?: string;
+    /**
+     * Admin-template custom field values
+     */
+    custom_fields?: (Record<string, any> | null);
+    /**
+     * Bound CustomEntityTemplate root ID
+     */
+    custom_entity_template_root_id?: (string | null);
     id: string;
     work_package_id: string;
     control_account_id: string;
@@ -30,11 +41,14 @@ export type WorkPackageRead = {
     forecast_id?: (string | null);
     branch: string;
     created_by: string;
-    created_by_name?: (string | null);
     deleted_by?: (string | null);
     valid_time?: (string | null);
     transaction_time?: (string | null);
     control_account_name?: (string | null);
+    /**
+     * Immutable field-definition snapshot captured at create
+     */
+    custom_field_definitions_snapshot?: (Record<string, any> | null);
     /**
      * Display-ready valid_time temporal data.
      *

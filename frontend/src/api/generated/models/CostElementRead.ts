@@ -6,6 +6,9 @@
  * Schema for reading Cost Element data.
  */
 export type CostElementRead = {
+    created_by_name?: (string | null);
+    created_at?: (string | null);
+    updated_at?: (string | null);
     /**
      * Reference to standardized cost type
      */
@@ -15,7 +18,6 @@ export type CostElementRead = {
     cost_element_id: string;
     work_package_id: string;
     created_by: string;
-    created_by_name?: (string | null);
     deleted_by?: (string | null);
     valid_time?: (string | null);
     transaction_time?: (string | null);

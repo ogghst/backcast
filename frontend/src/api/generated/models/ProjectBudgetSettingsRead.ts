@@ -22,5 +22,6 @@ export type ProjectBudgetSettingsRead = {
     project_budget_settings_id: string;
     project_id: string;
     created_by: string;
+    created_by_name?: (string | null);
 };
 

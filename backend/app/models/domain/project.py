@@ -6,10 +6,11 @@ Satisfies BranchableProtocol via structural subtyping.
 
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
-from sqlalchemy import DECIMAL, String, Text
-from sqlalchemy.dialects.postgresql import TIMESTAMP
+from sqlalchemy import DECIMAL, Index, String, Text, text
+from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -37,6 +38,18 @@ class Project(EntityBase, VersionableMixin, BranchableMixin):
 
     __tablename__ = "projects"
     __allow_unmapped__ = True  # Allow non-mapped attribute: budget
+
+    __table_args__ = (
+        # C1: exactly one current (open valid_time, non-deleted) version per
+        # (root, branch). Mirrors the migration's unique partial index.
+        Index(
+            "ix_projects_current_version",
+            "project_id",
+            "branch",
+            unique=True,
+            postgresql_where=text("upper(valid_time) IS NULL AND deleted_at IS NULL"),
+        ),
+    )
 
     # Root ID (stable identity across versions and branches)
     project_id: Mapped[UUID] = mapped_column(PG_UUID, nullable=False, index=True)
@@ -66,6 +79,15 @@ class Project(EntityBase, VersionableMixin, BranchableMixin):
     )
 
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Custom fields (admin-defined via CustomEntityTemplate)
+    custom_fields: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    custom_entity_template_root_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID, nullable=True
+    )
+    custom_field_definitions_snapshot: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB, nullable=True
+    )
 
     # Temporal and branching fields inherited from mixins:
     # - valid_time: TSTZRANGE (from VersionableMixin)

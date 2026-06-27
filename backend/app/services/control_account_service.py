@@ -108,7 +108,16 @@ class ControlAccountService(BranchableService[ControlAccount]):  # type: ignore[
         stmt = stmt.offset(skip).limit(limit)
 
         result = await self.session.execute(stmt)
-        return list(result.scalars().all()), total
+        entities = list(result.scalars().all())
+        # Resolve created_by_name + created_at/updated_at across all versions.
+        from app.core.versioning.creator_resolver import (
+            populate_creator_names,
+            populate_entity_timestamps,
+        )
+
+        await populate_creator_names(self.session, entities)
+        await populate_entity_timestamps(self.session, entities)
+        return entities, total
 
     async def get_or_create(
         self,

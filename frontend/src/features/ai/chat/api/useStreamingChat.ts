@@ -100,6 +100,8 @@ export interface UseStreamingChatConfig {
   onPlanUpdate?: (plan: import("../types").WSPlanUpdateMessage) => void;
   /** Optional callback invoked when temporal context changes via AI tool */
   onTemporalContextChange?: (change: import("../types").WSTemporalContextChangeMessage) => void;
+  /** Optional callback invoked when project context changes via AI tool */
+  onProjectContextChange?: (change: import("../types").WSProjectContextChangeMessage) => void;
   /** Optional callback invoked when replay batching ends */
   onReplayEnd?: () => void;
   /** Optional callback invoked when a stale/orphaned execution is detected (404 on subscribe).
@@ -234,6 +236,7 @@ export const useStreamingChat = (
     onBriefingUpdate,
     onPlanUpdate,
     onTemporalContextChange,
+    onProjectContextChange,
     onReplayEnd,
     onSessionRecovery,
     onAskUser,
@@ -330,6 +333,7 @@ export const useStreamingChat = (
     onBriefingUpdate,
     onPlanUpdate,
     onTemporalContextChange,
+    onProjectContextChange,
     onReplayEnd,
     onSessionRecovery,
     onAskUser,
@@ -357,6 +361,7 @@ export const useStreamingChat = (
       onBriefingUpdate,
       onPlanUpdate,
       onTemporalContextChange,
+      onProjectContextChange,
       onReplayEnd,
       onSessionRecovery,
       onAskUser,
@@ -660,6 +665,12 @@ export const useStreamingChat = (
       // Handle temporal context change messages (AI tool changed viewing context)
       if (serverMessage.type === "temporal_context_change") {
         callbacks.onTemporalContextChange?.(serverMessage as import("../types").WSTemporalContextChangeMessage);
+        return;
+      }
+
+      // Handle project context change messages (AI tool switched project scope)
+      if (serverMessage.type === "project_context_change") {
+        callbacks.onProjectContextChange?.(serverMessage as import("../types").WSProjectContextChangeMessage);
         return;
       }
 

@@ -13,12 +13,7 @@
  * @module features/schedule-baselines/components/GanttChart
  */
 
-import React, {
-  useMemo,
-  useCallback,
-  useRef,
-  useEffect,
-} from "react";
+import React, { useMemo, useCallback, useRef, useEffect, useState } from "react";
 import { theme } from "antd";
 import { useNavigate } from "react-router-dom";
 import { useEChartsTheme } from "@/features/evm/utils/echartsTheme";
@@ -27,10 +22,7 @@ import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
 import { ScheduleTimeline } from "./ScheduleTimeline";
 import { GanttToolbar } from "./GanttToolbar";
 import { useScheduleViewport } from "./useScheduleViewport";
-import {
-  defaultFullConfig,
-  type GanttChartConfig,
-} from "./config";
+import { defaultFullConfig, type GanttChartConfig } from "./config";
 import {
   transformGanttData,
   computeCollapseToLevel,
@@ -38,9 +30,17 @@ import {
 } from "./GanttDataTransformer";
 import type { GanttItem } from "../../api/useGanttData";
 
-/** Resizable task-panel bounds (px). */
-const GRID_LEFT_MIN = 300;
+/**
+ * Resizable task-panel bounds (px).
+ *
+ * The min is deliberately low (140) so the panel can shrink when the viewport
+ * is narrow; `effectiveGridLeft` clamps it further against `containerWidth` so
+ * the timeline is never squeezed below {@link MIN_TIMELINE_WIDTH}.
+ */
+const GRID_LEFT_MIN = 140;
 const GRID_LEFT_MAX = 600;
+/** Minimum width the timeline area is allowed to occupy (px). */
+const MIN_TIMELINE_WIDTH = 360;
 /** Height math constants — kept here to lay out the React label panel. */
 const MIN_HEIGHT = 200;
 const MAX_HEIGHT = 1200;
@@ -80,22 +80,54 @@ export const GanttChart: React.FC<GanttChartProps> = ({ projectId }) => {
     chartRef,
   } = viewport;
 
+  // Track the chart container width so the task panel can shrink when the
+  // viewport is narrow (below ~1100px the fixed 300px panel left the timeline
+  // as a sliver). Unknown on first render → fall back to the dragged value.
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState<number>(0);
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const cr = entries[0]?.contentRect;
+      if (cr) setContainerWidth(cr.width);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  /**
+   * Effective task-panel width: clamps the user's drag between the absolute
+   * bounds and a viewport-derived cap so the timeline never gets squeezed
+   * below {@link MIN_TIMELINE_WIDTH}. Until the container is measured this
+   * falls back to the dragged value, preserving initial-render behaviour.
+   */
+  const effectiveGridLeft = useMemo(() => {
+    const upperByViewport =
+      containerWidth > 0
+        ? Math.max(GRID_LEFT_MIN, containerWidth - MIN_TIMELINE_WIDTH)
+        : gridLeft;
+    return Math.max(GRID_LEFT_MIN, Math.min(gridLeft, upperByViewport));
+  }, [gridLeft, containerWidth]);
+
   // Row height derived from the density toggle (comfortable=32, compact=22).
   const rowHeightPx = density === "comfortable" ? 32 : 22;
 
   // Build the active full-mode config from the live viewport state. A new
   // object identity only when zoom/gridLeft/density change → options recompute.
+  // `effectiveGridLeft` (not the raw dragged value) feeds both the config and
+  // the React label panel below so they stay aligned when narrow.
   const config: GanttChartConfig = useMemo(
     () => ({
       ...defaultFullConfig,
       zoom,
-      gridLeft,
+      gridLeft: effectiveGridLeft,
       density: {
         ...defaultFullConfig.density,
         rowHeight: rowHeightPx,
       },
     }),
-    [zoom, gridLeft, rowHeightPx],
+    [zoom, effectiveGridLeft, rowHeightPx],
   );
 
   // Tree controls for the toolbar: distinct WBE ids + max outline level, plus
@@ -143,45 +175,44 @@ export const GanttChart: React.FC<GanttChartProps> = ({ projectId }) => {
   const rowHeight =
     rows.length > 0 ? gridHeight / rows.length : config.density.rowHeight;
 
-  // Drag separator handlers (unchanged behaviour, refs prevent stale closures)
-  const containerRef = useRef<HTMLDivElement>(null);
+  // Drag separator handlers. The drag writes the raw value to viewport state;
+  // the responsive clamp is applied at render via `effectiveGridLeft`, so the
+  // user's drag intent is preserved and only capped when the viewport is
+  // narrow (no jump-back when the window is widened again).
   const isDraggingRef = useRef(false);
-  const gridLeftRef = useRef(gridLeft);
-  useEffect(() => {
-    gridLeftRef.current = gridLeft;
-  }, [gridLeft]);
 
-  const handleSeparatorMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    isDraggingRef.current = true;
+  const handleSeparatorMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      isDraggingRef.current = true;
 
-    const handleMouseMove = (ev: MouseEvent) => {
-      if (!isDraggingRef.current || !containerRef.current) return;
-      const containerRect = containerRef.current.getBoundingClientRect();
-      const newLeft = ev.clientX - containerRect.left;
-      setGridLeft(
-        Math.max(GRID_LEFT_MIN, Math.min(newLeft, GRID_LEFT_MAX)),
-      );
-    };
+      const handleMouseMove = (ev: MouseEvent) => {
+        if (!isDraggingRef.current || !containerRef.current) return;
+        const containerRect = containerRef.current.getBoundingClientRect();
+        const newLeft = ev.clientX - containerRect.left;
+        setGridLeft(Math.max(GRID_LEFT_MIN, Math.min(newLeft, GRID_LEFT_MAX)));
+      };
 
-    const handleMouseUp = () => {
-      isDraggingRef.current = false;
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-    };
+      const handleMouseUp = () => {
+        isDraggingRef.current = false;
+        document.removeEventListener("mousemove", handleMouseMove);
+        document.removeEventListener("mouseup", handleMouseUp);
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+      };
 
-    document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("mouseup", handleMouseUp);
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-  }, [setGridLeft]);
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+    },
+    [setGridLeft],
+  );
 
   const separatorStyle = useMemo<React.CSSProperties>(
     () => ({
       position: "absolute",
-      left: gridLeft - 2,
+      left: effectiveGridLeft - 2,
       top: 0,
       bottom: 0,
       width: 4,
@@ -189,7 +220,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({ projectId }) => {
       zIndex: 10,
       backgroundColor: "transparent",
     }),
-    [gridLeft],
+    [effectiveGridLeft],
   );
 
   // Cost-element bar click → navigate (WBE collapse handled by the React panel)
@@ -230,7 +261,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({ projectId }) => {
             position: "absolute",
             left: 0,
             top: labelPanelTop,
-            width: gridLeft,
+            width: effectiveGridLeft,
             height: gridHeight,
             background: token.colorBgLayout,
             borderRight: `1px solid ${token.colorBorderSecondary}`,
@@ -246,27 +277,42 @@ export const GanttChart: React.FC<GanttChartProps> = ({ projectId }) => {
                 key={`${row.wbsElementId}-${row.costElementId ?? "wbs_element"}-${index}`}
                 onClick={() => {
                   if (row.isWbe) toggleWbe(row.wbsElementId);
-                  else if (row.costElementId) navigate(`/cost-elements/${row.costElementId}`);
+                  else if (row.costElementId)
+                    navigate(`/cost-elements/${row.costElementId}`);
                 }}
-                style={{
-                  height: rowHeight,
-                  lineHeight: `${rowHeight}px`,
-                  paddingLeft: indent,
-                  paddingRight: 8,
-                  boxSizing: "border-box",
-                  cursor: isHoverable ? "pointer" : row.costElementId ? "pointer" : "default",
-                  fontWeight: row.isWbe ? 600 : 400,
-                  fontSize: 11,
-                  color: row.isWbe ? token.colorText : token.colorTextSecondary,
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  userSelect: "none",
-                } as React.CSSProperties}
+                style={
+                  {
+                    height: rowHeight,
+                    lineHeight: `${rowHeight}px`,
+                    paddingLeft: indent,
+                    paddingRight: 8,
+                    boxSizing: "border-box",
+                    cursor: isHoverable
+                      ? "pointer"
+                      : row.costElementId
+                        ? "pointer"
+                        : "default",
+                    fontWeight: row.isWbe ? 600 : 400,
+                    fontSize: 11,
+                    color: row.isWbe
+                      ? token.colorText
+                      : token.colorTextSecondary,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    userSelect: "none",
+                  } as React.CSSProperties
+                }
                 title={row.name}
               >
                 {row.isWbe && (
-                  <span style={{ fontSize: 10, marginRight: 4, fontFamily: "monospace" }}>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      marginRight: 4,
+                      fontFamily: "monospace",
+                    }}
+                  >
                     {row.collapsed ? "▶" : "▼"}
                   </span>
                 )}
@@ -279,7 +325,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({ projectId }) => {
         <div
           style={{
             position: "absolute",
-            left: gridLeft,
+            left: effectiveGridLeft,
             top: 0,
             right: 0,
             bottom: 0,
@@ -290,7 +336,14 @@ export const GanttChart: React.FC<GanttChartProps> = ({ projectId }) => {
           }}
         />
         <ScheduleTimeline
-          data={data ?? { items: [], project_start: null, project_end: null, dependencies: [] }}
+          data={
+            data ?? {
+              items: [],
+              project_start: null,
+              project_end: null,
+              dependencies: [],
+            }
+          }
           currency={currency}
           colors={colors}
           tooltipConfig={tooltipConfig}

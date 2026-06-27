@@ -371,3 +371,49 @@ async def test_soft_delete_forecast_with_branch_and_control_date(
 
     result = await service.get_by_id(forecast.forecast_id)
     assert result is None
+
+
+# ---------------------------------------------------------------------------
+# created_by_name population
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_by_id_populates_created_by_name(
+    db: AsyncSession, actor_id: UUID
+) -> None:
+    """get_by_id should populate created_by_name from the creator user."""
+    service = ForecastService(db)
+
+    forecast = await service.create_root(
+        root_id=uuid4(),
+        actor_id=actor_id,
+        eac_amount=Decimal("50000.00"),
+        basis_of_estimate="Creator name test",
+    )
+    await db.commit()
+
+    found = await service.get_by_id(forecast.forecast_id)
+    assert found is not None
+    # The seeded admin (TEST_USER_ID) has full_name "Admin User".
+    assert found.created_by_name == "Admin User"
+
+
+@pytest.mark.asyncio
+async def test_list_populates_created_by_name(db: AsyncSession, actor_id: UUID) -> None:
+    """list should populate created_by_name on each forecast."""
+    service = ForecastService(db)
+
+    await service.create_root(
+        root_id=uuid4(),
+        actor_id=actor_id,
+        eac_amount=Decimal("10000.00"),
+        basis_of_estimate="List creator name A",
+    )
+    await db.commit()
+
+    results = await service.list()
+    assert len(results) >= 1
+    assert all(hasattr(r, "created_by_name") for r in results)
+    # At least one was created by the seeded admin in this test.
+    assert any(r.created_by_name == "Admin User" for r in results)

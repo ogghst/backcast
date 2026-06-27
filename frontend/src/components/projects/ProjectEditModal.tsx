@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Modal,
   Form,
@@ -12,7 +12,12 @@ import {
 import { ProjectRead, ProjectUpdate, type ProjectStatus } from "@/api/generated";
 import { Can } from "@/components/auth/Can";
 import { getCurrencySymbol } from "@/utils/formatters";
-import dayjs from "dayjs";
+import { CollapsibleCard } from "@/components/common/CollapsibleCard";
+import { TemplateSelector } from "@/features/custom-fields/components/TemplateSelector";
+import { CustomFieldsRenderer } from "@/features/custom-fields/components/CustomFieldsRenderer";
+import { useLiveTemplateStatuses } from "@/features/custom-fields/hooks/useLiveTemplateStatuses";
+import type { FieldDefinitions } from "@/features/custom-fields/types/fieldSpec";
+import dayjs, { type Dayjs } from "dayjs";
 
 interface ProjectEditModalProps {
   open: boolean;
@@ -30,6 +35,20 @@ interface FormValues {
   start_date?: dayjs.Dayjs | null;
   end_date?: dayjs.Dayjs | null;
   description?: string;
+  custom_fields?: Record<string, unknown>;
+  custom_entity_template_root_id?: string | null;
+}
+
+/** Serialize custom-field dayjs values to ISO strings for the API. */
+function serializeCustomFields(
+  values: Record<string, unknown> | undefined | null,
+): Record<string, unknown> | undefined {
+  if (!values) return undefined;
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(values)) {
+    out[key] = dayjs.isDayjs(value) ? (value as Dayjs).toISOString() : value;
+  }
+  return out;
 }
 
 const PROJECT_STATUSES = [
@@ -64,6 +83,34 @@ export const ProjectEditModal = ({
   const { token } = theme.useToken();
   const [form] = Form.useForm<FormValues>();
 
+  // A template is immutable ONCE SET (decision D2). If the project already has
+  // a bound template, fields render from the captured snapshot. If it has none,
+  // the user may first-time bind one on edit (the backend captures the snapshot
+  // on UPDATE). This modal is edit-only, so isEdit is implied.
+  const hasBoundTemplate = Boolean(project?.custom_entity_template_root_id);
+
+  // First-time binding selector state (CREATE-less modal, so always user-driven).
+  const [selectedTemplateRootId, setSelectedTemplateRootId] = useState<
+    string | null
+  >(null);
+  const [selectedFieldDefs, setSelectedFieldDefs] =
+    useState<FieldDefinitions | null>(null);
+
+  // Bound-template field definitions from the captured snapshot. Derived via
+  // useMemo (not state) to avoid setState-in-effect cascades.
+  const snapshotFieldDefs = useMemo<FieldDefinitions | null>(
+    () => (project?.custom_field_definitions_snapshot as FieldDefinitions) ?? null,
+    [project],
+  );
+  const fieldDefs = hasBoundTemplate ? snapshotFieldDefs : selectedFieldDefs;
+
+  // Bound EDIT: overlay the LIVE template's field statuses so deprecated /
+  // retired fields render read-only. First-time-bind (no bound template) uses
+  // create-mode rendering (field defs already come from the live template).
+  const liveStatuses = useLiveTemplateStatuses(
+    hasBoundTemplate ? project?.custom_entity_template_root_id : undefined,
+  );
+
   const selectedCurrency = Form.useWatch("currency", form) || project?.currency || "EUR";
   const currencySymbol = useMemo(() => getCurrencySymbol(selectedCurrency), [selectedCurrency]);
 
@@ -79,7 +126,15 @@ export const ProjectEditModal = ({
         start_date: project.start_date ? dayjs(project.start_date) : undefined,
         end_date: project.end_date ? dayjs(project.end_date) : undefined,
         description: project.description ?? undefined,
+        custom_fields: project.custom_fields ?? {},
       });
+      // Reset first-time-binding selector when the modal re-opens. Only the
+      // template-less path uses selector state; bound entities render from the
+      // snapshot via useMemo above. This is the documented React exception to
+      // set-state-in-effect (reset on prop change).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSelectedTemplateRootId(null);
+      setSelectedFieldDefs(null);
     }
   }, [open, project, form]);
 
@@ -96,6 +151,15 @@ export const ProjectEditModal = ({
           : null,
         end_date: values.end_date ? values.end_date.toISOString() : null,
         description: values.description ?? null,
+        custom_fields: serializeCustomFields(
+          values.custom_fields as Record<string, unknown> | undefined,
+        ),
+        // Template binding is immutable once set. Send the template id only
+        // when first-time-binding a template-less project (the backend captures
+        // the snapshot). Already-bound projects never re-send it.
+        custom_entity_template_root_id: hasBoundTemplate
+          ? undefined
+          : (selectedTemplateRootId ?? null),
       };
       onOk(updateData);
     } catch (error) {
@@ -259,6 +323,44 @@ export const ProjectEditModal = ({
                 }}
               />
             </Form.Item>
+
+            {/* Custom fields (template-driven). Shown only when the project has
+                no bound template yet (first-time bind); an already-bound project
+                renders from its captured snapshot (immutable binding). */}
+            {!hasBoundTemplate && (
+              <Form.Item
+                name="custom_entity_template_root_id"
+                label="Custom Fields Template"
+                tooltip="Apply a template to add custom fields. Once saved, the template is bound permanently."
+              >
+                <TemplateSelector
+                  targetType="PROJECT"
+                  value={selectedTemplateRootId}
+                  onChange={(rootId, defs) => {
+                    setSelectedTemplateRootId(rootId);
+                    setSelectedFieldDefs(defs ?? null);
+                    form.setFieldValue(
+                      "custom_entity_template_root_id",
+                      rootId,
+                    );
+                  }}
+                />
+              </Form.Item>
+            )}
+
+            {fieldDefs && Object.keys(fieldDefs).length > 0 && (
+              <CollapsibleCard
+                id="project-edit-custom-fields"
+                title="Custom Fields"
+                keepMounted
+              >
+                <CustomFieldsRenderer
+                  fieldDefinitions={fieldDefs}
+                  mode={hasBoundTemplate ? "edit" : "create"}
+                  liveStatuses={hasBoundTemplate ? liveStatuses : undefined}
+                />
+              </CollapsibleCard>
+            )}
           </Space>
         </Form>
       </Modal>

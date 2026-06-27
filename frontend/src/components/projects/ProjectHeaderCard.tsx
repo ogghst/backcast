@@ -1,12 +1,8 @@
 import React from "react";
-import { Typography } from "antd";
 import { ProjectRead } from "@/api/generated";
 import { getProjectStatusColor } from "@/lib/status";
 import { StatusTag } from "@/components/layout";
 import { EntityHeaderCard } from "@/components/common/EntityHeaderCard";
-import { useExtendedToken } from "@/hooks/useToken";
-
-const { Text } = Typography;
 
 interface ProjectHeaderCardProps {
   project: ProjectRead;
@@ -21,7 +17,6 @@ export const ProjectHeaderCard = ({
   extraContent,
   actualCosts,
 }: ProjectHeaderCardProps) => {
-  const { token } = useExtendedToken();
   // control_date is returned by the API but not yet in the generated type
   const controlDate = (project as Record<string, unknown>)
     .control_date as string | null | undefined;
@@ -44,28 +39,6 @@ export const ProjectHeaderCard = ({
       revenue={project.contract_value}
       actualCosts={actualCosts}
       extraContent={extraContent}
-      footer={
-        <>
-          <Text
-            type="secondary"
-            style={{
-              fontSize: token.fontSizeSM,
-              marginRight: token.marginXS,
-            }}
-          >
-            Project ID:
-          </Text>
-          <Text
-            code
-            copyable
-            style={{
-              fontSize: token.fontSizeSM,
-            }}
-          >
-            {project.project_id}
-          </Text>
-        </>
-      }
     />
   );
 };

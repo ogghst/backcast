@@ -19,5 +19,13 @@ export type WBSElementUpdate = {
      * Optional control date for update (valid_time start)
      */
     control_date?: (string | null);
+    /**
+     * Admin-template custom field values
+     */
+    custom_fields?: (Record<string, any> | null);
+    /**
+     * Bound CustomEntityTemplate root ID
+     */
+    custom_entity_template_root_id?: (string | null);
 };
 

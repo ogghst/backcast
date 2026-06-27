@@ -136,9 +136,26 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
     async def get_by_id(
         self, schedule_baseline_id: UUID, branch: str = "main"
     ) -> ScheduleBaseline | None:
-        """Get schedule baseline by root ID and branch."""
+        """Get schedule baseline by root ID and branch with creator name."""
+        from app.models.domain.user import User
+
+        UserAlias = cast(Any, User)
+        creator_subq = (
+            select(UserAlias.user_id, UserAlias.full_name)
+            .distinct(UserAlias.user_id)
+            .order_by(UserAlias.user_id, UserAlias.transaction_time.desc())
+            .subquery("creator_lookup")
+        )
+
         stmt = (
-            select(ScheduleBaseline)
+            select(
+                ScheduleBaseline,
+                creator_subq.c.full_name.label("created_by_name"),
+            )
+            .outerjoin(
+                creator_subq,
+                ScheduleBaseline.created_by == creator_subq.c.user_id,
+            )
             .where(
                 ScheduleBaseline.schedule_baseline_id == schedule_baseline_id,
                 ScheduleBaseline.branch == branch,
@@ -149,7 +166,12 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
             .limit(1)
         )
         result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
+        row = result.first()
+        if row is None:
+            return None
+        entity = row[0]
+        entity.created_by_name = row[1]
+        return entity
 
     async def update_schedule_baseline(
         self,

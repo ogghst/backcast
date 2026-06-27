@@ -88,9 +88,10 @@ export const useCreateChangeOrder = (
     mutationFn: (data: ChangeOrderCreate) => {
       // Only include control_date if asOf is set (not null/undefined)
       // Remove effective_date if not set
-      // Extract custom_field_values separately since it's Record<string, any>
-      // and doesn't fit the primitive-only params record
-      const { custom_field_values, ...rest } = data;
+      // Extract custom_fields and custom_field_definitions_snapshot separately
+      // since they are Record<string, any> and don't fit the primitive-only
+      // params record
+      const { custom_fields, custom_field_definitions_snapshot, ...rest } = data;
       const payload: Record<
         string,
         string | number | boolean | null | undefined
@@ -104,8 +105,12 @@ export const useCreateChangeOrder = (
         delete payload.effective_date;
       }
       return ChangeOrdersService.createChangeOrder({
-        ...(payload as Omit<ChangeOrderCreate, "custom_field_values">),
-        custom_field_values,
+        ...(payload as Omit<
+          ChangeOrderCreate,
+          "custom_fields" | "custom_field_definitions_snapshot"
+        >),
+        custom_fields,
+        custom_field_definitions_snapshot,
       });
     },
     onSuccess: async (data, ...args) => {
@@ -155,9 +160,9 @@ export const useUpdateChangeOrder = (
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: ChangeOrderUpdate }) => {
       // Remove control_date if not set
-      // Extract custom_field_values separately since it's Record<string, any>
+      // Extract custom_fields separately since it's Record<string, any>
       // and doesn't fit the primitive-only params record
-      const { custom_field_values, ...rest } = data;
+      const { custom_fields, ...rest } = data;
       const payload: Record<
         string,
         string | number | boolean | null | undefined
@@ -168,8 +173,8 @@ export const useUpdateChangeOrder = (
         delete payload.control_date;
       }
       return ChangeOrdersService.updateChangeOrder(id, {
-        ...(payload as Omit<ChangeOrderUpdate, "custom_field_values">),
-        custom_field_values,
+        ...(payload as Omit<ChangeOrderUpdate, "custom_fields">),
+        custom_fields,
       });
     },
     onSuccess: (data, ...args) => {

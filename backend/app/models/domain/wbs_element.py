@@ -5,10 +5,11 @@ Satisfies BranchableProtocol via structural subtyping.
 """
 
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from sqlalchemy import DECIMAL, String, Text
+from sqlalchemy import DECIMAL, Index, String, Text, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -48,6 +49,18 @@ class WBSElement(EntityBase, VersionableMixin, BranchableMixin):
     __tablename__ = "wbs_elements"
     __allow_unmapped__ = True  # Allow non-mapped attribute: budget_allocation
 
+    __table_args__ = (
+        # C1: exactly one current (open valid_time, non-deleted) version per
+        # (root, branch). Mirrors the migration's unique partial index.
+        Index(
+            "ix_wbs_elements_current_version",
+            "wbs_element_id",
+            "branch",
+            unique=True,
+            postgresql_where=text("upper(valid_time) IS NULL AND deleted_at IS NULL"),
+        ),
+    )
+
     # Root ID (stable identity across versions and branches)
     wbs_element_id: Mapped[UUID] = mapped_column(PG_UUID, nullable=False, index=True)
 
@@ -82,6 +95,15 @@ class WBSElement(EntityBase, VersionableMixin, BranchableMixin):
 
     # Computed attribute (not stored in DB, populated by service layer)
     budget_allocation: Decimal | None = None
+
+    # Custom fields (admin-defined via CustomEntityTemplate)
+    custom_fields: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    custom_entity_template_root_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID, nullable=True
+    )
+    custom_field_definitions_snapshot: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB, nullable=True
+    )
 
     # Relationships (view-only for navigation, no DB constraints)
     project: Mapped["Project"] = relationship(

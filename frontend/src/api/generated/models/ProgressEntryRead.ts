@@ -18,6 +18,7 @@ export type ProgressEntryRead = {
     progress_entry_id: string;
     work_package_id: string;
     created_by: string;
+    created_by_name?: (string | null);
     valid_time: (string | null);
     transaction_time: (string | null);
     deleted_at?: (string | null);

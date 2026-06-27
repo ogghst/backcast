@@ -68,7 +68,7 @@ class DocumentFolderService:
         return folder
 
     async def get_folder(self, folder_id: UUID) -> DocumentFolder | None:
-        """Fetch a single folder by ID.
+        """Fetch a single folder by ID with creator name.
 
         Args:
             folder_id: Primary key of the folder.
@@ -76,7 +76,10 @@ class DocumentFolderService:
         Returns:
             The folder if found, None otherwise.
         """
-        return await self._get_folder(folder_id)
+        folder = await self._get_folder(folder_id)
+        if folder is not None:
+            await self._populate_creator_names([folder])
+        return folder
 
     async def get_folder_tree(self, project_id: UUID) -> list[DocumentFolder]:
         """Return all folders for a project, ordered by path.
@@ -93,7 +96,39 @@ class DocumentFolderService:
             .order_by(DocumentFolder.path)
         )
         result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+        folders = list(result.scalars().all())
+        await self._populate_creator_names(folders)
+        return folders
+
+    async def _populate_creator_names(self, folders: list[DocumentFolder]) -> None:
+        """Populate created_by_name on each folder from the user table.
+
+        Uses a single batched lookup keyed by each folder's created_by.
+        """
+        if not folders:
+            return
+        from typing import Any, cast
+
+        from app.models.domain.user import User
+
+        user_ids = {f.created_by for f in folders if f.created_by}
+        if not user_ids:
+            return
+        # created_by is stored as PG_UUID; compare against user_id (UUID).
+        UserAlias = cast(Any, User)
+        creator_subq = (
+            select(UserAlias.user_id, UserAlias.full_name)
+            .distinct(UserAlias.user_id)
+            .order_by(UserAlias.user_id, UserAlias.transaction_time.desc())
+            .subquery("creator_lookup")
+        )
+        stmt = select(creator_subq.c.user_id, creator_subq.c.full_name).where(
+            creator_subq.c.user_id.in_(list(user_ids))
+        )
+        result = await self.db.execute(stmt)
+        name_map: dict[str, str] = {str(row[0]): row[1] for row in result.all()}
+        for folder in folders:
+            cast(Any, folder).created_by_name = name_map.get(str(folder.created_by))
 
     async def rename_folder(self, folder_id: UUID, name: str) -> DocumentFolder:
         """Rename a folder and recompute paths for it and all descendants.

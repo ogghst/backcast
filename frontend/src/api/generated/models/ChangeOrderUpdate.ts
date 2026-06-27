@@ -28,9 +28,13 @@ export type ChangeOrderUpdate = {
      */
     comment?: (string | null);
     /**
-     * Custom field values matching config.custom_fields definitions
+     * Custom field values (CHANGE_ORDER CustomEntityTemplate)
      */
-    custom_field_values?: (Record<string, any> | null);
+    custom_fields?: (Record<string, any> | null);
+    /**
+     * Bound CustomEntityTemplate root ID
+     */
+    custom_entity_template_root_id?: (string | null);
     /**
      * Assigned approver (None to clear)
      */

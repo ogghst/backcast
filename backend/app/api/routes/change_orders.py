@@ -25,6 +25,7 @@ from app.models.schemas.change_order_reporting import ChangeOrderStatsResponse
 from app.models.schemas.impact_analysis import ImpactAnalysisResponse
 from app.services.change_order_reporting_service import ChangeOrderReportingService
 from app.services.change_order_service import ChangeOrderService
+from app.services.custom_field_service import CustomFieldValidationError
 from app.services.impact_analysis_service import ImpactAnalysisService
 
 logger = logging.getLogger(__name__)
@@ -428,6 +429,11 @@ async def update_change_order(
             f"[API DEBUG] update_change_order SUCCESS - updated_co id={updated_change_order.id}, branch={updated_change_order.branch}"
         )
         return await service._to_public(updated_change_order)
+    except CustomFieldValidationError as e:
+        logger.error(f"[API DEBUG] update_change_order CUSTOM_FIELD_ERROR - {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
+        ) from e
     except ValueError as e:
         # Include more context in the error response
         error_detail = f"{str(e)} (change_order_id={change_order_id}, user_id={current_user.user_id})"

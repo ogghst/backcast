@@ -25,6 +25,7 @@ import {
   LineChartOutlined,
   DollarOutlined,
   PieChartOutlined,
+  HistoryOutlined,
 } from "@ant-design/icons";
 import { ViewModeToggle } from "@/components/common/ViewModeToggle";
 import { useViewMode } from "@/hooks/useViewMode";
@@ -33,8 +34,9 @@ import { useWorkPackage, useWorkPackageBudgetStatus, useWorkPackageBreadcrumb } 
 import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
 import { useProject } from "@/features/projects/api/useProjects";
 import { WorkPackageHeaderCard } from "@/components/WorkPackages/WorkPackageHeaderCard";
+import { EntityMetadataCard } from "@/components/common/EntityMetadataCard";
 import { CostHistoryChart } from "@/features/cost-registration/components/CostHistoryChart";
-import { formatCurrency, formatTemporalRange, getCurrencySymbol } from "@/utils/formatters";
+import { formatCurrency, getCurrencySymbol } from "@/utils/formatters";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
 import { WorkPackagesPmiService, type CostElementRead, type ForecastRead } from "@/api/generated";
@@ -56,6 +58,8 @@ import {
 import { WorkPackageScheduleBaselineModal } from "@/features/schedule-baselines/components/WorkPackageScheduleBaselineModal";
 import { ForecastModal } from "@/features/forecasts/components/ForecastModal";
 import { Can } from "@/components/auth/Can";
+import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
+import { useEntityHistory } from "@/hooks/useEntityHistory";
 import { App } from "antd";
 
 const { Text } = Typography;
@@ -86,6 +90,15 @@ export const WorkPackageOverview = () => {
 
   const currency = useProjectCurrency(projectId);
   const currencySymbol = getCurrencySymbol(currency);
+
+  // Version history state
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const { data: historyVersions, isLoading: historyLoading } = useEntityHistory({
+    resource: "work-packages",
+    entityId: id,
+    fetchFn: (wpId) => WorkPackagesPmiService.getWorkPackageHistory(wpId),
+    enabled: historyOpen,
+  });
 
   // Fetch cost elements for this work package
   const { data: costElements = [] } = useQuery<CostElementRead[]>({
@@ -268,9 +281,6 @@ export const WorkPackageOverview = () => {
     },
   ];
 
-  // Responsive column config for Descriptions
-  const descColumns = { xs: 1, sm: 2 };
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: token.marginLG }}>
       {/* Unified 3-chart header (time donut + budget donut + EV-PV-AC chart) */}
@@ -294,37 +304,7 @@ export const WorkPackageOverview = () => {
         }
       />
 
-      {/* Section 1: Work Package Details */}
-      <Card size="small">
-        <Descriptions column={descColumns} bordered size="small">
-          <Descriptions.Item label="Code">
-            <Text strong>{workPackage.code}</Text>
-          </Descriptions.Item>
-          <Descriptions.Item label="Name">
-            {workPackage.name}
-          </Descriptions.Item>
-          <Descriptions.Item label="Status">
-            {workPackage.status || "-"}
-          </Descriptions.Item>
-          <Descriptions.Item label="Control Account">
-            {workPackage.control_account_name || "Unknown Control Account"}
-          </Descriptions.Item>
-          <Descriptions.Item label="Budget Amount">
-            <Text strong>{formatCurrency(Number(workPackage.budget_amount || 0), currency)}</Text>
-          </Descriptions.Item>
-          <Descriptions.Item label="Description">
-            {workPackage.description || "-"}
-          </Descriptions.Item>
-          <Descriptions.Item label="Created By">
-            {workPackage.created_by_name || workPackage.created_by}
-          </Descriptions.Item>
-          <Descriptions.Item label="Valid Time">
-            {workPackage.valid_time_formatted
-              ? formatTemporalRange(workPackage.valid_time_formatted)
-              : "-"}
-          </Descriptions.Item>
-        </Descriptions>
-      </Card>
+      {/* Section 1: Work Package Information (collapsible) — moved to metadata footer below */}
 
       {/* Section 2: Schedule Baseline + Forecast side-by-side on desktop */}
       <Row gutter={[token.marginLG, token.marginLG]}>
@@ -637,6 +617,68 @@ export const WorkPackageOverview = () => {
           );
         })()}
       </Card>
+
+      {/* Work Package metadata footer — standardized across entity pages */}
+      <EntityMetadataCard
+        entityId={workPackage.work_package_id}
+        entityIdLabel="Work Package ID"
+        parentId={workPackage.control_account_id}
+        parentLabel="Control Account"
+        parentValue={workPackage.control_account_name || "Unknown Control Account"}
+        createdAt={workPackage.created_at}
+        updatedAt={workPackage.updated_at}
+        createdBy={workPackage.created_by_name}
+        validTime={workPackage.valid_time_formatted}
+        cardId="wp-metadata-card"
+        customFieldDefinitions={workPackage.custom_field_definitions_snapshot}
+        customFields={workPackage.custom_fields}
+        extra={
+          <Can permission="work-package-read">
+            <Button
+              icon={<HistoryOutlined />}
+              onClick={() => setHistoryOpen(true)}
+            >
+              {isMobile ? undefined : "History"}
+            </Button>
+          </Can>
+        }
+      />
+
+      {/* Version history drawer */}
+      {workPackage && (
+        <VersionHistoryDrawer
+          open={historyOpen}
+          onClose={() => setHistoryOpen(false)}
+          entityName={`WP: ${workPackage.code || ""} - ${workPackage.name}`}
+          isLoading={historyLoading}
+          versions={(historyVersions || []).map((version: Record<string, unknown>, idx: number, arr: unknown[]) => {
+            const validTimeFormatted = version.valid_time_formatted as {
+              lower: string | null;
+              upper: string | null;
+              lower_formatted: string;
+              upper_formatted: string;
+              is_currently_valid: boolean;
+            } | undefined;
+            const transactionTimeFormatted = version.transaction_time_formatted as {
+              lower: string | null;
+              upper: string | null;
+              lower_formatted: string;
+              upper_formatted: string;
+              is_currently_valid: boolean;
+            } | undefined;
+
+            return {
+              id: `v${arr.length - idx}`,
+              valid_from: validTimeFormatted?.lower || "",
+              valid_to: validTimeFormatted?.upper || null,
+              transaction_time: transactionTimeFormatted?.lower || "",
+              changed_by: (version.created_by_name as string) || "System",
+              valid_time_formatted: validTimeFormatted,
+              transaction_time_formatted: transactionTimeFormatted,
+            };
+          })}
+        />
+      )}
 
       {/* Modals */}
       <CostElementModal

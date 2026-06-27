@@ -82,6 +82,9 @@ export type { CostRegistrationAttachmentRead } from './models/CostRegistrationAt
 export type { CostRegistrationCreate } from './models/CostRegistrationCreate';
 export type { CostRegistrationRead } from './models/CostRegistrationRead';
 export type { CostRegistrationUpdate } from './models/CostRegistrationUpdate';
+export type { CustomEntityTemplateCreate } from './models/CustomEntityTemplateCreate';
+export type { CustomEntityTemplateRead } from './models/CustomEntityTemplateRead';
+export type { CustomEntityTemplateUpdate } from './models/CustomEntityTemplateUpdate';
 export type { CustomFieldDefinition } from './models/CustomFieldDefinition';
 export type { CustomFieldType } from './models/CustomFieldType';
 export type { DashboardActivity } from './models/DashboardActivity';
@@ -220,6 +223,7 @@ export { CostEventsService } from './services/CostEventsService';
 export { CostEventTypesService } from './services/CostEventTypesService';
 export { CostRegistrationAttachmentsService } from './services/CostRegistrationAttachmentsService';
 export { CostRegistrationsService } from './services/CostRegistrationsService';
+export { CustomEntityTemplatesService } from './services/CustomEntityTemplatesService';
 export { DashboardService } from './services/DashboardService';
 export { DashboardLayoutsService } from './services/DashboardLayoutsService';
 export { DefaultService } from './services/DefaultService';

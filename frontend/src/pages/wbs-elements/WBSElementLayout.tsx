@@ -2,18 +2,15 @@ import React from "react";
 import { useParams, useNavigate, Outlet, useLocation } from "react-router-dom";
 import { useState } from "react";
 import { Button } from "antd";
-import { EditOutlined, DeleteOutlined, HistoryOutlined, RobotOutlined } from "@ant-design/icons";
+import { EditOutlined, DeleteOutlined } from "@ant-design/icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
 import { useWBSElement, useWBSElementBreadcrumb, useUpdateWBSElement, useDeleteWBSElement } from "@/features/wbs-elements/api/useWBSElements";
 import type { WBSElementRead, WBSElementUpdate } from "@/api/generated";
 import { WBSElementModal } from "@/features/wbs-elements/components/WBSElementModal";
 import { DeleteWBSElementModal } from "@/components/hierarchy/DeleteWBSElementModal";
-import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
 import { Can } from "@/components/auth/Can";
 import { useEntityDetailActions } from "@/hooks/useEntityDetailActions";
-import { useEntityHistory } from "@/hooks/useEntityHistory";
-import { WbsElementsService } from "@/api/generated";
 import { wbeNavItems } from "@/components/navigation/entityNavItems";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { PageShell } from "@/components/layout/PageShell";
@@ -53,35 +50,20 @@ export const WBSElementLayout: React.FC = () => {
   const navItems = wbeNavItems(projectId!, wbsElementId!);
   const activeSection = navItems.find((i) => location.pathname === i.path)?.label ?? navItems[0].label;
 
-  const handleOpenChat = () => {
-    navigate(`/chat?ctx=wbe:${wbsElementId}&p=${projectId}`, {
-      state: { returnTo: `/projects/${projectId}/wbs-elements/${wbsElementId}` },
-    });
-  };
-
   // Modal/drawer state
   const {
     editModalOpen,
     selectedEntity: selectedWBE,
     deleteModalOpen,
-    historyOpen,
     openEdit,
     closeEdit,
     openDelete,
     closeDelete,
-    openHistory,
-    closeHistory,
   } = useEntityDetailActions<WBSElementRead>();
 
   // Delete-specific state (WBE uses a dedicated delete modal)
   const [wbeToDelete, setWbeToDelete] = useState<WBSElementRead | null>(null);
   const [isDeletingCurrent, setIsDeletingCurrent] = useState(false);
-  const { data: historyVersions, isLoading: historyLoading } = useEntityHistory({
-    resource: "wbes",
-    entityId: wbsElementId,
-    fetchFn: (id) => WbsElementsService.getWbsElementHistory(id),
-    enabled: historyOpen,
-  });
 
   // Mutations
   const { mutateAsync: updateWBE } = useUpdateWBSElement({
@@ -160,14 +142,6 @@ export const WBSElementLayout: React.FC = () => {
         title={activeSection}
         actions={
           <>
-            <Can permission="ai-chat">
-              <Button
-                icon={<RobotOutlined />}
-                onClick={handleOpenChat}
-              >
-                AI Chat
-              </Button>
-            </Can>
             <Can permission="wbs-element-update">
               <Button
                 type="primary"
@@ -175,14 +149,6 @@ export const WBSElementLayout: React.FC = () => {
                 onClick={handleEditCurrent}
               >
                 Edit
-              </Button>
-            </Can>
-            <Can permission="wbs-element-read">
-              <Button
-                icon={<HistoryOutlined />}
-                onClick={openHistory}
-              >
-                History
               </Button>
             </Can>
             <Can permission="wbs-element-delete">
@@ -247,42 +213,6 @@ export const WBSElementLayout: React.FC = () => {
               }
             }
           }}
-        />
-      )}
-
-      {/* Version history drawer */}
-      {wbe && (
-        <VersionHistoryDrawer
-          open={historyOpen}
-          onClose={closeHistory}
-          entityName={`WBE: ${wbe.code} - ${wbe.name}`}
-          isLoading={historyLoading}
-          versions={(historyVersions || []).map((version: Record<string, unknown>, idx: number, arr: unknown[]) => {
-            const validTimeFormatted = version.valid_time_formatted as {
-              lower: string | null;
-              upper: string | null;
-              lower_formatted: string;
-              upper_formatted: string;
-              is_currently_valid: boolean;
-            } | undefined;
-            const transactionTimeFormatted = version.transaction_time_formatted as {
-              lower: string | null;
-              upper: string | null;
-              lower_formatted: string;
-              upper_formatted: string;
-              is_currently_valid: boolean;
-            } | undefined;
-
-            return {
-              id: `v${arr.length - idx}`,
-              valid_from: validTimeFormatted?.lower || "",
-              valid_to: validTimeFormatted?.upper || null,
-              transaction_time: transactionTimeFormatted?.lower || "",
-              changed_by: (version.created_by_name as string) || "System",
-              valid_time_formatted: validTimeFormatted,
-              transaction_time_formatted: transactionTimeFormatted,
-            };
-          })}
         />
       )}
     </PageWrapper>

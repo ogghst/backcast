@@ -1,7 +1,7 @@
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { App, Button, Card, Space, Grid, Table, Tag, Empty, Spin, theme } from "antd";
-import { EditOutlined, DeleteOutlined, PlusOutlined } from "@ant-design/icons";
+import { EditOutlined, DeleteOutlined, PlusOutlined, HistoryOutlined } from "@ant-design/icons";
 import { useQueries, useQueryClient } from "@tanstack/react-query";
 import {
   useWBSElement,
@@ -21,11 +21,14 @@ import { WBSElementCreate, WBSElementRead, WorkPackageRead, WorkPackageCreate, C
 import type { PaginatedResponse } from "@/types/api";
 import { queryKeys } from "@/api/queryKeys";
 import { WBSElementHeaderCard } from "@/components/WBSElements/WBSElementHeaderCard";
-import { WBSElementInfoCard } from "@/components/WBSElements/WBSElementInfoCard";
+import { EntityMetadataCard } from "@/components/common/EntityMetadataCard";
 import { WBSElementTable } from "@/components/hierarchy/WBSElementTable";
 import { WBSElementModal } from "@/features/wbs-elements/components/WBSElementModal";
 import { WorkPackageModal } from "@/features/work-packages/components/WorkPackageModal";
 import { CostHistoryChart } from "@/features/cost-registration/components/CostHistoryChart";
+import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
+import { useEntityHistory } from "@/hooks/useEntityHistory";
+import { WbsElementsService } from "@/api/generated";
 import { Can } from "@/components/auth/Can";
 import { ViewModeToggle } from "@/components/common/ViewModeToggle";
 import { useViewMode } from "@/hooks/useViewMode";
@@ -86,6 +89,15 @@ export const WBSElementOverview = () => {
 
   // Create child WBS Element modal state
   const [modalOpen, setModalOpen] = useState(false);
+
+  // Version history state
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const { data: historyVersions, isLoading: historyLoading } = useEntityHistory({
+    resource: "wbes",
+    entityId: wbsElementId,
+    fetchFn: (id) => WbsElementsService.getWbsElementHistory(id),
+    enabled: historyOpen,
+  });
 
   // Mutations
   const { mutateAsync: createWBE, isPending: isCreatingWBE } = useCreateWBSElement({
@@ -406,8 +418,69 @@ export const WBSElementOverview = () => {
           })()}
         </Card>
 
-        {/* WBS Element Info (collapsible metadata) */}
-        {wbe && <WBSElementInfoCard wbsElement={wbe} loading={wbeLoading} />}
+        {/* WBS Element metadata footer — standardized across entity pages */}
+        {wbe && (
+          <EntityMetadataCard
+            entityId={wbe.wbs_element_id}
+            entityIdLabel="WBS Element ID"
+            parentId={wbe.parent_wbs_element_id}
+            parentLabel="Parent WBS"
+            parentValue={wbe.parent_name || "Project Root"}
+            createdAt={wbe.created_at}
+            updatedAt={wbe.updated_at}
+            createdBy={wbe.created_by_name}
+            validTime={wbe.valid_time_formatted}
+            cardId="wbe-metadata-card"
+            customFieldDefinitions={wbe.custom_field_definitions_snapshot}
+            customFields={wbe.custom_fields}
+            extra={
+              <Can permission="wbs-element-read">
+                <Button
+                  icon={<HistoryOutlined />}
+                  onClick={() => setHistoryOpen(true)}
+                >
+                  {isMobile ? undefined : "History"}
+                </Button>
+              </Can>
+            }
+          />
+        )}
+
+        {/* Version history drawer */}
+        {wbe && (
+          <VersionHistoryDrawer
+            open={historyOpen}
+            onClose={() => setHistoryOpen(false)}
+            entityName={`WBE: ${wbe.code} - ${wbe.name}`}
+            isLoading={historyLoading}
+            versions={(historyVersions || []).map((version: Record<string, unknown>, idx: number, arr: unknown[]) => {
+              const validTimeFormatted = version.valid_time_formatted as {
+                lower: string | null;
+                upper: string | null;
+                lower_formatted: string;
+                upper_formatted: string;
+                is_currently_valid: boolean;
+              } | undefined;
+              const transactionTimeFormatted = version.transaction_time_formatted as {
+                lower: string | null;
+                upper: string | null;
+                lower_formatted: string;
+                upper_formatted: string;
+                is_currently_valid: boolean;
+              } | undefined;
+
+              return {
+                id: `v${arr.length - idx}`,
+                valid_from: validTimeFormatted?.lower || "",
+                valid_to: validTimeFormatted?.upper || null,
+                transaction_time: transactionTimeFormatted?.lower || "",
+                changed_by: (version.created_by_name as string) || "System",
+                valid_time_formatted: validTimeFormatted,
+                transaction_time_formatted: transactionTimeFormatted,
+              };
+            })}
+          />
+        )}
 
         {/* Child WBS Element Create Modal */}
         <WBSElementModal

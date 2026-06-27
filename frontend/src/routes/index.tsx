@@ -31,6 +31,11 @@ const CostEventTypeManagement = lazy(() =>
     default: m.CostEventTypeManagement,
   })),
 );
+const CustomEntityTemplateManagement = lazy(() =>
+  import("@/pages/admin/CustomEntityTemplateManagement").then((m) => ({
+    default: m.CustomEntityTemplateManagement,
+  })),
+);
 const AIProviderManagement = lazy(() =>
   import("@/pages/admin/AIProviderManagement").then((m) => ({
     default: m.AIProviderManagement,
@@ -366,6 +371,10 @@ export const router = createBrowserRouter([
         element: <CostElementTypeManagement />,
       },
       {
+        path: "/admin/custom-entity-templates",
+        element: <CustomEntityTemplateManagement />,
+      },
+      {
         path: "/admin/cost-event-types",
         element: <CostEventTypeManagement />,
       },
@@ -383,7 +392,11 @@ export const router = createBrowserRouter([
       },
       {
         path: "/admin/agent-schedules",
-        element: <AgentScheduleManagement />,
+        element: (
+          <Can permission="agent-schedule-manage" fallback={<Navigate to="/agents-history" replace />}>
+            <AgentScheduleManagement />
+          </Can>
+        ),
       },
       {
         path: "/admin/rbac",

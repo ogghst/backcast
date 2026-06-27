@@ -62,22 +62,48 @@ class ChangeOrderConfigService:
         self._db = db_session
 
     async def get_global_config(self) -> ChangeOrderWorkflowConfig | None:
-        """Get the global workflow configuration.
+        """Get the global workflow configuration with creator name.
 
         Returns:
             Global config or None if not found
         """
-        stmt = select(ChangeOrderWorkflowConfig).where(
-            ChangeOrderWorkflowConfig.project_id.is_(None),
-            ChangeOrderWorkflowConfig.is_active == True,  # noqa: E712
+        from typing import cast
+
+        from app.models.domain.user import User
+
+        UserAlias = cast(Any, User)
+        creator_subq = (
+            select(UserAlias.user_id, UserAlias.full_name)
+            .distinct(UserAlias.user_id)
+            .order_by(UserAlias.user_id, UserAlias.transaction_time.desc())
+            .subquery("creator_lookup")
+        )
+        stmt = (
+            select(
+                ChangeOrderWorkflowConfig,
+                creator_subq.c.full_name.label("created_by_name"),
+            )
+            .outerjoin(
+                creator_subq,
+                ChangeOrderWorkflowConfig.created_by == creator_subq.c.user_id,
+            )
+            .where(
+                ChangeOrderWorkflowConfig.project_id.is_(None),
+                ChangeOrderWorkflowConfig.is_active == True,  # noqa: E712
+            )
         )
         result = await self._db.execute(stmt)
-        return result.scalar_one_or_none()
+        row = result.first()
+        if row is None:
+            return None
+        entity = row[0]
+        entity.created_by_name = row[1]
+        return entity
 
     async def get_project_config(
         self, project_id: UUID
     ) -> ChangeOrderWorkflowConfig | None:
-        """Get a project-specific workflow configuration override.
+        """Get a project-specific workflow configuration override with creator name.
 
         Args:
             project_id: Project UUID
@@ -85,12 +111,38 @@ class ChangeOrderConfigService:
         Returns:
             Project config or None if no override exists
         """
-        stmt = select(ChangeOrderWorkflowConfig).where(
-            ChangeOrderWorkflowConfig.project_id == project_id,
-            ChangeOrderWorkflowConfig.is_active == True,  # noqa: E712
+        from typing import cast
+
+        from app.models.domain.user import User
+
+        UserAlias = cast(Any, User)
+        creator_subq = (
+            select(UserAlias.user_id, UserAlias.full_name)
+            .distinct(UserAlias.user_id)
+            .order_by(UserAlias.user_id, UserAlias.transaction_time.desc())
+            .subquery("creator_lookup")
+        )
+        stmt = (
+            select(
+                ChangeOrderWorkflowConfig,
+                creator_subq.c.full_name.label("created_by_name"),
+            )
+            .outerjoin(
+                creator_subq,
+                ChangeOrderWorkflowConfig.created_by == creator_subq.c.user_id,
+            )
+            .where(
+                ChangeOrderWorkflowConfig.project_id == project_id,
+                ChangeOrderWorkflowConfig.is_active == True,  # noqa: E712
+            )
         )
         result = await self._db.execute(stmt)
-        return result.scalar_one_or_none()
+        row = result.first()
+        if row is None:
+            return None
+        entity = row[0]
+        entity.created_by_name = row[1]
+        return entity
 
     async def get_active_config(
         self, project_id: UUID | None = None

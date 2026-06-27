@@ -1,7 +1,7 @@
 import React from "react";
 import { useParams, useNavigate, Outlet } from "react-router-dom";
 import { Button, Grid, Modal, Space, theme, Typography, Tag } from "antd";
-import { EditOutlined, DeleteOutlined, HistoryOutlined } from "@ant-design/icons";
+import { EditOutlined, DeleteOutlined } from "@ant-design/icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
 import {
@@ -16,14 +16,11 @@ import type {
   ControlAccountUpdate,
 } from "@/api/generated";
 import { ControlAccountModal } from "@/features/control-accounts/components/ControlAccountModal";
-import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
 import { Can } from "@/components/auth/Can";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { PageShell } from "@/components/layout/PageShell";
 import { NotFoundState } from "@/components/layout/NotFoundState";
 import { useEntityDetailActions } from "@/hooks/useEntityDetailActions";
-import { useEntityHistory } from "@/hooks/useEntityHistory";
-import { ControlAccountsService } from "@/api/generated";
 import { getBranchColor } from "@/utils/formatters";
 
 /**
@@ -58,21 +55,11 @@ export const ControlAccountLayout: React.FC = () => {
     editModalOpen,
     selectedEntity: selectedCA,
     deleteModalOpen,
-    historyOpen,
     openEdit,
     closeEdit,
     openDelete,
     closeDelete,
-    openHistory,
-    closeHistory,
   } = useEntityDetailActions<ControlAccountRead>();
-
-  const { data: historyVersions, isLoading: historyLoading } = useEntityHistory({
-    resource: "control-accounts",
-    entityId: controlAccountId,
-    fetchFn: (id) => ControlAccountsService.getControlAccountHistory(id),
-    enabled: historyOpen,
-  });
 
   // Mutations
   const { mutateAsync: updateCA } = useUpdateControlAccount({
@@ -161,14 +148,6 @@ export const ControlAccountLayout: React.FC = () => {
                 {isMobile ? undefined : "Edit"}
               </Button>
             </Can>
-            <Can permission="control-account-read">
-              <Button
-                icon={<HistoryOutlined />}
-                onClick={openHistory}
-              >
-                {isMobile ? undefined : "History"}
-              </Button>
-            </Can>
             <Can permission="control-account-delete">
               <Button
                 danger
@@ -229,42 +208,6 @@ export const ControlAccountLayout: React.FC = () => {
           <strong>{ca?.code || ca?.name}</strong>?
         </p>
       </Modal>
-
-      {/* Version history drawer */}
-      {ca && (
-        <VersionHistoryDrawer
-          open={historyOpen}
-          onClose={closeHistory}
-          entityName={`CA: ${ca.code || ""} - ${ca.name}`}
-          isLoading={historyLoading}
-          versions={(historyVersions || []).map((version: Record<string, unknown>, idx: number, arr: unknown[]) => {
-            const validTimeFormatted = version.valid_time_formatted as {
-              lower: string | null;
-              upper: string | null;
-              lower_formatted: string;
-              upper_formatted: string;
-              is_currently_valid: boolean;
-            } | undefined;
-            const transactionTimeFormatted = version.transaction_time_formatted as {
-              lower: string | null;
-              upper: string | null;
-              lower_formatted: string;
-              upper_formatted: string;
-              is_currently_valid: boolean;
-            } | undefined;
-
-            return {
-              id: `v${arr.length - idx}`,
-              valid_from: validTimeFormatted?.lower || "",
-              valid_to: validTimeFormatted?.upper || null,
-              transaction_time: transactionTimeFormatted?.lower || "",
-              changed_by: (version.created_by_name as string) || "System",
-              valid_time_formatted: validTimeFormatted,
-              transaction_time_formatted: transactionTimeFormatted,
-            };
-          })}
-        />
-      )}
     </PageWrapper>
   );
 };

@@ -5,6 +5,12 @@
 import type { DelegationConfig } from './DelegationConfig';
 /**
  * Schema for creating an assistant config.
+ *
+ * The ``model_id``-required-for-main-agents invariant is enforced HERE (write
+ * time), mirroring ``AIConfigService._enforce_main_agent_has_model``. It is
+ * intentionally NOT on the read schema ``AIAssistantConfigPublic``: a legacy
+ * misconfigured row must not 500 the list endpoint (the invariant guards
+ * new writes; existing bad rows are surfaced, not fatal, on read).
  */
 export type AIAssistantConfigCreate = {
     name: string;

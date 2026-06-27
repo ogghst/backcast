@@ -1,8 +1,9 @@
-import { theme, Card, Descriptions, Tag, Button, Space } from "antd";
+import { theme, Card, Descriptions, Tag, Button, Space, Divider, Typography } from "antd";
 import { EditOutlined } from "@ant-design/icons";
 import { ChangeOrderPublic } from "@/api/generated";
 import { formatDate } from "@/utils/formatters";
 import { useWorkflowInfo } from "../hooks/useWorkflowInfo";
+import { CustomFieldsRenderer } from "@/features/custom-fields/components/CustomFieldsRenderer";
 
 interface ChangeOrderSummaryCardProps {
   changeOrder: ChangeOrderPublic;
@@ -22,6 +23,10 @@ export const ChangeOrderSummaryCard = ({
     changeOrder.can_edit_status,
     changeOrder.branch_locked
   );
+
+  const fieldDefinitions = changeOrder.custom_field_definitions_snapshot ?? undefined;
+  const hasCustomFields =
+    !!fieldDefinitions && Object.keys(fieldDefinitions).length > 0;
 
   return (
     <Card
@@ -72,6 +77,23 @@ export const ChangeOrderSummaryCard = ({
           {changeOrder.justification || "-"}
         </Descriptions.Item>
       </Descriptions>
+
+      {hasCustomFields && (
+        <>
+          <Divider style={{ marginBlock: token.marginMD }} />
+          <Typography.Text
+            strong
+            style={{ display: "block", marginBottom: token.marginXS }}
+          >
+            Custom Fields
+          </Typography.Text>
+          <CustomFieldsRenderer
+            readOnly
+            fieldDefinitions={fieldDefinitions!}
+            values={changeOrder.custom_fields ?? undefined}
+          />
+        </>
+      )}
     </Card>
   );
 };

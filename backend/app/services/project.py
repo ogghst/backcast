@@ -21,7 +21,6 @@ from app.core.versioning.commands import (
 )
 from app.core.versioning.enums import BranchMode
 from app.models.domain.project import Project
-from app.models.domain.user import User
 from app.models.domain.wbs_element import WBSElement
 from app.models.domain.work_package import WorkPackage
 from app.models.schemas.project import ProjectCreate, ProjectUpdate
@@ -240,7 +239,7 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
 
         from sqlalchemy import and_, func, or_
 
-        from app.core.filtering import FilterParser
+        from app.core.filtering import FilterParser, _custom_field_order_by
         from app.models.domain.user import User
 
         # Creator lookup subquery - get the most recent version of each user
@@ -290,6 +289,17 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
                 )
             )
 
+        # Phase 2: resolve searchable custom-field specs once so JSONB keys can
+        # be filtered AND sorted (gated on ``searchable``). Only resolved when a
+        # filter or sort key is in play to avoid a needless query on plain lists.
+        from app.services.custom_field_service import CustomFieldService
+
+        cf_specs: dict[str, dict[str, Any]] = {}
+        if filters or sort_field:
+            cf_specs = await CustomFieldService(self.session).list_current_field_codes(
+                "PROJECT", flag="searchable"
+            )
+
         # Apply filters
         if filters:
             # Define allowed filterable fields for security
@@ -297,7 +307,10 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
 
             parsed_filters = FilterParser.parse_filters(filters)
             filter_expressions = FilterParser.build_sqlalchemy_filters(
-                cast(Any, Project), parsed_filters, allowed_fields=allowed_fields
+                cast(Any, Project),
+                parsed_filters,
+                allowed_fields=allowed_fields,
+                custom_field_specs=cf_specs,
             )
             if filter_expressions:
                 stmt = stmt.where(and_(*filter_expressions))
@@ -314,16 +327,23 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
         # Apply sorting
         if sort_field:
             # Validate sort field is a mapped column (not computed attributes)
-            if not hasattr(Project, sort_field):
-                raise ValueError(f"Invalid sort field: {sort_field}")
-
-            column = getattr(Project, sort_field)
-            if not hasattr(column, "desc"):
-                raise ValueError(f"Invalid sort field: {sort_field}")
-            if sort_order.lower() == "desc":
-                stmt = stmt.order_by(column.desc())
+            if hasattr(Project, sort_field):
+                column = getattr(Project, sort_field)
+                if not hasattr(column, "desc"):
+                    raise ValueError(f"Invalid sort field: {sort_field}")
+                if sort_order.lower() == "desc":
+                    stmt = stmt.order_by(column.desc())
+                else:
+                    stmt = stmt.order_by(column.asc())
+            elif sort_field in cf_specs:
+                # Phase 2: sort by a JSONB custom-field key (NULLs last).
+                stmt = stmt.order_by(
+                    _custom_field_order_by(
+                        cast(Any, Project), sort_field, cf_specs[sort_field], sort_order
+                    )
+                )
             else:
-                stmt = stmt.order_by(column.asc())
+                raise ValueError(f"Invalid sort field: {sort_field}")
         else:
             # Default sort by valid_time descending
             stmt = stmt.order_by(cast(Any, Project).valid_time.desc())
@@ -341,13 +361,12 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
             project = row[0]
             created_by_name = row[1]
             project.created_by_name = created_by_name
-
-            # Populate created_at from transaction_time lower bound
-            if hasattr(project, "transaction_time") and project.transaction_time:
-                if hasattr(project.transaction_time, "lower"):
-                    project.created_at = project.transaction_time.lower
-
             projects.append(project)
+
+        # Derive created_at (true creation) + updated_at across all versions.
+        from app.core.versioning.creator_resolver import populate_entity_timestamps
+
+        await populate_entity_timestamps(self.session, projects)
 
         # Populate computed budgets for all projects (batch query)
         await self._populate_computed_budgets(projects, branch=branch)
@@ -398,6 +417,27 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
         root_id = project_in.project_id or uuid4()
         project_data["project_id"] = root_id
 
+        # Phase 1C: custom_fields chokepoint — resolve the template, validate
+        # the supplied values, and capture the IMMUTABLE field-definitions
+        # snapshot onto the entity row. ValueError propagates to the route
+        # (400 on create).
+        from app.services.custom_field_service import CustomFieldService
+
+        template_root_id = project_data.get("custom_entity_template_root_id")
+        cf = project_data.get("custom_fields")
+        cf_to_store, snapshot = await CustomFieldService(
+            self.session
+        ).prepare_for_create(
+            template_root_id=template_root_id,
+            custom_fields=cf,
+            actor_id=actor_id,
+        )
+        project_data["custom_fields"] = cf_to_store
+        if snapshot is not None:
+            project_data["custom_field_definitions_snapshot"] = snapshot
+        else:
+            project_data.pop("custom_field_definitions_snapshot", None)
+
         cmd = CreateVersionCommand(
             entity_class=Project,  # type: ignore[type-var,unused-ignore]
             root_id=root_id,
@@ -431,6 +471,39 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
         update_data = project_in.model_dump(exclude_unset=True)
         update_data.pop("control_date", None)
         update_data.pop("branch", None)
+
+        # Phase 1C: custom_fields chokepoint — pull the template-root id,
+        # snapshot, and custom_fields out of update_data so the helper controls
+        # them, then merge its result back. Refines D2: a template binding is
+        # IMMUTABLE once set, but the FIRST binding may happen on edit for a
+        # template-less existing entity. custom_fields ABSENT → skip (D11).
+        incoming_template_root_id = update_data.pop(
+            "custom_entity_template_root_id", None
+        )
+        # Never user-settable on update — defensive (schema shouldn't carry it).
+        update_data.pop("custom_field_definitions_snapshot", None)
+        custom_fields = update_data.pop("custom_fields", None)
+
+        from app.services.custom_field_service import CustomFieldService
+
+        current = await self.get_as_of(project_id, branch=branch)
+        cf_updates = await CustomFieldService(self.session).prepare_for_update(
+            current_template_root_id=getattr(
+                current, "custom_entity_template_root_id", None
+            )
+            if current is not None
+            else None,
+            incoming_template_root_id=incoming_template_root_id,
+            current_snapshot=getattr(current, "custom_field_definitions_snapshot", None)
+            if current is not None
+            else None,
+            custom_fields=custom_fields,
+            actor_id=actor_id,
+            stored_custom_fields=getattr(current, "custom_fields", None)
+            if current is not None
+            else None,
+        )
+        update_data.update(cf_updates)
 
         cmd = UpdateCommand(
             entity_class=Project,  # type: ignore[type-var,unused-ignore]
@@ -517,39 +590,21 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
         return project
 
     async def _populate_project_metadata_from_db(self, project: Project) -> None:
-        """Populate created_by_name and created_at for a single project.
+        """Populate created_by_name, created_at and updated_at for a single project.
 
-        Performs a separate query to fetch the creator's name.
+        Resolves the creator's name and derives created_at (true creation =
+        MIN over all versions) + updated_at (MAX over all versions).
 
         Args:
             project: The project entity to populate
         """
-        from typing import cast
-
-        if not project.created_by:
-            return
-
-        # Query the user table to get the creator's name
-        UserAlias = cast(Any, User)
-        creator_subq = (
-            select(UserAlias.user_id, UserAlias.full_name)
-            .distinct(UserAlias.user_id)
-            .order_by(UserAlias.user_id, UserAlias.transaction_time.desc())
-            .subquery("creator_lookup")
+        from app.core.versioning.creator_resolver import (
+            populate_creator_names,
+            populate_entity_timestamps,
         )
 
-        stmt = select(creator_subq.c.full_name).where(
-            creator_subq.c.user_id == project.created_by
-        )
-
-        result = await self.session.execute(stmt)
-        creator_name = result.scalar_one_or_none()
-        project.created_by_name = creator_name  # type: ignore
-
-        # Populate created_at from transaction_time lower bound
-        if hasattr(project, "transaction_time") and project.transaction_time:
-            if hasattr(project.transaction_time, "lower"):
-                project.created_at = project.transaction_time.lower  # type: ignore
+        await populate_creator_names(self.session, [project])
+        await populate_entity_timestamps(self.session, [project])
 
     async def _apply_project_creation_defaults(
         self, project_id: UUID, actor_id: UUID

@@ -18,22 +18,26 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useEffect } from "react";
 import { render, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { MemoryRouter, Routes, Route, useNavigate } from "react-router-dom";
+import { MemoryRouter, Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import { App } from "antd";
 
 // --- Mocks --------------------------------------------------------------
 
 vi.mock("../../api/useStreamingChat", () => ({
   // The streaming hook is stubbed — these tests don't drive WS messages.
-  useStreamingChat: () => ({
-    sendMessage: vi.fn(),
-    sendApprovalResponse: vi.fn(),
-    sendAskUserResponse: vi.fn(),
-    cancel: vi.fn(),
-    connectionState: "open" as const,
-    error: null,
-    isReplaying: false,
-  }),
+  // Config is captured so the project-context-change callback can be invoked.
+  useStreamingChat: (config: { onProjectContextChange?: (c: unknown) => void }) => {
+    streamingChatConfigRef.current = config;
+    return {
+      sendMessage: vi.fn(),
+      sendApprovalResponse: vi.fn(),
+      sendAskUserResponse: vi.fn(),
+      cancel: vi.fn(),
+      connectionState: "open" as const,
+      error: null,
+      isReplaying: false,
+    };
+  },
 }));
 
 vi.mock("../../api/useChatSessions", () => ({
@@ -82,10 +86,27 @@ import { queryKeys } from "@/api/queryKeys";
 // the ref guard — re-mounting would reset the guard). The ref is written from a
 // useEffect so render stays pure (react-hooks/globals rule).
 let navigateRef: ReturnType<typeof useNavigate> | null = null;
+
+// Captures the config passed to the mocked useStreamingChat so tests can invoke
+// individual callbacks (e.g. onProjectContextChange).
+const streamingChatConfigRef: {
+  current: { onProjectContextChange?: (change: unknown) => void } | null;
+} = { current: null };
 function NavigateProbe() {
   const navigate = useNavigate();
   useEffect(() => {
     navigateRef = navigate;
+  });
+  return null;
+}
+
+// Captures the current router search string so tests can assert URL updates
+// driven by ChatInterface's internal navigate() calls.
+let searchRef: { current: string } = { current: "" };
+function LocationProbe() {
+  const location = useLocation();
+  useEffect(() => {
+    searchRef.current = location.search;
   });
   return null;
 }
@@ -103,6 +124,7 @@ function renderChat(initialPath: string) {
           <Routes>
             <Route path="/chat" element={<NavigateProbe />} />
           </Routes>
+          <LocationProbe />
           <ChatInterface context={{ type: "general" }} />
         </MemoryRouter>
       </App>
@@ -122,6 +144,8 @@ function flushRaf() {
 describe("ChatInterface URL→session sync", () => {
   beforeEach(() => {
     navigateRef = null;
+    streamingChatConfigRef.current = null;
+    searchRef = { current: "" };
     vi.mocked(useChatMessages).mockClear();
   });
 
@@ -195,6 +219,36 @@ describe("ChatInterface URL→session sync", () => {
       .mocked(useChatMessages)
       .mock.calls.map((c) => c[0]);
     expect(sessionIds).not.toContain(undefined);
+  });
+
+  describe("project_context_change updates ?ctx=", () => {
+    it("switches the URL to the new project scope, preserving session/exec riders", async () => {
+      renderChat("/chat?ctx=general&session=sess-1&exec=exec-9");
+
+      // Wait for ChatInterface to mount and register the streaming callback.
+      await waitFor(() => {
+        expect(streamingChatConfigRef.current).toBeTruthy();
+      });
+
+      // Simulate the backend publishing a project context change.
+      act(() => {
+        streamingChatConfigRef.current!.onProjectContextChange!({
+          type: "project_context_change",
+          project_id: "proj-new",
+          project_name: "Alpha Line",
+          project_code: "ALPHA-01",
+        });
+      });
+
+      // The URL should now be scoped to the new project, with riders preserved
+      // and no stale `p` rider.
+      await waitFor(() => {
+        expect(searchRef.current).toContain("ctx=project:proj-new");
+        expect(searchRef.current).toContain("session=sess-1");
+        expect(searchRef.current).toContain("exec=exec-9");
+        expect(searchRef.current).not.toContain("p=");
+      });
+    });
   });
 
   describe("mount-time cache purge is scoped", () => {

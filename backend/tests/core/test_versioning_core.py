@@ -2381,7 +2381,7 @@ class TestUpdateVersionJsonbSerialization:
         """Update ChangeOrder exercises JSONB serialization path.
 
         ChangeOrder has JSONB columns (impact_analysis_results, config_snapshot,
-        custom_field_values). Updating it exercises lines 351-352.
+        custom_fields). Updating it exercises lines 351-352.
         """
         project = await create_test_project(db, actor_id)
         await db.commit()
@@ -2401,13 +2401,13 @@ class TestUpdateVersionJsonbSerialization:
             root_id=co.change_order_id,
             actor_id=actor_id,
             status="submitted",
-            custom_field_values={"priority": "high"},
+            custom_fields={"priority": "high"},
         )
         updated = await cmd.execute(db)
         await db.flush()
 
         assert updated.status == "submitted"
-        assert updated.custom_field_values == {"priority": "high"}
+        assert updated.custom_fields == {"priority": "high"}
 
 
 class TestUpdateChangeOrderVersionNotFound:

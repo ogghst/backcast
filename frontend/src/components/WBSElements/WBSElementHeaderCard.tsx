@@ -1,4 +1,5 @@
 import React from "react";
+import { Tag } from "antd";
 import { WBSElementRead } from "@/api/generated";
 import { getBranchColor } from "@/utils/formatters";
 import { StatusTag } from "@/components/layout";
@@ -40,9 +41,12 @@ export const WBSElementHeaderCard = ({
     <EntityHeaderCard
       title={`${wbsElement.code} — ${wbsElement.name}`}
       badge={
-        <StatusTag color={getBranchColor(wbsElement.branch)}>
-          {wbsElement.branch || "main"}
-        </StatusTag>
+        <>
+          <Tag color="cyan">L{wbsElement.level}</Tag>
+          <StatusTag color={getBranchColor(wbsElement.branch)}>
+            {wbsElement.branch || "main"}
+          </StatusTag>
+        </>
       }
       description={wbsElement.description ?? undefined}
       loading={loading}
