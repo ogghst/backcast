@@ -34,8 +34,13 @@ vi.mock("antd", async () => {
 
 let mockCan: (p: string) => boolean = () => true;
 let mockCanAny: (perms: string[]) => boolean = () => true;
+let mockHasRole: (role: string) => boolean = () => false;
 vi.mock("@/hooks/usePermission", () => ({
-  usePermission: () => ({ can: mockCan, canAny: mockCanAny, hasRole: () => false }),
+  usePermission: () => ({
+    can: mockCan,
+    canAny: mockCanAny,
+    hasRole: mockHasRole,
+  }),
 }));
 
 // The effective chat context is serialized into the /chat nav URL. Default to
@@ -99,6 +104,7 @@ function resetState() {
   mockScreens = { md: true };
   mockCan = () => true;
   mockCanAny = () => true;
+  mockHasRole = () => false;
   mockRunningCount = 0;
   storeState = { expanded: false, flyout: null, toggleExpanded, setFlyout };
   mockEntityNav = null;
@@ -245,6 +251,44 @@ describe("AppSidebar", () => {
       it("is active-highlighted when on /agents-history", () => {
         mockPathname = "/agents-history";
         render(<AppSidebar />);
+        const agents = screen.getByRole("button", {
+          name: "Agents",
+        }) as HTMLButtonElement;
+        expect(agents.style.borderRight).not.toBe("3px solid transparent");
+      });
+    });
+
+    describe("Admin rail button", () => {
+      // The Admin rail button requires both the admin role and at least one
+      // visible admin item (the Users item needs `user-read`).
+      const grantAdmin = () => {
+        mockHasRole = (r: string) => r === "admin";
+        mockCan = (p: string) => p === "user-read";
+      };
+
+      it("is active-highlighted when on a real admin route (/admin/users)", () => {
+        grantAdmin();
+        mockPathname = "/admin/users";
+        render(<AppSidebar />);
+        const admin = screen.getByRole("button", {
+          name: "Admin",
+        }) as HTMLButtonElement;
+        expect(admin.style.borderRight).not.toBe("3px solid transparent");
+      });
+
+      it("is NOT active-highlighted on /admin/agent-schedules (Agents route, regression guard)", () => {
+        grantAdmin();
+        // Agents button is visible too (manager perm granted below) so both
+        // buttons render in the same assertion block.
+        mockCanAny = (perms: string[]) =>
+          perms.includes("agent-schedule-manage");
+        mockPathname = "/admin/agent-schedules";
+        render(<AppSidebar />);
+        const admin = screen.getByRole("button", {
+          name: "Admin",
+        }) as HTMLButtonElement;
+        expect(admin.style.borderRight).toBe("3px solid transparent");
+        // …while the Agents button stays active (existing behavior preserved).
         const agents = screen.getByRole("button", {
           name: "Agents",
         }) as HTMLButtonElement;

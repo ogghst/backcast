@@ -150,6 +150,13 @@ export function AppSidebar(): React.JSX.Element | null {
 
   const adminItems = useAdminNavItems();
   const showAdmin = hasRole("admin") && adminItems.length > 0;
+  // Admin header highlights only when a visible admin item's route is active
+  // (mirrors SidebarContent). A bare `/admin` prefix match would wrongly light
+  // Admin on `/admin/agent-schedules` (the Agents destination, not an admin
+  // section item — see `useAdminNavItems`). Derive active state from the items.
+  const adminActive = adminItems.some((item) =>
+    isPrimaryActive(location.pathname, item.path),
+  );
 
   const expanded = useNavigationStore((s) => s.expanded);
   const flyout = useNavigationStore((s) => s.flyout);
@@ -311,7 +318,7 @@ export function AppSidebar(): React.JSX.Element | null {
           <RailButton
             label="Admin"
             icon={<SettingOutlined />}
-            active={flyout === "admin"}
+            active={flyout === "admin" || adminActive}
             stopsMouseDown
             onClick={() => toggleFlyout("admin")}
           />

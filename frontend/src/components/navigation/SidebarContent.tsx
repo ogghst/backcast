@@ -134,6 +134,7 @@ function NavRow({
     <div
       role="button"
       tabIndex={0}
+      aria-label={item.label}
       onClick={onClick}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
@@ -263,6 +264,13 @@ export function SidebarContent({
   // gating lives in `useAdminNavItems`; the section-level admin-role guard
   // lives here (the hook does not enforce it).
   const showAdmin = hasRole("admin") && adminItems.length > 0;
+  // Admin header highlights only when a visible admin item's route is active.
+  // NOTE: a bare `/admin` prefix match would wrongly light the header on
+  // `/admin/agent-schedules` (the Agents destination, NOT an admin section
+  // item — see `useAdminNavItems`). Derive active state from the visible items.
+  const adminActive = adminItems.some((item) =>
+    isPrimaryActive(location.pathname, item.path),
+  );
 
   const entityNav = useEntityNav();
   const accountItems = useAccountMenuItems({ includeUserInfo: false });
@@ -519,7 +527,7 @@ export function SidebarContent({
               path: "/admin",
               icon: <SettingOutlined />,
             }}
-            active={location.pathname.startsWith("/admin")}
+            active={adminActive}
             onClick={() => setAdminOpen((open) => !open)}
             indent={spacing.xs}
             trailing={adminOpen ? <DownOutlined /> : <RightOutlined />}
