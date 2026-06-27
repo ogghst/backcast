@@ -37,6 +37,10 @@ def filter_ai_visible_custom_fields(
       surfaced.
     * Only ``spec.get("ai_visible") is True`` (strict truthiness on the stored
       JSONB bool) surfaces the value.
+    * Phase 3 — a RETIRED field is never surfaced (dead; the LLM must not see
+      or set it). DEPRECATED fields stay readable so existing entities keep
+      their data and the manifest can flag the deprecation; the write path
+      (M2) will reject any attempt to SET a deprecated field.
 
     Args:
         custom_fields: The entity's stored ``{code: value}`` dict (may be None).
@@ -55,8 +59,14 @@ def filter_ai_visible_custom_fields(
         spec = snapshot.get(code)
         if not isinstance(spec, dict):
             continue
-        if spec.get("ai_visible") is True:
-            surfaced[code] = value
+        if spec.get("ai_visible") is not True:
+            continue
+        # Phase 3: retired fields never reach the LLM (dead). Deprecated stays
+        # readable so existing entities keep surfacing their data; the write
+        # gate (M2) blocks any attempt to set a deprecated field.
+        if spec.get("status") == "retired":
+            continue
+        surfaced[code] = value
     return surfaced
 
 
@@ -66,17 +76,22 @@ def ai_visible_field_manifest(
     """Project a snapshot's ai_visible field specs into a discovery manifest.
 
     Used by the ``get_custom_field_definitions`` discovery tool. Returns a list
-    of ``{code, label, type, required}`` dicts for ONLY the ai_visible fields,
-    so the LLM can learn the available fields before creating an entity WITHOUT
-    ever seeing non-ai_visible field labels (D8: labels are also gated).
+    of ``{code, label, type, required, status}`` dicts for ONLY the ai_visible
+    fields, so the LLM can learn the available fields before creating an entity
+    WITHOUT ever seeing non-ai_visible field labels (D8: labels are also gated).
+
+    Phase 3 — RETIRED fields are EXCLUDED entirely (dead; the LLM must not see
+    or set them). DEPRECATED fields appear with ``status="deprecated"`` so the
+    LLM knows not to set them (the M2 write gate will reject the write anyway,
+    but surfacing the status avoids a wasted tool call).
 
     Args:
         snapshot: A ``{code: spec}`` definitions dict (a template's
             ``field_definitions`` or an entity's captured snapshot).
 
     Returns:
-        List of manifest dicts, one per ai_visible field, sorted by code for
-        deterministic output.
+        List of manifest dicts, one per ai_visible non-retired field, sorted
+        by code for deterministic output.
     """
     if not snapshot:
         return []
@@ -87,12 +102,16 @@ def ai_visible_field_manifest(
             continue
         if spec.get("ai_visible") is not True:
             continue
+        # Phase 3: retired fields are dead — never surface them to the LLM.
+        if spec.get("status") == "retired":
+            continue
         manifest.append(
             {
                 "code": code,
                 "label": spec.get("label", code),
                 "type": spec.get("type"),
                 "required": bool(spec.get("required", False)),
+                "status": spec.get("status", "active"),
             }
         )
     manifest.sort(key=lambda f: f["code"])

@@ -16,6 +16,7 @@ import type {
   CustomFieldsValue,
   FieldDefinitions,
   FieldSpec,
+  FieldStatus,
 } from "../types/fieldSpec";
 import { UserReferenceSelect } from "./UserReferenceSelect";
 
@@ -41,10 +42,40 @@ interface CustomFieldsRendererProps {
   /** Disable all inputs (still renders them, greyed out). */
   disabled?: boolean;
   /**
+   * Form mode: `"create"` (no snapshot yet — fields come from the LIVE
+   * template's `field_definitions`) or `"edit"` (values/labels from the
+   * entity's bound SNAPSHOT; read-only-ness follows the LIVE status). Defaults
+   * to `"edit"`.
+   */
+  mode?: "create" | "edit";
+  /**
+   * LIVE statuses keyed by field code, supplied by the modal in `edit` mode
+   * (fetched from the bound template's current `field_definitions`). The live
+   * status WINS over the snapshot's `spec.status` for read-only-ness — an
+   * admin can deprecate/retire a field after the entity was bound. Ignored in
+   * `create` mode (the field defs ARE already live).
+   */
+  liveStatuses?: Record<string, FieldStatus>;
+  /**
    * Stored `{ code: value }` dict, used ONLY in read-only mode to display
    * values. In edit mode the parent form owns the values (no prop needed).
    */
   values?: CustomFieldsValue;
+}
+
+/** Lifecycle statuses that hide a field from new-entity (create) forms. */
+const HIDDEN_FROM_CREATE: ReadonlySet<FieldStatus> = new Set([
+  "deprecated",
+  "retired",
+]);
+
+/** Resolve the effective live status for a code (live wins, default active). */
+function effectiveStatus(
+  code: string,
+  spec: FieldSpec,
+  liveStatuses?: Record<string, FieldStatus>,
+): FieldStatus {
+  return liveStatuses?.[code] ?? (spec.status as FieldStatus | undefined) ?? "active";
 }
 
 /** Format a stored value for read-only display. */
@@ -71,14 +102,27 @@ export const CustomFieldsRenderer = ({
   prefix = "custom_fields",
   readOnly = false,
   disabled = false,
+  mode = "edit",
+  liveStatuses,
   values,
 }: CustomFieldsRendererProps) => {
   const { token } = theme.useToken();
 
-  const entries = useMemo(
-    () => Object.entries(fieldDefinitions),
-    [fieldDefinitions],
-  );
+  const entries = useMemo(() => {
+    const all = Object.entries(fieldDefinitions);
+    // CREATE mode (no snapshot yet): hide deprecated/retired fields — new
+    // entities can't see/set them. The field defs come straight from the LIVE
+    // template, so spec.status is authoritative here.
+    if (mode === "create") {
+      return all.filter(
+        ([, spec]) =>
+          !HIDDEN_FROM_CREATE.has(
+            (spec.status as FieldStatus | undefined) ?? "active",
+          ),
+      );
+    }
+    return all;
+  }, [fieldDefinitions, mode]);
 
   if (entries.length === 0) return null;
 
@@ -108,6 +152,14 @@ export const CustomFieldsRenderer = ({
   return (
     <>
       {entries.map(([code, spec]) => {
+        // EDIT mode: read-only-ness follows the LIVE status (an admin can
+        // deprecate/retire after the entity was bound). Active stays editable
+        // per the existing global `disabled` prop. CREATE-mode entries are
+        // already filtered to active above, so they remain editable.
+        const isLocked =
+          mode === "edit" &&
+          HIDDEN_FROM_CREATE.has(effectiveStatus(code, spec, liveStatuses));
+
         const itemProps: FormItemProps = {
           name: [prefix, code],
           label: spec.label,
@@ -119,7 +171,7 @@ export const CustomFieldsRenderer = ({
         }
         return (
           <Form.Item key={code} {...itemProps}>
-            {renderWidget(spec, disabled)}
+            {renderWidget(spec, disabled || isLocked)}
           </Form.Item>
         );
       })}

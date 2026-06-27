@@ -1548,6 +1548,381 @@ class TestBranchableServiceDetectMergeConflicts:
         # Target (main) is deleted, so get_as_of for target returns None
         assert conflicts == []
 
+    # ------------------------------------------------------------------
+    # Phase 3 (3A): JSONB-aware per-key merge diff for ``custom_fields``.
+    # The ``db`` fixture COMMITS at teardown (memory note 35) so the projects
+    # created here are cleaned in a separate session via ``_cleanup_projects``.
+    # ------------------------------------------------------------------
+
+    @pytest.mark.asyncio
+    async def test_cf_different_keys_no_conflict(
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
+    ) -> None:
+        """Two branches editing DIFFERENT custom_fields keys → no conflict.
+
+        The whole-dict ``!=`` would flag this as a conflict; the per-key diff
+        (3A) recognises the keys are disjoint and therefore auto-mergeable.
+        """
+        project = await create_test_project(
+            db,
+            actor_id,
+            name="CfDisjoint",
+            custom_fields={"shared": "base"},
+        )
+        await db.commit()
+
+        await project_service.create_branch(
+            root_id=project.project_id,
+            actor_id=actor_id,
+            new_branch="BR-DJ",
+        )
+        await db.commit()
+
+        # Source edits key "a"; main edits key "b" — disjoint edits.
+        await project_service.update(
+            root_id=project.project_id,
+            actor_id=actor_id,
+            branch="BR-DJ",
+            custom_fields={"shared": "base", "a": "src"},
+        )
+        await project_service.update(
+            root_id=project.project_id,
+            actor_id=actor_id,
+            branch="main",
+            custom_fields={"shared": "base", "b": "tgt"},
+        )
+        await db.commit()
+
+        try:
+            conflicts = await project_service._detect_merge_conflicts(
+                project.project_id, "BR-DJ", "main"
+            )
+            cf_conflicts = [
+                c for c in conflicts if c["field"].startswith("custom_fields.")
+            ]
+            assert cf_conflicts == [], cf_conflicts
+        finally:
+            await _cleanup_projects({project.project_id})
+
+    @pytest.mark.asyncio
+    async def test_cf_same_key_different_values_one_conflict(
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
+    ) -> None:
+        """Same custom_fields key edited to different values on both branches.
+
+        Both branches change ``shared`` since divergence to DIFFERENT values →
+        exactly ONE conflict with ``field == "custom_fields.shared"``.
+        """
+        project = await create_test_project(
+            db,
+            actor_id,
+            name="CfSameKey",
+            custom_fields={"shared": "base"},
+        )
+        await db.commit()
+
+        await project_service.create_branch(
+            root_id=project.project_id,
+            actor_id=actor_id,
+            new_branch="BR-SK",
+        )
+        await db.commit()
+
+        await project_service.update(
+            root_id=project.project_id,
+            actor_id=actor_id,
+            branch="BR-SK",
+            custom_fields={"shared": "src"},
+        )
+        await project_service.update(
+            root_id=project.project_id,
+            actor_id=actor_id,
+            branch="main",
+            custom_fields={"shared": "tgt"},
+        )
+        await db.commit()
+
+        try:
+            conflicts = await project_service._detect_merge_conflicts(
+                project.project_id, "BR-SK", "main"
+            )
+            cf_conflicts = [
+                c for c in conflicts if c["field"].startswith("custom_fields.")
+            ]
+            assert len(cf_conflicts) == 1, conflicts
+            c = cf_conflicts[0]
+            assert c["field"] == "custom_fields.shared"
+            assert c["source_value"] == "src"
+            assert c["target_value"] == "tgt"
+            assert c["source_branch"] == "BR-SK"
+            assert c["target_branch"] == "main"
+            assert c["entity_type"] == "Project"
+            assert c["entity_id"] == str(project.project_id)
+        finally:
+            await _cleanup_projects({project.project_id})
+
+    @pytest.mark.asyncio
+    async def test_cf_one_branch_adds_key_no_conflict(
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
+    ) -> None:
+        """One branch adds a key, the other unchanged → no conflict."""
+        project = await create_test_project(
+            db, actor_id, name="CfAdd", custom_fields={"shared": "base"}
+        )
+        await db.commit()
+
+        await project_service.create_branch(
+            root_id=project.project_id,
+            actor_id=actor_id,
+            new_branch="BR-ADD",
+        )
+        await db.commit()
+
+        # Only source adds a key; main untouched.
+        await project_service.update(
+            root_id=project.project_id,
+            actor_id=actor_id,
+            branch="BR-ADD",
+            custom_fields={"shared": "base", "added": "src"},
+        )
+        await db.commit()
+
+        try:
+            conflicts = await project_service._detect_merge_conflicts(
+                project.project_id, "BR-ADD", "main"
+            )
+            cf_conflicts = [
+                c for c in conflicts if c["field"].startswith("custom_fields.")
+            ]
+            assert cf_conflicts == [], cf_conflicts
+        finally:
+            await _cleanup_projects({project.project_id})
+
+    @pytest.mark.asyncio
+    async def test_cf_one_branch_removes_key_no_conflict(
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
+    ) -> None:
+        """One branch removes a key, the other unchanged → no conflict.
+
+        Source drops ``shared`` (sets the dict without it); main keeps the
+        base value unchanged → only one side diverged, so auto-mergeable.
+        """
+        project = await create_test_project(
+            db, actor_id, name="CfRm", custom_fields={"shared": "base"}
+        )
+        await db.commit()
+
+        await project_service.create_branch(
+            root_id=project.project_id,
+            actor_id=actor_id,
+            new_branch="BR-RM",
+        )
+        await db.commit()
+
+        # Source removes "shared" (whole-map replace → empty / other keys only).
+        await project_service.update(
+            root_id=project.project_id,
+            actor_id=actor_id,
+            branch="BR-RM",
+            custom_fields={},
+        )
+        await db.commit()
+
+        try:
+            conflicts = await project_service._detect_merge_conflicts(
+                project.project_id, "BR-RM", "main"
+            )
+            cf_conflicts = [
+                c for c in conflicts if c["field"].startswith("custom_fields.")
+            ]
+            # main unchanged since divergence → only one side diverged → no
+            # conflict (the 3-way condition `tv != dv` is False).
+            assert cf_conflicts == [], cf_conflicts
+        finally:
+            await _cleanup_projects({project.project_id})
+
+    @pytest.mark.asyncio
+    async def test_cf_both_add_same_key_different_values_one_conflict(
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
+    ) -> None:
+        """Both branches add the same key with different values → one conflict.
+
+        The divergence point has no ``new`` key; both branches introduce it to
+        different values → conflict on ``custom_fields.new``.
+        """
+        project = await create_test_project(
+            db, actor_id, name="CfBothAdd", custom_fields={"shared": "base"}
+        )
+        await db.commit()
+
+        await project_service.create_branch(
+            root_id=project.project_id,
+            actor_id=actor_id,
+            new_branch="BR-BA",
+        )
+        await db.commit()
+
+        await project_service.update(
+            root_id=project.project_id,
+            actor_id=actor_id,
+            branch="BR-BA",
+            custom_fields={"shared": "base", "new": "src"},
+        )
+        await project_service.update(
+            root_id=project.project_id,
+            actor_id=actor_id,
+            branch="main",
+            custom_fields={"shared": "base", "new": "tgt"},
+        )
+        await db.commit()
+
+        try:
+            conflicts = await project_service._detect_merge_conflicts(
+                project.project_id, "BR-BA", "main"
+            )
+            cf_conflicts = [
+                c for c in conflicts if c["field"].startswith("custom_fields.")
+            ]
+            assert len(cf_conflicts) == 1, conflicts
+            assert cf_conflicts[0]["field"] == "custom_fields.new"
+            assert cf_conflicts[0]["source_value"] == "src"
+            assert cf_conflicts[0]["target_value"] == "tgt"
+        finally:
+            await _cleanup_projects({project.project_id})
+
+    @pytest.mark.asyncio
+    async def test_cf_real_column_conflict_still_surfaces(
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
+    ) -> None:
+        """A real-column conflict surfaces normally alongside the CF diff."""
+        project = await create_test_project(
+            db, actor_id, name="CfRealCol", custom_fields={"shared": "base"}
+        )
+        await db.commit()
+
+        await project_service.create_branch(
+            root_id=project.project_id,
+            actor_id=actor_id,
+            new_branch="BR-RC",
+        )
+        await db.commit()
+
+        # Both branches edit the real ``name`` column to different values.
+        await project_service.update(
+            root_id=project.project_id,
+            actor_id=actor_id,
+            branch="BR-RC",
+            name="SrcName",
+        )
+        await project_service.update(
+            root_id=project.project_id,
+            actor_id=actor_id,
+            branch="main",
+            name="TgtName",
+        )
+        await db.commit()
+
+        try:
+            conflicts = await project_service._detect_merge_conflicts(
+                project.project_id, "BR-RC", "main"
+            )
+            name_conflicts = [c for c in conflicts if c["field"] == "name"]
+            assert len(name_conflicts) == 1, conflicts
+            assert name_conflicts[0]["source_value"] == "SrcName"
+            assert name_conflicts[0]["target_value"] == "TgtName"
+        finally:
+            await _cleanup_projects({project.project_id})
+
+    @pytest.mark.asyncio
+    async def test_cf_snapshot_never_flagged(
+        self,
+        db: AsyncSession,
+        actor_id: UUID,
+        project_service: BranchableService[Project],
+    ) -> None:
+        """``custom_field_definitions_snapshot`` is never a conflict source.
+
+        Both branches carry the same captured snapshot; even if a test were to
+        mutate it, the column is in the skip set. Asserts the column name never
+        appears in any emitted conflict.
+        """
+        project = await create_test_project(
+            db,
+            actor_id,
+            name="CfSnap",
+            custom_fields={"shared": "base"},
+        )
+        await db.commit()
+
+        await project_service.create_branch(
+            root_id=project.project_id,
+            actor_id=actor_id,
+            new_branch="BR-SNAP",
+        )
+        await db.commit()
+
+        await project_service.update(
+            root_id=project.project_id,
+            actor_id=actor_id,
+            branch="BR-SNAP",
+            custom_fields={"shared": "src"},
+        )
+        await project_service.update(
+            root_id=project.project_id,
+            actor_id=actor_id,
+            branch="main",
+            custom_fields={"shared": "tgt"},
+        )
+        await db.commit()
+
+        try:
+            conflicts = await project_service._detect_merge_conflicts(
+                project.project_id, "BR-SNAP", "main"
+            )
+            flagged = {c["field"] for c in conflicts}
+            assert "custom_field_definitions_snapshot" not in flagged, flagged
+        finally:
+            await _cleanup_projects({project.project_id})
+
+
+# ---------------------------------------------------------------------------
+# Phase 3 (3A) self-cleanup helper (memory note 35: db fixture COMMITS).
+# ---------------------------------------------------------------------------
+
+
+async def _cleanup_projects(root_ids: set[UUID]) -> None:
+    """Delete every version row for the given project root ids."""
+    if not root_ids:
+        return
+    from sqlalchemy import text
+
+    from app.db.session import async_session_maker
+
+    async with async_session_maker() as s:
+        await s.execute(
+            text("DELETE FROM projects WHERE project_id = ANY(:ids)"),
+            {"ids": list(root_ids)},
+        )
+        await s.commit()
+
 
 # ===========================================================================
 # SERVICE: BranchableService - get_recently_updated

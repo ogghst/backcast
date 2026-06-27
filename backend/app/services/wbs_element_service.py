@@ -721,6 +721,7 @@ class WBSElementService(BranchableService[WBSElement]):  # type: ignore[type-var
             current_snapshot=current.custom_field_definitions_snapshot,
             custom_fields=custom_fields,
             actor_id=actor_id,
+            stored_custom_fields=current.custom_fields,
         )
         update_data.update(cf_updates)
 

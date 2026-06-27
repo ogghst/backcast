@@ -8,6 +8,7 @@ import { useProjectCurrency } from "@/features/projects/api/useProjectCurrency";
 import { CollapsibleCard } from "@/components/common/CollapsibleCard";
 import { TemplateSelector } from "@/features/custom-fields/components/TemplateSelector";
 import { CustomFieldsRenderer } from "@/features/custom-fields/components/CustomFieldsRenderer";
+import { useLiveTemplateStatuses } from "@/features/custom-fields/hooks/useLiveTemplateStatuses";
 import type { FieldDefinitions } from "@/features/custom-fields/types/fieldSpec";
 
 /** Serialize custom-field dayjs values to ISO strings for the API. */
@@ -71,6 +72,15 @@ export const WBSElementModal = ({
     [initialValues],
   );
   const fieldDefs = hasBoundTemplate ? boundFieldDefs : selectedFieldDefs;
+
+  // Bound EDIT: overlay the LIVE template's field statuses so deprecated /
+  // retired fields render read-only. CREATE / first-time-bind skips this
+  // (field defs already come from the live template → create-mode filter).
+  const liveStatuses = useLiveTemplateStatuses(
+    hasBoundTemplate
+      ? initialValues?.custom_entity_template_root_id
+      : undefined,
+  );
 
   const { branch } = useTimeMachine();
   const currency = useProjectCurrency(projectId);
@@ -278,7 +288,11 @@ export const WBSElementModal = ({
             title="Custom Fields"
             keepMounted
           >
-            <CustomFieldsRenderer fieldDefinitions={fieldDefs} />
+            <CustomFieldsRenderer
+              fieldDefinitions={fieldDefs}
+              mode={hasBoundTemplate ? "edit" : "create"}
+              liveStatuses={hasBoundTemplate ? liveStatuses : undefined}
+            />
           </CollapsibleCard>
         )}
       </Form>

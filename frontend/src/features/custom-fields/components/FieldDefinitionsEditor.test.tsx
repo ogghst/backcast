@@ -118,10 +118,12 @@ describe("FieldDefinitionsEditor", () => {
     // target_entity preserved on reference
     expect(lastCall.owner.target_entity).toBe("user");
     // number has no extra config keys beyond type/label + the always-emitted
-    // top-level booleans ai_visible / searchable (default OFF).
+    // top-level booleans ai_visible / searchable (default OFF) and status
+    // (default "active").
     expect(lastCall.amount).toEqual({
       type: "number",
       label: "Amount",
+      status: "active",
       ai_visible: false,
       searchable: false,
     });
@@ -221,6 +223,44 @@ describe("FieldDefinitionsEditor", () => {
     expect(lastCall).toBeDefined();
     // Editor round-trips absent -> explicit false (top-level boolean).
     expect(lastCall.amount.searchable).toBe(false);
+  });
+
+  it("serializes status as a top-level spec key, defaulting to active", () => {
+    const onChange = vi.fn();
+    const value: FieldDefinitionsValue = {
+      amount: { type: "number", label: "Amount" },
+    };
+    renderWithTheme(
+      <FieldDefinitionsEditor value={value} onChange={onChange} />,
+    );
+    // Force an emit by editing the label; status was absent in the input.
+    fireEvent.change(screen.getByDisplayValue("Amount"), {
+      target: { value: "Amt2" },
+    });
+    const lastCall = onChange.mock.calls.at(-1)?.[0] as FieldDefinitionsValue;
+    expect(lastCall).toBeDefined();
+    // Editor round-trips absent -> explicit "active" (top-level).
+    expect(lastCall.amount.status).toBe("active");
+    expect("status" in lastCall.amount).toBe(true);
+  });
+
+  it("preserves a non-default status through the round-trip", () => {
+    const onChange = vi.fn();
+    const value: FieldDefinitionsValue = {
+      legacy: { type: "text", label: "Legacy", status: "deprecated" },
+    };
+    renderWithTheme(
+      <FieldDefinitionsEditor value={value} onChange={onChange} />,
+    );
+    // The Segmented control renders the deprecated value as the active option.
+    const deprecatedControls = screen.getAllByText("deprecated");
+    expect(deprecatedControls.length).toBeGreaterThan(0);
+    // Force an emit by editing the label; status must survive the round-trip.
+    fireEvent.change(screen.getByDisplayValue("Legacy"), {
+      target: { value: "Legacy2" },
+    });
+    const lastCall = onChange.mock.calls.at(-1)?.[0] as FieldDefinitionsValue;
+    expect(lastCall.legacy.status).toBe("deprecated");
   });
 
   it("removes a field via the remove button", () => {

@@ -127,6 +127,91 @@ describe("CustomFieldsRenderer", () => {
     expect(container.querySelector(".ant-form-item")).toBeNull();
   });
 
+  it("CREATE mode hides deprecated and retired fields", () => {
+    const defs: FieldDefinitions = {
+      live: { type: "text", label: "Live", status: "active" },
+      dep: { type: "text", label: "Deprecated", status: "deprecated" },
+      ret: { type: "text", label: "Retired", status: "retired" },
+    };
+    renderWithTheme(
+      <Form layout="vertical">
+        <CustomFieldsRenderer fieldDefinitions={defs} mode="create" />
+      </Form>,
+    );
+    expect(screen.getByText("Live")).toBeInTheDocument();
+    expect(screen.queryByText("Deprecated")).toBeNull();
+    expect(screen.queryByText("Retired")).toBeNull();
+  });
+
+  it("CREATE mode treats a missing status as active (legacy specs)", () => {
+    const defs: FieldDefinitions = {
+      legacy: { type: "text", label: "Legacy" },
+    };
+    renderWithTheme(
+      <Form layout="vertical">
+        <CustomFieldsRenderer fieldDefinitions={defs} mode="create" />
+      </Form>,
+    );
+    expect(screen.getByText("Legacy")).toBeInTheDocument();
+  });
+
+  it("EDIT mode renders deprecated/retired fields as disabled (read-only)", () => {
+    const defs: FieldDefinitions = {
+      live: { type: "text", label: "Live", status: "active" },
+      dep: { type: "text", label: "Deprecated", status: "deprecated" },
+      ret: { type: "text", label: "Retired", status: "retired" },
+    };
+    const { container } = renderWithTheme(
+      <Form layout="vertical">
+        <CustomFieldsRenderer fieldDefinitions={defs} mode="edit" />
+      </Form>,
+    );
+    // All three fields render in edit mode.
+    expect(screen.getByText("Live")).toBeInTheDocument();
+    expect(screen.getByText("Deprecated")).toBeInTheDocument();
+    expect(screen.getByText("Retired")).toBeInTheDocument();
+    const inputs = container.querySelectorAll("input");
+    expect(inputs.length).toBe(3);
+    // Live input is editable; deprecated + retired are disabled (read-only).
+    expect(inputs[0].hasAttribute("disabled")).toBe(false);
+    expect(inputs[1].hasAttribute("disabled")).toBe(true);
+    expect(inputs[2].hasAttribute("disabled")).toBe(true);
+  });
+
+  it("EDIT mode: live status overlay wins over the snapshot's spec.status", () => {
+    // The snapshot froze status=active, but the live template now says retired.
+    const defs: FieldDefinitions = {
+      promoted: { type: "text", label: "Promoted", status: "active" },
+    };
+    const liveStatuses = { promoted: "retired" as const };
+    const { container } = renderWithTheme(
+      <Form layout="vertical">
+        <CustomFieldsRenderer
+          fieldDefinitions={defs}
+          mode="edit"
+          liveStatuses={liveStatuses}
+        />
+      </Form>,
+    );
+    const input = container.querySelector("input");
+    expect(input).not.toBeNull();
+    expect(input?.hasAttribute("disabled")).toBe(true);
+  });
+
+  it("EDIT mode: a live status absent from the overlay falls back to the snapshot status", () => {
+    // No overlay supplied; the snapshot's deprecated status governs.
+    const defs: FieldDefinitions = {
+      snap: { type: "text", label: "Snap", status: "deprecated" },
+    };
+    const { container } = renderWithTheme(
+      <Form layout="vertical">
+        <CustomFieldsRenderer fieldDefinitions={defs} mode="edit" />
+      </Form>,
+    );
+    const input = container.querySelector("input");
+    expect(input?.hasAttribute("disabled")).toBe(true);
+  });
+
   it("respects a custom prefix for the Form.Item name path", async () => {
     const defs: FieldDefinitions = {
       notes: { type: "text", label: "Notes" },

@@ -30,9 +30,27 @@ export type FieldType = (typeof FIELD_TYPES)[number];
 /** Entity targets supported by `reference` fields (MVP: user only). */
 export type ReferenceTarget = "user";
 
+/**
+ * Lifecycle status of a field, a LIVE-template property (an admin can
+ * deprecate/retire a field after entities already exist). Default "active".
+ *
+ * - `active`: normal — editable everywhere.
+ * - `deprecated`: hidden from NEW-entity forms; read-only on existing entities;
+ *   the backend rejects writes.
+ * - `retired`: hidden from NEW-entity forms; read-only on existing entities;
+ *   excluded from AI context.
+ *
+ * The status flows from the LIVE template's `field_definitions`; the entity's
+ * captured snapshot may lag it (the snapshot freezes label/type/options for
+ * rendering, but read-only-ness follows the live status).
+ */
+export type FieldStatus = "active" | "deprecated" | "retired";
+
 export interface FieldSpec {
   type: FieldType;
   label: string;
+  /** Lifecycle status (live-template property). Defaults to "active". */
+  status?: FieldStatus;
   /** Marks the field required; the renderer adds an antd `required` rule. */
   required?: boolean;
   /**

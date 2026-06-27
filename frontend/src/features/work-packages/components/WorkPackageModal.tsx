@@ -7,6 +7,7 @@ import { useControlAccounts } from "@/features/control-accounts/api/useControlAc
 import { CollapsibleCard } from "@/components/common/CollapsibleCard";
 import { TemplateSelector } from "@/features/custom-fields/components/TemplateSelector";
 import { CustomFieldsRenderer } from "@/features/custom-fields/components/CustomFieldsRenderer";
+import { useLiveTemplateStatuses } from "@/features/custom-fields/hooks/useLiveTemplateStatuses";
 import type { FieldDefinitions } from "@/features/custom-fields/types/fieldSpec";
 import type {
   WorkPackageCreate,
@@ -82,6 +83,15 @@ export const WorkPackageModal = ({
     [initialValues],
   );
   const fieldDefs = hasBoundTemplate ? boundFieldDefs : selectedFieldDefs;
+
+  // Bound EDIT: overlay the LIVE template's field statuses so deprecated /
+  // retired fields render read-only. CREATE / first-time-bind skips this
+  // (field defs already come from the live template → create-mode filter).
+  const liveStatuses = useLiveTemplateStatuses(
+    hasBoundTemplate
+      ? initialValues?.custom_entity_template_root_id
+      : undefined,
+  );
 
   // Control Account options — scoped to a specific WBS element when provided
   const { data: caData } = useControlAccounts(
@@ -295,7 +305,11 @@ export const WorkPackageModal = ({
             title="Custom Fields"
             keepMounted
           >
-            <CustomFieldsRenderer fieldDefinitions={fieldDefs} />
+            <CustomFieldsRenderer
+              fieldDefinitions={fieldDefs}
+              mode={hasBoundTemplate ? "edit" : "create"}
+              liveStatuses={hasBoundTemplate ? liveStatuses : undefined}
+            />
           </CollapsibleCard>
         )}
       </Form>

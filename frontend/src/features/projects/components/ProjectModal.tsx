@@ -10,6 +10,7 @@ import { getCurrencySymbol } from "@/utils/formatters";
 import { CollapsibleCard } from "@/components/common/CollapsibleCard";
 import { TemplateSelector } from "@/features/custom-fields/components/TemplateSelector";
 import { CustomFieldsRenderer } from "@/features/custom-fields/components/CustomFieldsRenderer";
+import { useLiveTemplateStatuses } from "@/features/custom-fields/hooks/useLiveTemplateStatuses";
 import type { FieldDefinitions } from "@/features/custom-fields/types/fieldSpec";
 
 /**
@@ -79,6 +80,17 @@ export const ProjectModal = ({
     [initialValues],
   );
   const fieldDefs = hasBoundTemplate ? boundFieldDefs : selectedFieldDefs;
+
+  // Bound EDIT: overlay the LIVE template's field statuses so deprecated /
+  // retired fields render read-only (an admin can change a field's status
+  // AFTER the entity was bound). CREATE / first-time-bind paths skip this —
+  // their field defs already come from the live template, so the renderer's
+  // create-mode filter handles hiding.
+  const liveStatuses = useLiveTemplateStatuses(
+    hasBoundTemplate
+      ? initialValues?.custom_entity_template_root_id
+      : undefined,
+  );
 
   const selectedCurrency = Form.useWatch("currency", form) || initialValues?.currency || "EUR";
   const currencySymbol = useMemo(() => getCurrencySymbol(selectedCurrency), [selectedCurrency]);
@@ -256,7 +268,11 @@ export const ProjectModal = ({
             title="Custom Fields"
             keepMounted
           >
-            <CustomFieldsRenderer fieldDefinitions={fieldDefs} />
+            <CustomFieldsRenderer
+              fieldDefinitions={fieldDefs}
+              mode={hasBoundTemplate ? "edit" : "create"}
+              liveStatuses={hasBoundTemplate ? liveStatuses : undefined}
+            />
           </CollapsibleCard>
         )}
       </Form>

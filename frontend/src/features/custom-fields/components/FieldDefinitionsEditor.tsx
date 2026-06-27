@@ -3,6 +3,7 @@ import {
   Button,
   Input,
   InputNumber,
+  Segmented,
   Select,
   Space,
   Switch,
@@ -58,12 +59,23 @@ const MAX_LENGTH_TYPES: ReadonlySet<FieldType> = new Set(["text"]);
 /** Types that show a `target_entity` config (fixed to "user" for MVP). */
 const REFERENCE_TYPES: ReadonlySet<FieldType> = new Set(["reference"]);
 
+/** Field lifecycle status (mirrors the shared FieldStatus type). */
+type FieldStatus = "active" | "deprecated" | "retired";
+
+/** Status control options. */
+const STATUS_OPTIONS: { value: FieldStatus; label: string }[] = [
+  { value: "active", label: "active" },
+  { value: "deprecated", label: "deprecated" },
+  { value: "retired", label: "retired" },
+];
+
 /** Code validation: alphanumeric + underscore. */
 const CODE_PATTERN = /^[a-zA-Z0-9_]+$/;
 
 interface FieldSpec {
   type: FieldType;
   label?: string;
+  status?: FieldStatus;
   required?: boolean;
   ai_visible?: boolean;
   searchable?: boolean;
@@ -96,6 +108,7 @@ const emptyRow = (): EditorRow => ({
   code: "",
   type: "text",
   label: "",
+  status: "active",
   required: false,
   ai_visible: false,
   searchable: false,
@@ -109,6 +122,7 @@ function dictToRows(value: FieldDefinitionsValue | undefined): EditorRow[] {
     code,
     type: (spec.type as FieldType) ?? "text",
     label: spec.label ?? "",
+    status: (spec.status as FieldStatus) ?? "active",
     required: spec.required ?? false,
     ai_visible: spec.ai_visible ?? false,
     searchable: spec.searchable ?? false,
@@ -125,6 +139,9 @@ function rowsToDict(rows: EditorRow[]): FieldDefinitionsValue {
     const code = row.code.trim();
     if (!code) continue; // skip empty rows
     const spec: FieldSpec = { type: row.type, label: row.label || code };
+    // Top-level lifecycle status (default "active"); deprecation/retirement is
+    // a live-template property read by the entity forms + backend write gate.
+    spec.status = row.status ?? "active";
     if (row.required) spec.required = true;
     // Top-level boolean (default OFF); the backend filter reads
     // `spec.get("ai_visible") is True`, so it must NOT be nested under config.
@@ -342,6 +359,27 @@ export const FieldDefinitionsEditor = ({
                       disabled={disabled}
                       onChange={(checked) =>
                         patch(row.rowId, { searchable: checked })
+                      }
+                    />
+                  </Tooltip>
+                </div>
+
+                <div style={{ minWidth: 120 }}>
+                  <Typography.Text
+                    type="secondary"
+                    style={{ fontSize: token.fontSizeSM, display: "block" }}
+                  >
+                    Status
+                  </Typography.Text>
+                  <Tooltip title="active = normal. deprecated = hidden from new entities, read-only on existing entities, writes rejected. retired = hidden from new entities, read-only on existing entities, excluded from AI context.">
+                    <Segmented<FieldStatus>
+                      size="small"
+                      block
+                      value={row.status ?? "active"}
+                      disabled={disabled}
+                      options={STATUS_OPTIONS}
+                      onChange={(val) =>
+                        patch(row.rowId, { status: val as FieldStatus })
                       }
                     />
                   </Tooltip>

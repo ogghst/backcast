@@ -22,6 +22,7 @@ work-package services all funnel through these two paths.
 
 from __future__ import annotations
 
+import json
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
@@ -33,6 +34,20 @@ from app.models.custom_fields import FieldDefinition, build_field
 
 if TYPE_CHECKING:
     from app.models.domain.custom_entity_template import CustomEntityTemplate
+
+
+def _custom_field_values_equal(a: Any, b: Any) -> bool:
+    """Compare two custom-field values for equality via JSON-normalized form.
+
+    Robust across str-vs-number (``"5"`` vs ``5``) and list/multiselect
+    round-trips (``["a","b"]`` ordering vs sets): both sides are serialized
+    with ``sort_keys=True`` and a ``str`` fallback default, so structurally
+    equivalent values compare equal regardless of incidental type drift
+    introduced by JSONB round-tripping or frontend echo.
+    """
+    return json.dumps(a, sort_keys=True, default=str) == json.dumps(
+        b, sort_keys=True, default=str
+    )
 
 
 class CustomFieldValidationError(ValueError):
@@ -68,6 +83,8 @@ class CustomFieldService:
         *,
         session: AsyncSession | None = None,
         actor_id: UUID | None = None,
+        live_statuses: dict[str, str] | None = None,
+        stored_values: dict[str, Any] | None = None,
     ) -> list[str]:
         """Validate a ``{code: value}`` dict against a template's ``{code: spec}`` field definitions.
 
@@ -75,6 +92,27 @@ class CustomFieldService:
         required-null is rejected (D11 directive 3); per-field type validation
         delegates to the :class:`FieldDefinition` hierarchy. Formula fields are
         skipped (no stored value, m13).
+
+        Phase 3 (M2) — lifecycle gate: when ``live_statuses`` is supplied, a
+        field whose LIVE template status is ``"deprecated"`` or ``"retired"``
+        may NOT be SET — only omitted or left UNCHANGED. This is the
+        status-authority split: value/type are checked against the IMMUTABLE
+        captured snapshot, but write permission for a lifecycle-retired/
+        deprecated field is checked against the LIVE template (so a field an
+        admin deprecates today rejects writes on EXISTING entities whose
+        snapshot still says ``active``). The snapshot column is NEVER mutated
+        here.
+
+        "is being set" is CHANGE-based (not presence-based): a deprecated/
+        retired field is rejected only when ``stored_values`` is given AND the
+        incoming value differs from the currently-stored one. Under D11
+        whole-map-replace semantics the frontend edit form echoes the ENTIRE
+        ``custom_fields`` dict (including locked deprecated/retired fields at
+        their stored value); a presence-based gate would reject any edit on an
+        entity bound to a template with ANY deprecated/retired field. The
+        change-based gate permits the legitimate echo and only rejects an
+        actual change. ``stored_values`` is ``None`` on the CREATE path, where
+        presence reasserts (a new entity setting a deprecated field IS a set).
 
         Args:
             field_definitions: A template's ``{code: spec}`` field-definition
@@ -86,6 +124,17 @@ class CustomFieldService:
                 to ``self.session`` when None.
             actor_id: Optional actor for finer RBAC inside the async checks
                 (deferred for MVP — existence only).
+            live_statuses: Optional ``{code: status}`` map resolved from the
+                LIVE current template. When supplied, it overrides the
+                snapshot's ``spec["status"]`` for the deprecated/retired write
+                gate (M2). ``None`` means "use the snapshot status verbatim"
+                (the CREATE path, where the snapshot was just captured from the
+                live template and so already reflects it).
+            stored_values: Optional ``{code: value}`` map of the entity's
+                CURRENTLY-STORED ``custom_fields``, supplied by the UPDATE path
+                (``prepare_for_update``). When given, the deprecated/retired
+                gate rejects only a CHANGE (incoming != stored); when ``None``
+                (CREATE path), the gate is presence-based (``code in values``).
 
         Returns:
             Human-readable error strings (empty list if valid).
@@ -115,6 +164,30 @@ class CustomFieldService:
             # m13: formula fields carry no stored value; skip them entirely.
             if field.type_code == "formula":
                 continue
+
+            # Phase 3 (M2) — lifecycle write gate. The effective status is the
+            # LIVE template's when ``live_statuses`` is supplied, else the
+            # snapshot's own ``spec["status"]`` (CREATE path). A deprecated or
+            # retired field may NOT be SET — only omitted or left UNCHANGED.
+            # "is being set" is CHANGE-based on the UPDATE path
+            # (``stored_values`` given: present AND differing from the stored
+            # value) and PRESENCE-based on the CREATE path (``stored_values``
+            # is None: ``code in values``). The JSON-normalized equality
+            # covers str-vs-number and list/multiselect round-trips.
+            if live_statuses is not None:
+                status = live_statuses.get(code, "active")
+            else:
+                status = field.status if field.status else "active"
+            if status in ("deprecated", "retired"):
+                is_being_set = code in values and (
+                    stored_values is None
+                    or not _custom_field_values_equal(
+                        values[code], stored_values.get(code)
+                    )
+                )
+                if is_being_set:
+                    errors.append(f"field '{code}' is {status}")
+                    continue
 
             value = values.get(code)
 
@@ -311,6 +384,7 @@ class CustomFieldService:
         current_snapshot: dict[str, Any] | None,
         custom_fields: dict[str, Any] | None,
         actor_id: UUID,
+        stored_custom_fields: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Compute the custom-fields update payload fields for an entity UPDATE.
 
@@ -344,6 +418,14 @@ class CustomFieldService:
               incoming) → raise :class:`CustomFieldValidationError` (values
               without a template to validate against).
 
+        The deprecated/retired write gate (M2) is CHANGE-based on the UPDATE
+        path: ``stored_custom_fields`` (the entity's currently-stored
+        ``custom_fields``) is threaded into :meth:`validate_field_values` as
+        ``stored_values``, so echoing a locked deprecated/retired field at its
+        stored value is allowed and only a genuine change is rejected. If
+        ``stored_custom_fields`` is ``None`` (caller did not supply it), the
+        gate falls back to presence-based — never hard-failing the update.
+
         Args:
             current_template_root_id: The current version's
                 ``custom_entity_template_root_id`` (``None`` if unbound).
@@ -357,6 +439,11 @@ class CustomFieldService:
                 (pulled out of ``update_data`` by the caller). ``None`` means
                 the key was absent → skip (D11).
             actor_id: Actor for the async field checks.
+            stored_custom_fields: The current version's stored
+                ``custom_fields`` ``{code: value}`` dict (``None`` if the
+                entity has none or the caller could not load it). Threaded into
+                the deprecated/retired gate so an echoed locked field is
+                allowed and only a change is rejected.
 
         Returns:
             A dict to MERGE into the service's ``update_data``. Keys are
@@ -411,8 +498,39 @@ class CustomFieldService:
                 "custom_fields require a custom_entity_template_root_id"
             )
 
+        # Phase 3 (M2) — status-authority split: value/type/options are checked
+        # against the EFFECTIVE (immutable) snapshot above, but the
+        # deprecated/retired write gate must be checked against the LIVE
+        # template so a field an admin deprecates today rejects writes on
+        # EXISTING entities (whose snapshot still says ``active``). Resolve the
+        # live template by the entity's binding and build ``{code: status}``.
+        # The binding root id is whichever the entity resolves to: the incoming
+        # one on a first-time bind, else the current one. If the live template
+        # is unresolvable (deleted/migrated), fall back to the snapshot status
+        # rather than hard-failing the update.
+        live_binding_root = (
+            incoming_template_root_id
+            if current_template_root_id is None
+            else current_template_root_id
+        )
+        live_statuses: dict[str, str] | None = None
+        if live_binding_root is not None:
+            live_template = await self.resolve_template(live_binding_root)
+            if live_template is not None and isinstance(
+                live_template.field_definitions, dict
+            ):
+                live_statuses = {
+                    code: spec.get("status", "active")
+                    for code, spec in live_template.field_definitions.items()
+                    if isinstance(spec, dict)
+                }
+
         errors = await self.validate_field_values(
-            effective_snapshot, custom_fields, actor_id=actor_id
+            effective_snapshot,
+            custom_fields,
+            actor_id=actor_id,
+            live_statuses=live_statuses,
+            stored_values=stored_custom_fields,
         )
         if errors:
             raise CustomFieldValidationError("; ".join(errors))

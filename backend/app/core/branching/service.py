@@ -783,7 +783,11 @@ class BranchableService[TBranchable: BranchableProtocol]:
             return []
 
         # Compare fields to detect conflicts
-        # Fields to compare: exclude system fields
+        # Fields to compare: exclude system fields. ``custom_fields`` is a
+        # JSONB ``{code: value}`` dict and is diffed PER-KEY below (a whole-dict
+        # ``!=`` would flag two branches editing DIFFERENT keys as conflicting,
+        # which is wrong — different keys are auto-mergeable). ``custom_field_definitions_snapshot``
+        # is IMMUTABLE captured metadata (D11) and is never a merge concern.
         system_fields = {
             "id",
             "valid_time",
@@ -794,20 +798,70 @@ class BranchableService[TBranchable: BranchableProtocol]:
             "branch",
             "parent_id",
             "merge_from_branch",
+            "custom_field_definitions_snapshot",
             self._get_root_field_name(),  # e.g., "project_id"
         }
 
         conflicts: list[dict[str, Any]] = []
 
+        # 3A: JSONB-aware per-key diff for ``custom_fields``. Only entities that
+        # carry the column are diffed this way; the generic column loop below
+        # skips ``custom_fields`` so the whole-dict ``!=`` never double-reports.
+        # ``getattr`` is used (not attribute access) because ``source`` /
+        # ``target`` are typed as the ``TBranchable`` TypeVar bound, which has no
+        # ``custom_fields`` attribute at the type level even though the runtime
+        # models that carry it (Project, WBSElement, ...) do.
+        if hasattr(source, "custom_fields"):
+            import json as _json
+
+            src_cf = getattr(source, "custom_fields", None) or {}
+            tgt_cf = getattr(target, "custom_fields", None) or {}
+            div_cf = getattr(divergence_point, "custom_fields", None) or {}
+
+            def _serialize_cf(value: Any) -> str | None:
+                """Match the existing column-loop convention: string|null.
+
+                Scalars (str/int/bool) use ``str()``; structured values
+                (list/dict) use ``json.dumps`` for a stable, FE-parseable form.
+                """
+                if value is None:
+                    return None
+                if isinstance(value, (dict, list)):
+                    return _json.dumps(value, sort_keys=True)
+                return str(value)
+
+            for key in set(src_cf) | set(tgt_cf) | set(div_cf):
+                sv = src_cf.get(key)
+                tv = tgt_cf.get(key)
+                dv = div_cf.get(key)
+                # 3-way conflict: BOTH branches changed the key since divergence
+                # AND they land on different values.
+                if sv != dv and tv != dv and sv != tv:
+                    conflicts.append(
+                        {
+                            "entity_type": self.entity_class.__name__,
+                            "entity_id": str(root_id),
+                            "field": f"custom_fields.{key}",
+                            "source_branch": source_branch,
+                            "target_branch": target_branch,
+                            "source_value": _serialize_cf(sv),
+                            "target_value": _serialize_cf(tv),
+                        }
+                    )
+
         # Get all columns for the entity - use getattr to access __table__
         table = getattr(self.entity_class, "__table__", None)
         if table is None:
-            return []
+            return conflicts
 
         for column in table.columns:
             field_name = column.name
 
             if field_name in system_fields:
+                continue
+            # 3A: ``custom_fields`` is diffed per-key above; skip it here so the
+            # whole-dict ``!=`` does not double-report auto-mergeable edits.
+            if field_name == "custom_fields":
                 continue
 
             source_value = getattr(source, field_name, None)

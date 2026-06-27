@@ -246,6 +246,9 @@ class WorkPackageService(BranchableService[WorkPackage]):  # type: ignore[type-v
             else None,
             custom_fields=custom_fields,
             actor_id=actor_id,
+            stored_custom_fields=getattr(current, "custom_fields", None)
+            if current is not None
+            else None,
         )
         update_data.update(cf_updates)
 
