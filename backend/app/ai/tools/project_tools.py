@@ -382,6 +382,7 @@ async def global_search(
             branch_mode=branch_mode,
             as_of=context.as_of,
             limit=limit,
+            search_mode="ai",
         )
 
         result = response.model_dump()

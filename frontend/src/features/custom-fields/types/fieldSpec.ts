@@ -41,6 +41,14 @@ export interface FieldSpec {
    * `spec.get("ai_visible") is True`, so this must be a top-level spec key.
    */
   ai_visible?: boolean;
+  /**
+   * When true, this field's values are included in global search and can be
+   * used as a list filter. Opt-in (default OFF); INDEPENDENT of `ai_visible`
+   * (a field can be searchable but not surfaced to the AI). The backend read
+   * tools filter on `spec.get("searchable") is True`, so this must be a
+   * top-level spec key.
+   */
+  searchable?: boolean;
   /** Default value applied when the field is unset. */
   default?: unknown;
   /** Options for select / multiselect / indicator fields. */

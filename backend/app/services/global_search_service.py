@@ -10,7 +10,7 @@ a dedicated path that bypasses versioned-entity filters.
 """
 
 from datetime import datetime
-from typing import Any, cast
+from typing import Any, Literal, cast
 from uuid import UUID
 
 from sqlalchemy import case, func, or_, select
@@ -66,6 +66,8 @@ def _best_score(
     primary_fields: list[str],
     description_fields: list[str],
     secondary_fields: list[str],
+    *,
+    cf_codes: list[str] | None = None,
 ) -> float:
     """Compute the best relevance score for a result row.
 
@@ -73,8 +75,13 @@ def _best_score(
     - Primary fields (code, name): exact 1.0 / prefix 0.9 / ilike 0.7
     - Description fields: ilike 0.5
     - Secondary fields: ilike 0.3
+    - Custom fields (Phase 2): substring 0.3 (same tier as secondary)
 
     Returns 0.0 if nothing matched (should not happen since rows are ILIKE-filtered).
+
+    NOTE: custom-field VALUES are read here ONLY to score the row — they are
+    NEVER serialized into the result snippet (no value leakage). The result
+    object continues to surface standard fields (code/name/description) only.
     """
     best = 0.0
 
@@ -98,6 +105,18 @@ def _best_score(
         if val is not None and query_lower in val.lower():
             if 0.3 > best:
                 best = 0.3
+
+    # Phase 2: custom fields — substring only, same tier as secondary (0.3).
+    # Reads the value solely to score; the value is not returned to the caller.
+    if cf_codes:
+        cf_values = getattr(row, "custom_fields", None)
+        if isinstance(cf_values, dict):
+            for code in cf_codes:
+                val = cf_values.get(code)
+                if val is not None and query_lower in str(val).lower():
+                    if 0.3 > best:
+                        best = 0.3
+                        break
 
     return best
 
@@ -302,6 +321,17 @@ _ENTITY_CONFIG: list[
     ),
 ]
 
+#: Phase 2: entity types that carry a ``custom_fields`` JSONB column, mapped
+#: from the search label (``_ENTITY_CONFIG`` first tuple element) to the
+#: ``CustomEntityTemplate.target_entity_type`` discriminator used by the
+#: resolver. Entities absent here have NO custom-field search coverage.
+_CF_ENTITY_TYPES: dict[str, str] = {
+    "project": "PROJECT",
+    "wbs_element": "WBS_ELEMENT",
+    "work_package": "WORK_PACKAGE",
+    "change_order": "CHANGE_ORDER",
+}
+
 
 class GlobalSearchService:
     """Standalone service for cross-entity search.
@@ -324,6 +354,7 @@ class GlobalSearchService:
         branch_mode: BranchMode = BranchMode.MERGED,
         as_of: datetime | None = None,
         limit: int = 50,
+        search_mode: Literal["ui", "ai"] = "ui",
     ) -> GlobalSearchResponse:
         """Search across all entity types and return ranked results.
 
@@ -336,6 +367,9 @@ class GlobalSearchService:
             branch_mode: ISOLATED or MERGED for branchable entities.
             as_of: Optional timestamp for time-travel queries.
             limit: Maximum results to return.
+            search_mode: ``"ui"`` gates custom-field matching on ``searchable``;
+                ``"ai"`` gates on ``ai_visible`` (D8: only ai_visible fields ever
+                reach the LLM via search). Defaults to ``"ui"``.
 
         Returns:
             GlobalSearchResponse with ranked results.
@@ -351,12 +385,26 @@ class GlobalSearchService:
             )
             wbe_ids.append(wbe_id)
 
+        # Phase 2: resolve the searchable/ai_visible custom-field code map
+        # ONCE per entity type that has a custom_fields column. UI mode gates on
+        # ``searchable``; AI mode gates on ``ai_visible`` (D8).
+        flag = "searchable" if search_mode == "ui" else "ai_visible"
+        from app.services.custom_field_service import CustomFieldService
+
+        cf_service = CustomFieldService(self.session)
+        cf_codes_by_type: dict[str, list[str]] = {}
+        for entity_type, target_type in _CF_ENTITY_TYPES.items():
+            codes = await cf_service.list_current_field_codes(target_type, flag=flag)
+            if codes:
+                cf_codes_by_type[entity_type] = list(codes.keys())
+
         # 3. Run all entity searches sequentially (async session limitation)
         search_term = f"%{query}%"
         query_lower = query.lower()
 
         all_results_lists: list[list[SearchResultItem]] = []
         for config in _ENTITY_CONFIG:
+            entity_type = config[0]
             results = await self._search_entity(
                 config=config,
                 search_term=search_term,
@@ -368,6 +416,7 @@ class GlobalSearchService:
                 branch_mode=branch_mode,
                 as_of=as_of,
                 limit=limit,
+                cf_codes=cf_codes_by_type.get(entity_type, []),
             )
             all_results_lists.append(results)
 
@@ -466,8 +515,16 @@ class GlobalSearchService:
         branch_mode: BranchMode,
         as_of: datetime | None,
         limit: int,
+        cf_codes: list[str] | None = None,
     ) -> list[SearchResultItem]:
-        """Search a single entity type and return scored results."""
+        """Search a single entity type and return scored results.
+
+        Phase 2: ``cf_codes`` (when non-empty) extends the ILIKE OR-clause with
+        one ``custom_fields->>code ILIKE :term`` per resolved code. The codes are
+        already gated on ``searchable`` (UI) or ``ai_visible`` (AI) by the
+        caller. Custom-field JSONB participates ONLY in the match; result
+        snippets surface standard fields only (no value leakage).
+        """
         (
             entity_type,
             entity_class,
@@ -489,6 +546,14 @@ class GlobalSearchService:
             col = getattr(entity_class, field_name, None)
             if col is not None:
                 ilike_clauses.append(col.ilike(search_term))
+
+        # Phase 2: extend the OR clause with custom-field ILIKEs. Only entities
+        # that carry a custom_fields column AND have resolved codes contribute.
+        if cf_codes and hasattr(entity_class, "custom_fields"):
+            for code in cf_codes:
+                ilike_clauses.append(
+                    entity_class.custom_fields.op("->>")(code).ilike(search_term)
+                )
 
         if not ilike_clauses:
             return []
@@ -528,7 +593,12 @@ class GlobalSearchService:
         items: list[SearchResultItem] = []
         for row in rows:
             score = _best_score(
-                row, query_lower, primary_fields, description_fields, secondary_fields
+                row,
+                query_lower,
+                primary_fields,
+                description_fields,
+                secondary_fields,
+                cf_codes=cf_codes,
             )
             if score <= 0.0:
                 continue

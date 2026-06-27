@@ -335,7 +335,7 @@ class WBSElementService(BranchableService[WBSElement]):  # type: ignore[type-var
         """
         from sqlalchemy import and_
 
-        from app.core.filtering import FilterParser
+        from app.core.filtering import FilterParser, _custom_field_order_by
 
         base_stmt = self._get_base_stmt(as_of=as_of)
 
@@ -366,11 +366,23 @@ class WBSElementService(BranchableService[WBSElement]):  # type: ignore[type-var
                 )
             )
 
+        # Phase 2: resolve searchable custom-field specs once (searchable gate).
+        from app.services.custom_field_service import CustomFieldService
+
+        cf_specs: dict[str, dict[str, Any]] = {}
+        if filters or sort_field:
+            cf_specs = await CustomFieldService(self.session).list_current_field_codes(
+                "WBS_ELEMENT", flag="searchable"
+            )
+
         if filters:
             allowed_fields = ["level", "code", "name"]
             parsed_filters = FilterParser.parse_filters(filters)
             filter_expressions = FilterParser.build_sqlalchemy_filters(
-                cast(Any, WBSElement), parsed_filters, allowed_fields=allowed_fields
+                cast(Any, WBSElement),
+                parsed_filters,
+                allowed_fields=allowed_fields,
+                custom_field_specs=cf_specs,
             )
             if filter_expressions:
                 stmt = stmt.where(and_(*filter_expressions))
@@ -381,13 +393,24 @@ class WBSElementService(BranchableService[WBSElement]):  # type: ignore[type-var
         total = total_result.scalar_one()
 
         if sort_field:
-            if not hasattr(WBSElement, sort_field):
-                raise ValueError(f"Invalid sort field: {sort_field}")
-            column = getattr(WBSElement, sort_field)
-            if sort_order.lower() == "desc":
-                stmt = stmt.order_by(column.desc())
+            if hasattr(WBSElement, sort_field):
+                column = getattr(WBSElement, sort_field)
+                if sort_order.lower() == "desc":
+                    stmt = stmt.order_by(column.desc())
+                else:
+                    stmt = stmt.order_by(column.asc())
+            elif sort_field in cf_specs:
+                # Phase 2: sort by a JSONB custom-field key (NULLs last).
+                stmt = stmt.order_by(
+                    _custom_field_order_by(
+                        cast(Any, WBSElement),
+                        sort_field,
+                        cf_specs[sort_field],
+                        sort_order,
+                    )
+                )
             else:
-                stmt = stmt.order_by(column.asc())
+                raise ValueError(f"Invalid sort field: {sort_field}")
         else:
             stmt = stmt.order_by(cast(Any, WBSElement).valid_time.desc())
 

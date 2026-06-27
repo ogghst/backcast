@@ -239,7 +239,7 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
 
         from sqlalchemy import and_, func, or_
 
-        from app.core.filtering import FilterParser
+        from app.core.filtering import FilterParser, _custom_field_order_by
         from app.models.domain.user import User
 
         # Creator lookup subquery - get the most recent version of each user
@@ -289,6 +289,17 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
                 )
             )
 
+        # Phase 2: resolve searchable custom-field specs once so JSONB keys can
+        # be filtered AND sorted (gated on ``searchable``). Only resolved when a
+        # filter or sort key is in play to avoid a needless query on plain lists.
+        from app.services.custom_field_service import CustomFieldService
+
+        cf_specs: dict[str, dict[str, Any]] = {}
+        if filters or sort_field:
+            cf_specs = await CustomFieldService(self.session).list_current_field_codes(
+                "PROJECT", flag="searchable"
+            )
+
         # Apply filters
         if filters:
             # Define allowed filterable fields for security
@@ -296,7 +307,10 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
 
             parsed_filters = FilterParser.parse_filters(filters)
             filter_expressions = FilterParser.build_sqlalchemy_filters(
-                cast(Any, Project), parsed_filters, allowed_fields=allowed_fields
+                cast(Any, Project),
+                parsed_filters,
+                allowed_fields=allowed_fields,
+                custom_field_specs=cf_specs,
             )
             if filter_expressions:
                 stmt = stmt.where(and_(*filter_expressions))
@@ -313,16 +327,23 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
         # Apply sorting
         if sort_field:
             # Validate sort field is a mapped column (not computed attributes)
-            if not hasattr(Project, sort_field):
-                raise ValueError(f"Invalid sort field: {sort_field}")
-
-            column = getattr(Project, sort_field)
-            if not hasattr(column, "desc"):
-                raise ValueError(f"Invalid sort field: {sort_field}")
-            if sort_order.lower() == "desc":
-                stmt = stmt.order_by(column.desc())
+            if hasattr(Project, sort_field):
+                column = getattr(Project, sort_field)
+                if not hasattr(column, "desc"):
+                    raise ValueError(f"Invalid sort field: {sort_field}")
+                if sort_order.lower() == "desc":
+                    stmt = stmt.order_by(column.desc())
+                else:
+                    stmt = stmt.order_by(column.asc())
+            elif sort_field in cf_specs:
+                # Phase 2: sort by a JSONB custom-field key (NULLs last).
+                stmt = stmt.order_by(
+                    _custom_field_order_by(
+                        cast(Any, Project), sort_field, cf_specs[sort_field], sort_order
+                    )
+                )
             else:
-                stmt = stmt.order_by(column.asc())
+                raise ValueError(f"Invalid sort field: {sort_field}")
         else:
             # Default sort by valid_time descending
             stmt = stmt.order_by(cast(Any, Project).valid_time.desc())

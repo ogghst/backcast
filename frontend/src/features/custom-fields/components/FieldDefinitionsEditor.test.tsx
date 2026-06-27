@@ -117,12 +117,13 @@ describe("FieldDefinitionsEditor", () => {
     expect(lastCall.reason.required).toBe(true);
     // target_entity preserved on reference
     expect(lastCall.owner.target_entity).toBe("user");
-    // number has no extra config keys beyond type/label + ai_visible (always
-    // emitted as a top-level boolean; default OFF for AI confidentiality).
+    // number has no extra config keys beyond type/label + the always-emitted
+    // top-level booleans ai_visible / searchable (default OFF).
     expect(lastCall.amount).toEqual({
       type: "number",
       label: "Amount",
       ai_visible: false,
+      searchable: false,
     });
     // label update applied
     expect(lastCall.priority.label).toBe("Prio2");
@@ -174,6 +175,52 @@ describe("FieldDefinitionsEditor", () => {
     expect(lastCall).toBeDefined();
     // Editor round-trips absent -> explicit false (top-level boolean).
     expect(lastCall.amount.ai_visible).toBe(false);
+  });
+
+  it("toggles Searchable ON and serializes it as a top-level spec key", () => {
+    const onChange = vi.fn();
+    const value: FieldDefinitionsValue = {
+      priority: { type: "select", label: "Priority" },
+    };
+    renderWithTheme(
+      <FieldDefinitionsEditor value={value} onChange={onChange} />,
+    );
+
+    // Row layout: [Required, AI-visible, Searchable]; toggle the Searchable
+    // switch (index 2) on.
+    const switches = screen.getAllByRole("switch");
+    const searchableSwitch = switches[2];
+    fireEvent.click(searchableSwitch);
+
+    const onCall = onChange.mock.calls.at(-1)?.[0] as FieldDefinitionsValue;
+    expect(onCall).toBeDefined();
+    expect(onCall.priority.searchable).toBe(true);
+    // It is a TOP-LEVEL spec key (sibling of type/label), not nested in config.
+    expect("searchable" in onCall.priority).toBe(true);
+    expect("config" in onCall.priority).toBe(false);
+
+    // Toggle it back OFF: searchable must be present and false (explicit).
+    fireEvent.click(searchableSwitch);
+    const offCall = onChange.mock.calls.at(-1)?.[0] as FieldDefinitionsValue;
+    expect(offCall.priority.searchable).toBe(false);
+  });
+
+  it("omits searchable from the spec when the stored value lacks it", () => {
+    const onChange = vi.fn();
+    const value: FieldDefinitionsValue = {
+      amount: { type: "number", label: "Amount" },
+    };
+    renderWithTheme(
+      <FieldDefinitionsEditor value={value} onChange={onChange} />,
+    );
+    // Force an emit by editing the label; searchable was absent in the input.
+    fireEvent.change(screen.getByDisplayValue("Amount"), {
+      target: { value: "Amt2" },
+    });
+    const lastCall = onChange.mock.calls.at(-1)?.[0] as FieldDefinitionsValue;
+    expect(lastCall).toBeDefined();
+    // Editor round-trips absent -> explicit false (top-level boolean).
+    expect(lastCall.amount.searchable).toBe(false);
   });
 
   it("removes a field via the remove button", () => {

@@ -137,6 +137,84 @@ class CustomFieldService:
 
         return errors
 
+    async def list_current_field_codes(
+        self,
+        entity_type: str,
+        org_unit_id: UUID | None = None,
+        *,
+        flag: str | None = None,
+    ) -> dict[str, dict[str, Any]]:
+        """Union every CURRENT template's ``field_definitions`` for an entity type.
+
+        Phase 2 queryability chokepoint: resolves which custom-field codes are
+        queryable for a given ``target_entity_type`` (``PROJECT`` |
+        ``WBS_ELEMENT`` | ``WORK_PACKAGE`` | ``CHANGE_ORDER``). Mirrors the
+        current-version predicate used by
+        :meth:`CustomEntityTemplateService.get_custom_entity_templates`
+        (``upper(valid_time) IS NULL AND deleted_at IS NULL``). An optional
+        ``org_unit_id`` further scopes the lookup; ``None`` returns ALL current
+        templates of that type (single-org MVP).
+
+        When ``flag`` is supplied (e.g. ``"searchable"`` or ``"ai_visible"``),
+        only codes whose spec carries ``spec[flag] is True`` are kept (strict
+        truthiness, mirroring :func:`filter_ai_visible_custom_fields`'s D8 gate).
+        Returns the FULL ``{code: spec}`` map (not just the flag) so callers can
+        read ``spec["type"]`` to pick a JSONB cast.
+
+        Resolution is a per-entity-type UNION across every current template —
+        codes are resolved per ``target_entity_type``, NOT per-row-template
+        (per-row-template gating is intentionally not performed on the read
+        path; keys are guarded by the write chokepoint, not here). When the same
+        code appears in multiple templates, the OLDEST current template's spec
+        wins via ``setdefault``: rows are read in ascending ``valid_time`` order
+        (``valid_time`` is a tstzrange; Postgres orders by its lower bound = the
+        version creation timestamp), so the first-seen spec is deterministic.
+
+        Args:
+            entity_type: ``target_entity_type`` discriminator.
+            org_unit_id: Optional org-unit root id scope.
+            flag: Optional spec key that must be strictly ``True`` to keep a code.
+
+        Returns:
+            ``{code: spec}`` dict (empty when no matching templates exist).
+        """
+        from app.models.domain.custom_entity_template import CustomEntityTemplate
+
+        conditions = [
+            CustomEntityTemplate.target_entity_type == entity_type,
+            is_current_version(
+                CustomEntityTemplate.valid_time,
+                CustomEntityTemplate.deleted_at,
+            ),
+        ]
+        if org_unit_id is not None:
+            conditions.append(
+                CustomEntityTemplate.organizational_unit_id == org_unit_id
+            )
+
+        # Ascending valid_time makes the cross-template union deterministic:
+        # the oldest current template's spec wins via setdefault below.
+        stmt = (
+            select(CustomEntityTemplate.field_definitions)
+            .where(*conditions)
+            .order_by(CustomEntityTemplate.valid_time.asc())
+        )
+        result = await self.session.execute(stmt)  # type: ignore[union-attr]
+        rows = result.all()
+
+        merged: dict[str, dict[str, Any]] = {}
+        for (field_defs,) in rows:
+            if not isinstance(field_defs, dict):
+                continue
+            for code, spec in field_defs.items():
+                if not isinstance(spec, dict):
+                    continue
+                if flag is not None and spec.get(flag) is not True:
+                    continue
+                # Oldest current template wins (rows are valid_time-ascending).
+                merged.setdefault(code, spec)
+        return merged
+
     async def resolve_template(
         self, template_root_id: UUID
     ) -> CustomEntityTemplate | None:

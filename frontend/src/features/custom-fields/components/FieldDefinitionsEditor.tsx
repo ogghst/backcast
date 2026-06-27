@@ -66,6 +66,7 @@ interface FieldSpec {
   label?: string;
   required?: boolean;
   ai_visible?: boolean;
+  searchable?: boolean;
   options?: string[];
   max_length?: number;
   target_entity?: string;
@@ -97,6 +98,7 @@ const emptyRow = (): EditorRow => ({
   label: "",
   required: false,
   ai_visible: false,
+  searchable: false,
 });
 
 /** Convert the stored dict shape into ordered editor rows. */
@@ -109,6 +111,7 @@ function dictToRows(value: FieldDefinitionsValue | undefined): EditorRow[] {
     label: spec.label ?? "",
     required: spec.required ?? false,
     ai_visible: spec.ai_visible ?? false,
+    searchable: spec.searchable ?? false,
     options: Array.isArray(spec.options) ? [...spec.options] : undefined,
     max_length: typeof spec.max_length === "number" ? spec.max_length : undefined,
     target_entity: spec.target_entity,
@@ -126,6 +129,9 @@ function rowsToDict(rows: EditorRow[]): FieldDefinitionsValue {
     // Top-level boolean (default OFF); the backend filter reads
     // `spec.get("ai_visible") is True`, so it must NOT be nested under config.
     spec.ai_visible = row.ai_visible === true;
+    // Top-level boolean (default OFF); the backend filter reads
+    // `spec.get("searchable") is True`, so it must NOT be nested under config.
+    spec.searchable = row.searchable === true;
     if (OPTION_TYPES.has(row.type) && Array.isArray(row.options)) {
       spec.options = row.options;
     }
@@ -317,6 +323,25 @@ export const FieldDefinitionsEditor = ({
                       disabled={disabled}
                       onChange={(checked) =>
                         patch(row.rowId, { ai_visible: checked })
+                      }
+                    />
+                  </Tooltip>
+                </div>
+
+                <div style={{ minWidth: 80, textAlign: "center" }}>
+                  <Typography.Text
+                    type="secondary"
+                    style={{ fontSize: token.fontSizeSM, display: "block" }}
+                  >
+                    Searchable
+                  </Typography.Text>
+                  <Tooltip title="When ON, this field's values are included in global search and can be used as a list filter. Default OFF.">
+                    <Switch
+                      size="small"
+                      checked={!!row.searchable}
+                      disabled={disabled}
+                      onChange={(checked) =>
+                        patch(row.rowId, { searchable: checked })
                       }
                     />
                   </Tooltip>
