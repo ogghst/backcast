@@ -20,8 +20,9 @@ from functools import wraps
 from typing import Any, TypeVar
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.core.versioning.enums import BranchMode
 from app.db.session import DB_CONCURRENCY_SEMAPHORE
@@ -29,7 +30,9 @@ from app.models.domain.control_account import ControlAccount
 from app.models.domain.cost_element import CostElement
 from app.models.domain.forecast import Forecast
 from app.models.domain.progress_entry import ProgressEntry
+from app.models.domain.project import Project
 from app.models.domain.schedule_baseline import ScheduleBaseline
+from app.models.domain.wbs_element import WBSElement
 from app.models.domain.work_package import WorkPackage
 from app.models.schemas.evm import (
     EntityType,
@@ -1068,6 +1071,310 @@ class EVMService:
             collected.append(r)
         return collected
 
+    async def _resolve_wps_to_projects_batch(
+        self,
+        project_ids: list[UUID],
+        branch: str,
+        branch_mode: BranchMode,
+    ) -> tuple[dict[UUID, UUID], dict[UUID, list[UUID]]]:
+        """Resolve every accessible project's Work Packages in a constant number
+        of queries (independent of the project count).
+
+        Mirrors the per-project resolution path
+        (:meth:`_resolve_work_package_ids_for_wbs` over the WBS set returned by
+        ``get_wbs_elements_for_projects``) but batches the whole portfolio:
+
+        1. Fetch every top-level WBS Element for the project set.
+        2. Expand all descendants of that WBS set in ONE recursive CTE.
+        3. Fetch every Control Account hanging off any (top + descendant) WBS.
+        4. Fetch every Work Package under those Control Accounts.
+
+        Args:
+            project_ids: Accessible project root ids.
+            branch: Branch name.
+            branch_mode: Branch isolation mode (drives the descendant CTE).
+
+        Returns:
+            A tuple ``(wp_to_project, wbs_by_project)`` where ``wp_to_project``
+            maps each Work Package root id to its owning Project root id, and
+            ``wbs_by_project`` maps each Project to its (top-level) WBS root ids.
+        """
+        # 1. Top-level WBS Elements for the whole project set (current versions).
+        wbs_stmt = (
+            select(WBSElement.wbs_element_id, WBSElement.project_id)
+            .where(WBSElement.project_id.in_(project_ids))
+            .where(WBSElement.branch == branch)
+            .where(func.upper(WBSElement.valid_time).is_(None))
+            .where(WBSElement.deleted_at.is_(None))
+        )
+        wbs_rows = (await self.db.execute(wbs_stmt)).all()
+        if not wbs_rows:
+            return {}, {}
+
+        # wbs_id -> project_id (top-level); plus the seed set for the CTE.
+        wbs_to_project: dict[UUID, UUID] = {}
+        top_wbs_ids: list[UUID] = []
+        wbs_by_project: dict[UUID, list[UUID]] = {}
+        for row in wbs_rows:
+            wbs_to_project[row.wbs_element_id] = row.project_id
+            top_wbs_ids.append(row.wbs_element_id)
+            wbs_by_project.setdefault(row.project_id, []).append(row.wbs_element_id)
+
+        # 2. Expand descendants of ALL top-level WBS in ONE recursive CTE.
+        #    Generalises _get_descendants_isolated / _get_descendants_merged to
+        #    a multi-root seed; the recursion semantics are unchanged.
+        all_wbs_ids = await self._expand_wbs_descendants_batch(
+            top_wbs_ids, branch, branch_mode
+        )
+
+        # 3. Control Accounts under any (top + descendant) WBS.
+        ca_stmt = (
+            select(
+                ControlAccount.control_account_id,
+                ControlAccount.wbs_element_id,
+            )
+            .where(ControlAccount.wbs_element_id.in_(all_wbs_ids))
+            .where(ControlAccount.branch == branch)
+            .where(func.upper(ControlAccount.valid_time).is_(None))
+            .where(ControlAccount.deleted_at.is_(None))
+        )
+        ca_rows = (await self.db.execute(ca_stmt)).all()
+
+        # Propagate project ownership down the WBS tree: a descendant WBS keeps
+        # its ancestor's project (WBS never crosses project boundaries). Any CA
+        # whose WBS is a descendant (absent from the top-level map) gets its
+        # project resolved via a single fill-in query.
+        orphan_ca_wbs = {
+            row.wbs_element_id
+            for row in ca_rows
+            if row.wbs_element_id not in wbs_to_project
+        }
+        if orphan_ca_wbs:
+            fill_stmt = select(WBSElement.wbs_element_id, WBSElement.project_id).where(
+                WBSElement.wbs_element_id.in_(orphan_ca_wbs)
+            )
+            for row in (await self.db.execute(fill_stmt)).all():
+                wbs_to_project[row.wbs_element_id] = row.project_id
+
+        ca_to_project: dict[UUID, UUID] = {
+            row.control_account_id: wbs_to_project[row.wbs_element_id]
+            for row in ca_rows
+            if row.wbs_element_id in wbs_to_project
+        }
+
+        if not ca_to_project:
+            return {}, wbs_by_project
+
+        # 4. Work Packages under those Control Accounts.
+        wp_stmt = (
+            select(
+                WorkPackage.work_package_id,
+                WorkPackage.control_account_id,
+            )
+            .where(WorkPackage.control_account_id.in_(ca_to_project.keys()))
+            .where(WorkPackage.branch == branch)
+            .where(func.upper(WorkPackage.valid_time).is_(None))
+            .where(WorkPackage.deleted_at.is_(None))
+        )
+        wp_rows = (await self.db.execute(wp_stmt)).all()
+
+        wp_to_project: dict[UUID, UUID] = {
+            row.work_package_id: ca_to_project[row.control_account_id]
+            for row in wp_rows
+            if row.control_account_id in ca_to_project
+        }
+        return wp_to_project, wbs_by_project
+
+    async def _expand_wbs_descendants_batch(
+        self,
+        seed_wbs_ids: list[UUID],
+        branch: str,
+        branch_mode: BranchMode,
+    ) -> list[UUID]:
+        """Expand ALL descendants of ``seed_wbs_ids`` in ONE recursive query.
+
+        Returns the union of the seed set and every descendant WBS root id.
+        Mirrors :meth:`WBSElementService._get_descendants_isolated` and
+        ``_get_descendants_merged`` but with a multi-root seed, so the cost is
+        O(1) queries regardless of how many WBS Elements are passed in.
+
+        Args:
+            seed_wbs_ids: Top-level WBS Element root ids to expand.
+            branch: Branch name.
+            branch_mode: Branch isolation mode.
+
+        Returns:
+            Deduplicated list of WBS root ids (seed + descendants).
+        """
+        unique_seeds = list(dict.fromkeys(seed_wbs_ids))
+        if not unique_seeds:
+            return []
+
+        merged = branch_mode == BranchMode.MERGED and branch != "main"
+
+        if not merged:
+            wbs_cte = (
+                select(WBSElement.wbs_element_id)
+                .where(
+                    WBSElement.parent_wbs_element_id.in_(unique_seeds),
+                    WBSElement.branch == branch,
+                    func.upper(WBSElement.valid_time).is_(None),
+                    WBSElement.deleted_at.is_(None),
+                )
+                .cte(name="wbs_descendants_batch", recursive=True)
+            )
+            child_alias = aliased(WBSElement, name="wbs_child_batch")
+            wbs_cte = wbs_cte.union_all(
+                select(child_alias.wbs_element_id).where(
+                    child_alias.parent_wbs_element_id == wbs_cte.c.wbs_element_id,
+                    child_alias.branch == branch,
+                    func.upper(child_alias.valid_time).is_(None),
+                    child_alias.deleted_at.is_(None),
+                )
+            )
+            stmt = select(wbs_cte.c.wbs_element_id)
+            result = await self.db.execute(stmt)
+            descendant_ids = [row.wbs_element_id for row in result.all()]
+        else:
+            # MERGED mode on a non-main branch: same intricate row-selection as
+            # _get_descendants_merged (prefer the branch's version over main
+            # when both exist, drop main rows shadowed by a branch deletion),
+            # generalised to a multi-root seed.
+            raw_sql = text("""
+                WITH RECURSIVE wbs_descendants AS (
+                    SELECT DISTINCT ON (wbs_element_id) wbs_element_id
+                    FROM wbs_elements
+                    WHERE parent_wbs_element_id = ANY(:seed_ids)
+                        AND branch IN (:current_branch, 'main')
+                        AND deleted_at IS NULL
+                        AND upper(valid_time) IS NULL
+                        AND NOT (
+                            branch = 'main'
+                            AND wbs_element_id IN (
+                                SELECT w.wbs_element_id FROM wbs_elements w
+                                WHERE w.branch = :current_branch
+                                  AND w.deleted_at IS NOT NULL
+                            )
+                        )
+                    ORDER BY wbs_element_id,
+                             CASE WHEN branch = :current_branch THEN 0 ELSE 1 END
+
+                    UNION ALL
+
+                    SELECT child.wbs_element_id
+                    FROM wbs_descendants wd
+                    INNER JOIN LATERAL (
+                        SELECT DISTINCT ON (wbs_element_id) wbs_element_id
+                        FROM wbs_elements w
+                        WHERE w.parent_wbs_element_id = wd.wbs_element_id
+                            AND branch IN (:current_branch, 'main')
+                            AND w.deleted_at IS NULL
+                            AND upper(w.valid_time) IS NULL
+                            AND NOT (
+                                branch = 'main'
+                                AND wbs_element_id IN (
+                                    SELECT ww.wbs_element_id FROM wbs_elements ww
+                                    WHERE ww.branch = :current_branch
+                                      AND ww.deleted_at IS NOT NULL
+                                )
+                            )
+                        ORDER BY wbs_element_id,
+                                 CASE WHEN branch = :current_branch THEN 0 ELSE 1 END
+                    ) child ON true
+                )
+                SELECT wbs_element_id FROM wbs_descendants
+            """)
+            seed_id_strs = [str(s) for s in unique_seeds]
+            result = await self.db.execute(
+                raw_sql,
+                {
+                    "seed_ids": seed_id_strs,
+                    "current_branch": branch,
+                },
+            )
+            descendant_ids = [row.wbs_element_id for row in result.all()]
+
+        # Union with the seed set and dedupe (preserves order).
+        return list(dict.fromkeys(unique_seeds + descendant_ids))
+
+    async def _get_projects_as_of_batch(
+        self,
+        project_ids: list[UUID],
+        as_of: datetime,
+        branch: str,
+        branch_mode: BranchMode,
+    ) -> dict[UUID, Project]:
+        """Fetch the current version of every project in ONE time-travel query.
+
+        Batched replacement for the per-project
+        ``project_service.get_as_of`` loop in :meth:`calculate_portfolio_evm`.
+        Returns only the latest version per project root id at ``as_of``.
+
+        Args:
+            project_ids: Project root ids to fetch.
+            as_of: Time-travel cutoff.
+            branch: Branch name.
+            branch_mode: Branch isolation mode.
+
+        Returns:
+            Mapping of ``project_id`` -> current ``Project`` version.
+        """
+        unique_ids = list(dict.fromkeys(project_ids))
+        if not unique_ids:
+            return {}
+
+        merged = branch_mode == BranchMode.MERGED and branch != "main"
+        if merged:
+            # MERGED on non-main: prefer the branch's version, fall back to main.
+            # Mirrors the BranchableService.get_as_of row-selection contract.
+            raw_sql = text("""
+                SELECT DISTINCT ON (project_id) *
+                FROM projects
+                WHERE project_id = ANY(:ids)
+                  AND branch IN (:current_branch, 'main')
+                  AND deleted_at IS NULL
+                  AND lower(valid_time) <= :as_of
+                  AND (upper(valid_time) IS NULL OR upper(valid_time) > :as_of)
+                ORDER BY project_id,
+                         CASE WHEN branch = :current_branch THEN 0 ELSE 1 END,
+                         valid_time DESC
+            """)
+            result = await self.db.execute(
+                raw_sql,
+                {
+                    "ids": [str(i) for i in unique_ids],
+                    "current_branch": branch,
+                    "as_of": as_of,
+                },
+            )
+            rows = result.all()
+            # Map rows back to ORM Project objects for downstream consistency.
+            orm_projects: dict[UUID, Project] = {}
+            for row in rows:
+                # Re-fetch via ORM is avoided; build lightweight read from row.
+                # Downstream code only touches: project_id, name, status,
+                # currency, contract_value, organizational_unit_id,
+                # project_manager_id, customer_id.
+                p = Project()
+                p.project_id = row.project_id
+                p.name = row.name
+                p.status = row.status
+                p.currency = row.currency
+                p.contract_value = row.contract_value
+                p.organizational_unit_id = row.organizational_unit_id
+                p.project_manager_id = row.project_manager_id
+                p.customer_id = row.customer_id
+                orm_projects[row.project_id] = p
+            return orm_projects
+
+        # ISOLATED mode (or main branch): straightforward ORM query.
+        stmt = select(Project).where(Project.project_id.in_(unique_ids))
+        stmt = stmt.where(Project.branch == branch)
+        stmt = stmt.where(func.upper(Project.valid_time).is_(None))
+        stmt = stmt.where(Project.deleted_at.is_(None))
+        result = await self.db.execute(stmt)
+        return {p.project_id: p for p in result.scalars()}
+
     async def calculate_portfolio_evm(
         self,
         project_ids: list[UUID],
@@ -1077,22 +1384,21 @@ class EVMService:
     ) -> PortfolioEVMResponse:
         """Compute portfolio EVM across the given (already-access-scoped) projects.
 
-        For each project: fetch its current version (name/status/contract_value/
-        currency + the new attribution columns), compute per-project EVM via
-        :meth:`calculate_evm_metrics_batch` (entity_type=PROJECT), convert
-        monetary values to the base currency (EUR) at ``control_date`` via
-        ``convert_to_base``, attach ΔEAC drift from the ForecastService, then
-        roll up via :meth:`aggregate_evm_metrics`.
+        Resolves every accessible project's Work Packages in a SINGLE batched
+        pass (one query per layer: WBS → descendants CTE → Control Accounts →
+        Work Packages), runs :meth:`_batch_calculate_work_package_metrics` ONCE
+        over the full Work Package set, then GROUPS the resulting per-WP metrics
+        by project (WP → control_account → wbs_element → project) and aggregates
+        each project's EVM. The per-project numbers are therefore identical to
+        calling ``calculate_evm_metrics_batch(entity_type=PROJECT, [pid])`` per
+        project, but the cost is O(1) queries rather than O(N).
 
-        Currency assumption: all monetary values are expressed in the project
-        base currency (EUR). ``convert_to_base`` is applied per-project so the
-        path is wired for multi-currency; today every project is EUR so it is a
-        no-op pass-through.
+        FX / ΔEAC / RAG semantics are preserved exactly: monetary values are
+        converted to the base currency per project via ``convert_to_base``, ΔEAC
+        drift is attached from the ForecastService, and ``at_risk = spi < 0.9``.
 
-        Performance note: the data volume today is ~1 real project + ~130
-        synthetic seed projects, so a live per-project loop is comfortably
-        fast. Revisit (materialize / batch / snapshot) if the active portfolio
-        exceeds ~50 real projects.
+        Performance: O(1) DB round-trips for the WBS/CA/WP resolution plus one
+        batched EVM computation, regardless of the project count.
 
         Args:
             project_ids: Accessible project root ids (caller already filtered).
@@ -1127,33 +1433,89 @@ class EVMService:
             project_ids, branch=branch
         )
 
+        # --- BATCH RESOLUTION -------------------------------------------------
+        # Fetch every project's current version, every relevant WBS / CA / WP in
+        # a constant number of queries, then compute EVM for ALL work packages
+        # in a single pass.
+        projects_map = await self._get_projects_as_of_batch(
+            project_ids=project_ids,
+            as_of=control_date,
+            branch=branch,
+            branch_mode=branch_mode,
+        )
+
+        # Only projects that actually have a current version contribute.
+        live_project_ids = [pid for pid in project_ids if pid in projects_map]
+        for missing_pid in set(project_ids) - set(live_project_ids):
+            logger.warning(
+                "Portfolio: project %s not found as_of %s; skipping",
+                missing_pid,
+                control_date,
+            )
+
+        wp_to_project, _ = await self._resolve_wps_to_projects_batch(
+            project_ids=live_project_ids,
+            branch=branch,
+            branch_mode=branch_mode,
+        )
+
+        # Per-WP EVM in ONE batched pass over the whole portfolio's work
+        # packages. Group the results back to projects via wp_to_project.
+        all_wp_ids = list(wp_to_project.keys())
+        wp_metrics_by_project: dict[UUID, list[EVMMetricsResponse]] = {
+            pid: [] for pid in live_project_ids
+        }
+        if all_wp_ids:
+            wp_metrics = await self._batch_calculate_work_package_metrics(
+                work_package_ids=all_wp_ids,
+                control_date=control_date,
+                branch=branch,
+                branch_mode=branch_mode,
+            )
+            for m in wp_metrics:
+                owner_pid = wp_to_project.get(m.work_package_id)
+                if owner_pid is not None and owner_pid in wp_metrics_by_project:
+                    wp_metrics_by_project[owner_pid].append(
+                        self._convert_to_response(m, EntityType.PROJECT)
+                    )
+
         breakdown: list[PortfolioProjectMetrics] = []
         # Build a synthetic EVMMetricsResponse per project (converted to base)
         # so the existing aggregate_evm_metrics rollup can be reused.
         per_project_converted: list[EVMMetricsResponse] = []
 
-        for project_id in project_ids:
-            project = await self.project_service.get_as_of(
-                entity_id=project_id,
-                as_of=control_date,
-                branch=branch,
-                branch_mode=branch_mode,
-            )
-            if project is None:
-                logger.warning(
-                    "Portfolio: project %s not found as_of %s; skipping",
-                    project_id,
-                    control_date,
-                )
-                continue
+        for project_id in live_project_ids:
+            project = projects_map[project_id]
+            wp_responses = wp_metrics_by_project.get(project_id, [])
 
-            metrics = await self.calculate_evm_metrics_batch(
-                entity_type=EntityType.PROJECT,
-                entity_ids=[project_id],
-                control_date=control_date,
-                branch=branch,
-                branch_mode=branch_mode,
-            )
+            # Aggregate this project's WP metrics — identical to the per-project
+            # _calculate_project_evm_metrics → aggregate_evm_metrics path.
+            if wp_responses:
+                metrics = self.aggregate_evm_metrics(wp_responses)
+            else:
+                # No WPs for this project: zero-valued EVM (same as the
+                # per-project path's "No WBS Elements found" branch).
+                metrics = EVMMetricsResponse(
+                    entity_type=EntityType.PROJECT,
+                    entity_id=project_id,
+                    bac=Decimal("0"),
+                    pv=Decimal("0"),
+                    ac=Decimal("0"),
+                    ev=Decimal("0"),
+                    cv=Decimal("0"),
+                    sv=Decimal("0"),
+                    cpi=None,
+                    spi=None,
+                    eac=None,
+                    vac=None,
+                    etc=None,
+                    tcpi=None,
+                    control_date=control_date,
+                    branch=branch,
+                    branch_mode=branch_mode,
+                    progress_percentage=None,
+                    warning="No WBS Elements found for project",
+                )
 
             currency = project.currency or "EUR"
 
