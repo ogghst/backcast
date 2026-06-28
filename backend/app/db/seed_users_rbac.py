@@ -39,6 +39,18 @@ DEFAULT_USERS: list[dict[str, str | UUID]] = [
         "password": "backcast",
         "full_name": "Viewer User",
     },
+    {
+        "user_id": UUID("b2c3d4e5-f6a7-8901-bcde-f23456789012"),
+        "email": "controller@backcast.org",
+        "password": "backcast",
+        "full_name": "Cost Controller",
+    },
+    {
+        "user_id": UUID("c3d4e5f6-a7b8-9012-cdef-345678901234"),
+        "email": "pmo-director@backcast.org",
+        "password": "backcast",
+        "full_name": "PMO Director",
+    },
 ]
 
 # ---------------------------------------------------------------------------
@@ -228,6 +240,70 @@ ROLE_PERMISSIONS: dict[str, dict[str, str | list[str]]] = {
             "customer-create",
             "customer-update",
             "customer-delete",
+        ],
+    },
+    "cost-controller": {
+        "description": (
+            "Cost controlling analyst — read-heavy cost/EVM access plus "
+            "forecast revision; no project/structure CRUD or approvals."
+        ),
+        "permissions": [
+            "portfolio-read",
+            "project-read",
+            "project-documents-read",
+            "wbs-element-read",
+            "control-account-read",
+            "work-package-read",
+            "cost-element-read",
+            "cost-element-type-read",
+            "cost-event-read",
+            "cost-event-type-read",
+            "cost-registration-read",
+            "change-order-read",
+            "forecast-read",
+            "schedule-baseline-read",
+            "evm-read",
+            "progress-entry-read",
+            "custom-entity-template-read",
+            "project-budget-settings-read",
+            "organizational-unit-read",
+            "customer-read",
+            "currency-rate-read",
+            "user-read",
+            "forecast-update",
+        ],
+    },
+    "pmo-director": {
+        "description": (
+            "PMO director — read-heavy portfolio/schedule oversight plus "
+            "change-order governance; no structural CRUD or cost writes."
+        ),
+        "permissions": [
+            "portfolio-read",
+            "project-read",
+            "project-documents-read",
+            "wbs-element-read",
+            "control-account-read",
+            "work-package-read",
+            "cost-element-read",
+            "cost-element-type-read",
+            "cost-event-read",
+            "cost-event-type-read",
+            "cost-registration-read",
+            "change-order-read",
+            "forecast-read",
+            "schedule-baseline-read",
+            "evm-read",
+            "progress-entry-read",
+            "custom-entity-template-read",
+            "project-budget-settings-read",
+            "organizational-unit-read",
+            "customer-read",
+            "currency-rate-read",
+            "user-read",
+            "change-order-submit",
+            "change-order-approve",
+            "change-order-escalate",
         ],
     },
     "viewer": {
@@ -472,6 +548,8 @@ USER_ROLE_MAP: dict[str, str] = {
     "admin@backcast.org": "admin",
     "pm@backcast.org": "manager",
     "viewer@backcast.org": "viewer",
+    "controller@backcast.org": "cost-controller",
+    "pmo-director@backcast.org": "pmo-director",
 }
 
 

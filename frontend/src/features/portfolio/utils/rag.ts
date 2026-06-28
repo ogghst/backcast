@@ -15,6 +15,15 @@
 
 export type RagBand = "Green" | "Amber" | "Red" | "Unknown";
 
+/**
+ * Lower bound of the Red band. A performance index strictly below this value
+ * is "Red"; at-or-above but below 1.0 is "Amber".
+ *
+ * Shared so the at-risk (SPI<0.9) and cost-distress (CPI<0.9) derivations do
+ * not re-hardcode the threshold.
+ */
+export const RED_BAND_THRESHOLD = 0.9;
+
 /** Order severity for picking the worse of two bands (higher = worse). */
 const BAND_SEVERITY: Record<Exclude<RagBand, "Unknown">, number> = {
   Green: 0,
@@ -31,7 +40,7 @@ export function indexBand(index: number | null | undefined): RagBand {
     return "Unknown";
   }
   if (index >= 1.0) return "Green";
-  if (index >= 0.9) return "Amber";
+  if (index >= RED_BAND_THRESHOLD) return "Amber";
   return "Red";
 }
 

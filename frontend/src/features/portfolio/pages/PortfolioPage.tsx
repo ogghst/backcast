@@ -17,10 +17,11 @@
  * TCPI, which the hand-written EVM type does not).
  */
 
-import { useMemo } from "react";
+import React, { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { Card, Col, Empty, Row, Space, Spin, Statistic, Tag, Typography, theme } from "antd";
 import type { ColumnType } from "antd/es/table";
+import type { SortOrder } from "antd/es/table/interface";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { PageShell } from "@/components/layout/PageShell";
 import { StandardTable } from "@/components/common/StandardTable";
@@ -32,6 +33,7 @@ import {
   type MetricMetadata,
 } from "@/features/evm/types";
 import { formatValue } from "@/features/evm/utils/formatters";
+import { useAuthStore } from "@/stores/useAuthStore";
 import { usePortfolioFilterUrlSync } from "@/stores/usePortfolioFilterUrlSync";
 import { usePortfolioFilterStore } from "@/stores/usePortfolioFilterStore";
 import { usePortfolioEVM } from "@/features/portfolio/api/usePortfolioEVM";
@@ -39,9 +41,17 @@ import { usePortfolioCO } from "@/features/portfolio/api/usePortfolioCO";
 import {
   ragBand,
   ragToStatus,
+  RED_BAND_THRESHOLD,
   type RagBand,
 } from "@/features/portfolio/utils/rag";
 import { FilterBar } from "@/features/portfolio/components/FilterBar";
+import {
+  cpiCostDistress,
+  roleLayout,
+  type LayoutConfig,
+  type LeadMetric,
+  type SectionKey,
+} from "@/features/portfolio/roleLayout";
 import type { PortfolioProjectMetrics } from "@/api/generated/models/PortfolioProjectMetrics";
 import type { ChangeOrderStatsResponse } from "@/api/generated/models/ChangeOrderStatsResponse";
 
@@ -94,6 +104,14 @@ const TCPI_METADATA = {
   higherIsBetter: true,
   format: "number",
 } as unknown as MetricMetadata;
+
+/** Lead-metric key → KPI tile metadata. */
+const LEAD_METADATA: Record<LeadMetric, MetricMetadata> = {
+  cpi: CPI_METADATA,
+  spi: SPI_METADATA,
+  vac: VAC_METADATA,
+  tcpi: TCPI_METADATA,
+};
 
 // ── Status tag colour (project status → antd Tag color) ────────────────────
 const STATUS_TAG_COLOR: Record<string, string> = {
@@ -250,6 +268,73 @@ function ChangeOrderPipeline({
 }
 
 /**
+ * Ranked distress list — the shared visual pattern behind both the existing
+ * At-Risk (SPI<0.9) list and the Phase 2 Cost-Distress (CPI<0.9) list.
+ *
+ * Renders a simple ranked list of projects whose index is below the given
+ * threshold, with the index value + a status tag per row. Mirrors the original
+ * inline at-risk markup so the look is identical.
+ */
+function DistressList({
+  title,
+  projects,
+  indexKey,
+  emptyDescription,
+}: {
+  title: React.ReactNode;
+  projects: PortfolioProjectMetrics[];
+  indexKey: "cpi" | "spi";
+  emptyDescription: string;
+}): React.JSX.Element {
+  const { spacing } = useThemeTokens();
+  const { token } = theme.useToken();
+
+  return (
+    <div
+      style={{
+        background: token.colorBgContainer,
+        borderRadius: token.borderRadiusLG,
+        padding: spacing.md,
+      }}
+    >
+      <Typography.Title level={5} style={{ marginTop: 0 }}>
+        {title}
+      </Typography.Title>
+      {projects.length === 0 ? (
+        <Empty
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+          description={emptyDescription}
+        />
+      ) : (
+        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+          {projects.map((p) => (
+            <li
+              key={p.project_id}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: spacing.sm,
+                padding: `${spacing.xs}px 0`,
+                borderBottom: `1px solid ${token.colorBorderSecondary}`,
+              }}
+            >
+              <Link to={`/projects/${p.project_id}`}>{p.name}</Link>
+              <Space size={spacing.sm}>
+                <Typography.Text type="secondary">
+                  {indexKey.toUpperCase()} {formatValue(p[indexKey] ?? null, "number")}
+                </Typography.Text>
+                <Tag color="error">At Risk</Tag>
+              </Space>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
  * Portfolio Dashboard — top-level EVM roll-up + at-risk projects.
  *
  * @example
@@ -260,6 +345,10 @@ function ChangeOrderPipeline({
 export function PortfolioPage(): React.JSX.Element {
   const { token } = theme.useToken();
   const { spacing } = useThemeTokens();
+
+  // Role-curated layout (Phase 2). Unknown/null roles fall back to `default`.
+  const role = useAuthStore((s) => s.user?.role) ?? "default";
+  const layout: LayoutConfig = roleLayout[role] ?? roleLayout.default;
 
   // Wire the filter store to the URL (one-time on this page).
   usePortfolioFilterUrlSync();
@@ -297,6 +386,27 @@ export function PortfolioPage(): React.JSX.Element {
     });
   }, [data?.projects, statusFilter, ragFilter]);
 
+  // Resolved sort: URL-persisted sort wins over the role default. When the URL
+  // carries `sort_field`/`sort_order` the user has actively sorted, so the role
+  // default is only an initial sort applied on first load.
+  //
+  // `tableParams.sortOrder` is typed `string` (URL-sourced) but antd columns
+  // expect the `SortOrder` union; the value only ever lands here via antd's own
+  // onChange, so the cast is safe.
+  const resolvedSort = useMemo(():
+    | { field: string; order: SortOrder }
+    | null => {
+    if (tableParams.sortField && tableParams.sortOrder) {
+      return {
+        field: tableParams.sortField,
+        order: tableParams.sortOrder as SortOrder,
+      };
+    }
+    return layout.defaultSort
+      ? { field: layout.defaultSort.field, order: layout.defaultSort.order }
+      : null;
+  }, [tableParams.sortField, tableParams.sortOrder, layout.defaultSort]);
+
   const columns = useMemo<ColumnType<PortfolioProjectMetrics>[]>(
     () => [
       {
@@ -307,6 +417,8 @@ export function PortfolioPage(): React.JSX.Element {
           <Link to={`/projects/${record.project_id}`}>{record.name}</Link>
         ),
         sorter: (a, b) => a.name.localeCompare(b.name),
+        sortOrder:
+          resolvedSort?.field === "name" ? resolvedSort.order : undefined,
         ellipsis: true,
       },
       {
@@ -320,6 +432,8 @@ export function PortfolioPage(): React.JSX.Element {
           </Tag>
         ),
         sorter: (a, b) => a.status.localeCompare(b.status),
+        sortOrder:
+          resolvedSort?.field === "status" ? resolvedSort.order : undefined,
       },
       {
         title: "CPI",
@@ -330,6 +444,8 @@ export function PortfolioPage(): React.JSX.Element {
         render: (cpi: number | null | undefined) =>
           formatValue(cpi ?? null, "number"),
         sorter: (a, b) => (a.cpi ?? -Infinity) - (b.cpi ?? -Infinity),
+        sortOrder:
+          resolvedSort?.field === "cpi" ? resolvedSort.order : undefined,
       },
       {
         title: "SPI",
@@ -340,6 +456,8 @@ export function PortfolioPage(): React.JSX.Element {
         render: (spi: number | null | undefined) =>
           formatValue(spi ?? null, "number"),
         sorter: (a, b) => (a.spi ?? -Infinity) - (b.spi ?? -Infinity),
+        sortOrder:
+          resolvedSort?.field === "spi" ? resolvedSort.order : undefined,
       },
       {
         title: "VAC",
@@ -350,6 +468,8 @@ export function PortfolioPage(): React.JSX.Element {
         render: (vac: number | null | undefined) =>
           formatValue(vac ?? null, "currency", "EUR"),
         sorter: (a, b) => (a.vac ?? -Infinity) - (b.vac ?? -Infinity),
+        sortOrder:
+          resolvedSort?.field === "vac" ? resolvedSort.order : undefined,
       },
       {
         title: "Contract Value",
@@ -360,6 +480,10 @@ export function PortfolioPage(): React.JSX.Element {
         render: (cv: number | null | undefined) =>
           formatValue(cv ?? null, "currency", "EUR"),
         sorter: (a, b) => (a.contract_value ?? -Infinity) - (b.contract_value ?? -Infinity),
+        sortOrder:
+          resolvedSort?.field === "contract_value"
+            ? resolvedSort.order
+            : undefined,
       },
       {
         title: "RAG",
@@ -373,7 +497,7 @@ export function PortfolioPage(): React.JSX.Element {
         },
       },
     ],
-    [],
+    [resolvedSort],
   );
 
   const summary = data?.summary;
@@ -381,10 +505,143 @@ export function PortfolioPage(): React.JSX.Element {
   const summarySpi = summary?.spi ?? null;
 
   const atRiskProjects = data?.at_risk_projects ?? [];
+  const costDistressProjects = useMemo(
+    () => cpiCostDistress(data?.projects ?? []),
+    [data?.projects],
+  );
+
+  // KPI tile status helpers — CPI/SPI share the RAG band, VAC/TCPI have their own.
+  const leadStatusFor = (metric: LeadMetric): "good" | "warning" | "bad" => {
+    switch (metric) {
+      case "cpi":
+      case "spi":
+        return ragToStatus(ragBand(summaryCpi, summarySpi));
+      case "vac":
+        return vacStatus(summary?.vac);
+      case "tcpi":
+        return tcpiStatus(summary?.tcpi);
+    }
+  };
+
+  const leadValueFor = (metric: LeadMetric): number | null => {
+    switch (metric) {
+      case "cpi":
+        return summaryCpi;
+      case "spi":
+        return summarySpi;
+      case "vac":
+        return summary?.vac ?? null;
+      case "tcpi":
+        return summary?.tcpi ?? null;
+    }
+  };
+
+  // Distress count for the role's lead row (cost-controller → CPI<0.9,
+  // pmo-director → SPI<0.9). Derived from the (unfiltered) portfolio breakdown.
+  const distressCount = layout.leadDistressCount
+    ? layout.leadDistressCount === "cost"
+      ? costDistressProjects.length
+      : atRiskProjects.length
+    : 0;
+
+  /** Render the lead KPI tiles row. */
+  const renderKpis = (): React.JSX.Element => (
+    <Row gutter={[spacing.md, spacing.md]} style={{ marginBottom: spacing.md }}>
+      {layout.leadMetrics.map((metric) => (
+        <Col key={metric} xs={24} sm={12} lg={layout.leadDistressCount ? 12 : 6}>
+          <MetricCard
+            metadata={LEAD_METADATA[metric]}
+            value={leadValueFor(metric)}
+            status={leadStatusFor(metric)}
+            size="medium"
+          />
+        </Col>
+      ))}
+      {layout.leadDistressCount && (
+        <Col xs={24} sm={12} lg={12}>
+          <Card variant="outlined" style={{ height: "100%" }}>
+            <Statistic
+              title={
+                layout.leadDistressCount === "cost"
+                  ? "Cost Distress (CPI < 0.9)"
+                  : "At-Risk (SPI < 0.9)"
+              }
+              value={distressCount}
+              valueStyle={
+                distressCount > 0
+                  ? { color: token.colorError }
+                  : { color: token.colorSuccess }
+              }
+            />
+          </Card>
+        </Col>
+      )}
+    </Row>
+  );
+
+  /** Render the CO pipeline section. */
+  const renderCoPipeline = (): React.JSX.Element => (
+    <div style={{ marginBottom: spacing.md }}>
+      <ChangeOrderPipeline stats={coStats} isLoading={coLoading} />
+    </div>
+  );
+
+  /** Render the per-project table section. */
+  const renderTable = (): React.JSX.Element => (
+    <div
+      style={{
+        background: token.colorBgContainer,
+        borderRadius: token.borderRadiusLG,
+        padding: spacing.md,
+        marginBottom: spacing.md,
+      }}
+    >
+      <StandardTable<PortfolioProjectMetrics>
+        rowKey="project_id"
+        columns={columns}
+        dataSource={filteredProjects}
+        tableParams={tableParams}
+        onChange={handleTableChange}
+        size="middle"
+      />
+    </div>
+  );
+
+  /** Render the at-risk (SPI<0.9) section. */
+  const renderAtRisk = (): React.JSX.Element => (
+    <div style={{ marginBottom: spacing.md }}>
+      <DistressList
+        title={`At-Risk Projects (SPI < ${RED_BAND_THRESHOLD})`}
+        projects={atRiskProjects}
+        indexKey="spi"
+        emptyDescription="No at-risk projects"
+      />
+    </div>
+  );
+
+  /** Render the cost-distress (CPI<0.9) section. */
+  const renderCostDistress = (): React.JSX.Element => (
+    <div style={{ marginBottom: spacing.md }}>
+      <DistressList
+        title={`Cost-Distress Projects (CPI < ${RED_BAND_THRESHOLD})`}
+        projects={costDistressProjects}
+        indexKey="cpi"
+        emptyDescription="No cost-distress projects"
+      />
+    </div>
+  );
+
+  const sectionRenderers: Record<SectionKey, () => React.JSX.Element> = {
+    kpis: renderKpis,
+    coPipeline: renderCoPipeline,
+    table: renderTable,
+    atRisk: renderAtRisk,
+    costDistress: renderCostDistress,
+  };
 
   return (
     <PageWrapper>
-      <PageShell title="Portfolio Dashboard">
+      <PageShell title={layout.title}>
         <FilterBar />
 
         {isLoading ? (
@@ -401,106 +658,11 @@ export function PortfolioPage(): React.JSX.Element {
           <Empty description="No portfolio data available" />
         ) : (
           <>
-            {/* KPI tiles row */}
-            <Row gutter={[spacing.md, spacing.md]} style={{ marginBottom: spacing.md }}>
-              <Col xs={24} sm={12} lg={6}>
-                <MetricCard
-                  metadata={CPI_METADATA}
-                  value={summaryCpi}
-                  status={ragToStatus(ragBand(summaryCpi, summarySpi))}
-                  size="medium"
-                />
-              </Col>
-              <Col xs={24} sm={12} lg={6}>
-                <MetricCard
-                  metadata={SPI_METADATA}
-                  value={summarySpi}
-                  status={ragToStatus(ragBand(summaryCpi, summarySpi))}
-                  size="medium"
-                />
-              </Col>
-              <Col xs={24} sm={12} lg={6}>
-                <MetricCard
-                  metadata={VAC_METADATA}
-                  value={summary?.vac ?? null}
-                  status={vacStatus(summary?.vac)}
-                  size="medium"
-                />
-              </Col>
-              <Col xs={24} sm={12} lg={6}>
-                <MetricCard
-                  metadata={TCPI_METADATA}
-                  value={summary?.tcpi ?? null}
-                  status={tcpiStatus(summary?.tcpi)}
-                  size="medium"
-                />
-              </Col>
-            </Row>
-
-            {/* Change-order pipeline (portfolio-wide; G17). */}
-            <ChangeOrderPipeline stats={coStats} isLoading={coLoading} />
-
-            {/* Per-project table — filtering is client-side (server does NOT filter by CPI/SPI). */}
-            <div
-              style={{
-                background: token.colorBgContainer,
-                borderRadius: token.borderRadiusLG,
-                padding: spacing.md,
-                marginBottom: spacing.md,
-              }}
-            >
-              <StandardTable<PortfolioProjectMetrics>
-                rowKey="project_id"
-                columns={columns}
-                dataSource={filteredProjects}
-                tableParams={tableParams}
-                onChange={handleTableChange}
-                size="middle"
-              />
-            </div>
-
-            {/* At-risk projects (SPI < 0.9) */}
-            <div
-              style={{
-                background: token.colorBgContainer,
-                borderRadius: token.borderRadiusLG,
-                padding: spacing.md,
-              }}
-            >
-              <Typography.Title level={5} style={{ marginTop: 0 }}>
-                At-Risk Projects (SPI &lt; 0.9)
-              </Typography.Title>
-              {atRiskProjects.length === 0 ? (
-                <Empty
-                  image={Empty.PRESENTED_IMAGE_SIMPLE}
-                  description="No at-risk projects"
-                />
-              ) : (
-                <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-                  {atRiskProjects.map((p) => (
-                    <li
-                      key={p.project_id}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: spacing.sm,
-                        padding: `${spacing.xs}px 0`,
-                        borderBottom: `1px solid ${token.colorBorderSecondary}`,
-                      }}
-                    >
-                      <Link to={`/projects/${p.project_id}`}>{p.name}</Link>
-                      <Space size={spacing.sm}>
-                        <Typography.Text type="secondary">
-                          SPI {formatValue(p.spi ?? null, "number")}
-                        </Typography.Text>
-                        <Tag color="error">At Risk</Tag>
-                      </Space>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+            {layout.sectionOrder.map((section) => (
+              <React.Fragment key={section}>
+                {sectionRenderers[section]()}
+              </React.Fragment>
+            ))}
           </>
         )}
       </PageShell>
