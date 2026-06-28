@@ -27,6 +27,7 @@ import { useEffect } from "react";
 import { Badge, Button, Grid, Layout, Tooltip, theme } from "antd";
 import {
   AppstoreOutlined,
+  BarChartOutlined,
   HomeOutlined,
   MessageOutlined,
   ProjectOutlined,
@@ -136,6 +137,7 @@ export function AppSidebar(): React.JSX.Element | null {
 
   const { can, canAny, hasRole } = usePermission();
   const canChat = can("ai-chat");
+  const canPortfolio = can("portfolio-read");
   const canAgents = canAny(["ai-chat", "agent-schedule-manage"]);
   const agentsDest = can("agent-schedule-manage")
     ? "/admin/agent-schedules"
@@ -275,6 +277,16 @@ export function AppSidebar(): React.JSX.Element | null {
           active={isPrimaryActive(location.pathname, "/projects")}
           onClick={() => navigate("/projects")}
         />
+
+        {/* Dashboards — navigates directly to /portfolio (no flyout). */}
+        {canPortfolio && (
+          <RailButton
+            label="Dashboards"
+            icon={<BarChartOutlined />}
+            active={isPrimaryActive(location.pathname, "/portfolio")}
+            onClick={() => navigate("/portfolio")}
+          />
+        )}
 
         {/* Entity tab (only on entity-detail routes) */}
         {entityNav && (

@@ -38,6 +38,7 @@ from app.models.schemas.evm import (
     EVMTimeSeriesGranularity,
     EVMTimeSeriesPoint,
     EVMTimeSeriesResponse,
+    PortfolioEVMResponse,
 )
 from app.services.control_account_service import ControlAccountService
 from app.services.cost_registration_service import CostRegistrationService
@@ -51,6 +52,24 @@ from app.services.work_package_service import WorkPackageService
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
+
+
+def _tcpi_from(bac: Decimal, eac: Decimal | None) -> Decimal:
+    """To-Complete Performance Index = BAC / EAC.
+
+    Industry convention: defaults to 1.0 when EAC is missing or zero
+    (no forecast means remaining work is budgeted at planned cost).
+
+    Args:
+        bac: Budget at Completion (in the rollup/base currency).
+        eac: Estimate at Completion (in the rollup/base currency), or None.
+
+    Returns:
+        TCPI as a Decimal (1.0 when EAC is absent/zero, else ``bac / eac``).
+    """
+    if eac is None or eac == 0:
+        return Decimal("1.0")
+    return bac / eac
 
 
 def log_performance(
@@ -595,6 +614,7 @@ class EVMService:
                 eac=None,
                 vac=None,
                 etc=None,
+                tcpi=None,
                 control_date=control_date,
                 branch=branch,
                 branch_mode=branch_mode,
@@ -731,6 +751,7 @@ class EVMService:
                 eac=None,
                 vac=None,
                 etc=None,
+                tcpi=None,
                 control_date=control_date,
                 branch=branch,
                 branch_mode=branch_mode,
@@ -770,6 +791,7 @@ class EVMService:
             eac=aggregated.eac,
             vac=aggregated.vac,
             etc=aggregated.etc,
+            tcpi=aggregated.tcpi,
             control_date=aggregated.control_date,
             branch=aggregated.branch,
             branch_mode=aggregated.branch_mode,
@@ -804,6 +826,7 @@ class EVMService:
                 eac=None,
                 vac=None,
                 etc=None,
+                tcpi=None,
                 control_date=control_date,
                 branch=branch,
                 branch_mode=branch_mode,
@@ -843,6 +866,7 @@ class EVMService:
             eac=aggregated.eac,
             vac=aggregated.vac,
             etc=aggregated.etc,
+            tcpi=aggregated.tcpi,
             control_date=aggregated.control_date,
             branch=aggregated.branch,
             branch_mode=aggregated.branch_mode,
@@ -880,6 +904,7 @@ class EVMService:
                 eac=None,
                 vac=None,
                 etc=None,
+                tcpi=None,
                 control_date=control_date,
                 branch=branch,
                 branch_mode=branch_mode,
@@ -908,6 +933,7 @@ class EVMService:
             eac=wbs_result.eac,
             vac=wbs_result.vac,
             etc=wbs_result.etc,
+            tcpi=wbs_result.tcpi,
             control_date=wbs_result.control_date,
             branch=wbs_result.branch,
             branch_mode=wbs_result.branch_mode,
@@ -919,6 +945,12 @@ class EVMService:
         self, metrics: EVMMetricsRead, entity_type: EntityType
     ) -> EVMMetricsResponse:
         """Convert EVMMetricsRead to EVMMetricsResponse."""
+        # TCPI is derived (BAC/EAC); EVMMetricsRead has no tcpi field. Defaults
+        # to 1.0 when EAC is missing or zero (industry convention).
+        tcpi = _tcpi_from(
+            Decimal(str(metrics.bac)),
+            Decimal(str(metrics.eac)) if metrics.eac is not None else None,
+        )
         return EVMMetricsResponse(
             entity_type=entity_type,
             entity_id=metrics.work_package_id,
@@ -933,6 +965,7 @@ class EVMService:
             eac=metrics.eac,
             vac=metrics.vac,
             etc=metrics.etc,
+            tcpi=tcpi,
             control_date=metrics.control_date,
             branch=metrics.branch,
             branch_mode=metrics.branch_mode,
@@ -946,7 +979,8 @@ class EVMService:
         """Aggregate multiple EVM metrics responses.
 
         Sums amount fields (BAC, PV, AC, EV, CV, SV, EAC, VAC, ETC).
-        Calculates BAC-weighted average for indices (CPI, SPI).
+        Re-derives indices (CPI, SPI, TCPI) from summed EV/AC/PV/BAC/EAC
+        (industry-standard 'roll up, never average').
         """
         if not metrics_list:
             raise ValueError("Cannot aggregate empty metrics list")
@@ -965,13 +999,22 @@ class EVMService:
         spi = None if pv == 0 else ev / pv
 
         eac_list = [Decimal(str(m.eac)) for m in metrics_list if m.eac is not None]
-        eac = sum(eac_list) if len(eac_list) == len(metrics_list) else None
+        eac = (
+            sum(eac_list, Decimal("0")) if len(eac_list) == len(metrics_list) else None
+        )
 
         vac_list = [Decimal(str(m.vac)) for m in metrics_list if m.vac is not None]
-        vac = sum(vac_list) if len(vac_list) == len(metrics_list) else None
+        vac = (
+            sum(vac_list, Decimal("0")) if len(vac_list) == len(metrics_list) else None
+        )
 
         etc_list = [Decimal(str(m.etc)) for m in metrics_list if m.etc is not None]
-        etc = sum(etc_list) if len(etc_list) == len(metrics_list) else None
+        etc = (
+            sum(etc_list, Decimal("0")) if len(etc_list) == len(metrics_list) else None
+        )
+
+        # TCPI = BAC / EAC; defaults to 1.0 when EAC is missing or zero.
+        tcpi = _tcpi_from(bac, eac)
 
         total_bac = bac
         progress_percentage = None
@@ -999,6 +1042,7 @@ class EVMService:
             eac=eac,
             vac=vac,
             etc=etc,
+            tcpi=tcpi,
             control_date=first.control_date,
             branch=first.branch,
             branch_mode=first.branch_mode,
@@ -1023,6 +1067,201 @@ class EVMService:
                 continue
             collected.append(r)
         return collected
+
+    async def calculate_portfolio_evm(
+        self,
+        project_ids: list[UUID],
+        control_date: datetime,
+        branch: str = "main",
+        branch_mode: BranchMode = BranchMode.MERGED,
+    ) -> PortfolioEVMResponse:
+        """Compute portfolio EVM across the given (already-access-scoped) projects.
+
+        For each project: fetch its current version (name/status/contract_value/
+        currency + the new attribution columns), compute per-project EVM via
+        :meth:`calculate_evm_metrics_batch` (entity_type=PROJECT), convert
+        monetary values to the base currency (EUR) at ``control_date`` via
+        ``convert_to_base``, attach ΔEAC drift from the ForecastService, then
+        roll up via :meth:`aggregate_evm_metrics`.
+
+        Currency assumption: all monetary values are expressed in the project
+        base currency (EUR). ``convert_to_base`` is applied per-project so the
+        path is wired for multi-currency; today every project is EUR so it is a
+        no-op pass-through.
+
+        Performance note: the data volume today is ~1 real project + ~130
+        synthetic seed projects, so a live per-project loop is comfortably
+        fast. Revisit (materialize / batch / snapshot) if the active portfolio
+        exceeds ~50 real projects.
+
+        Args:
+            project_ids: Accessible project root ids (caller already filtered).
+            control_date: Time-travel control date for EVM + rate resolution.
+            branch: Branch name (default ``"main"``).
+            branch_mode: Branch isolation mode (default MERGED).
+
+        Returns:
+            :class:`PortfolioEVMResponse` with rolled-up summary, per-project
+            breakdown, and the SPI-based at-risk subset.
+        """
+        from app.models.schemas.evm import PortfolioProjectMetrics
+        from app.services.currency_rate_service import convert_to_base
+        from app.services.forecast_service import ForecastService
+
+        if not project_ids:
+            raise ValueError("Cannot compute portfolio EVM over an empty project set")
+
+        async def _to_base(
+            amount: Decimal | float | None, currency: str
+        ) -> float | None:
+            """Convert an amount to the base currency at the control date."""
+            if amount is None:
+                return None
+            converted = await convert_to_base(
+                self.db, Decimal(str(amount)), currency, control_date
+            )
+            return float(converted)
+
+        forecast_service = ForecastService(self.db)
+        delta_eac_by_project = await forecast_service.get_delta_eac_for_projects(
+            project_ids, branch=branch
+        )
+
+        breakdown: list[PortfolioProjectMetrics] = []
+        # Build a synthetic EVMMetricsResponse per project (converted to base)
+        # so the existing aggregate_evm_metrics rollup can be reused.
+        per_project_converted: list[EVMMetricsResponse] = []
+
+        for project_id in project_ids:
+            project = await self.project_service.get_as_of(
+                entity_id=project_id,
+                as_of=control_date,
+                branch=branch,
+                branch_mode=branch_mode,
+            )
+            if project is None:
+                logger.warning(
+                    "Portfolio: project %s not found as_of %s; skipping",
+                    project_id,
+                    control_date,
+                )
+                continue
+
+            metrics = await self.calculate_evm_metrics_batch(
+                entity_type=EntityType.PROJECT,
+                entity_ids=[project_id],
+                control_date=control_date,
+                branch=branch,
+                branch_mode=branch_mode,
+            )
+
+            currency = project.currency or "EUR"
+
+            # Convert ALL flow values to the base currency BEFORE pushing into
+            # the rollup — otherwise aggregate_evm_metrics sums mixed currencies
+            # and CPI/SPI/CV/SV are dimensionally wrong under multi-currency.
+            # cv/sv are intentionally NOT carried: aggregate_evm_metrics
+            # re-derives them (cv = ev - ac, sv = ev - pv) from the converted
+            # flows at rollup time.
+            bac_b = await _to_base(metrics.bac, currency)
+            eac_b = await _to_base(metrics.eac, currency)
+            vac_b = await _to_base(metrics.vac, currency)
+            pv_b = await _to_base(metrics.pv, currency)
+            ac_b = await _to_base(metrics.ac, currency)
+            ev_b = await _to_base(metrics.ev, currency)
+            contract_value_b = (
+                await _to_base(project.contract_value, currency)
+                if project.contract_value is not None
+                else None
+            )
+            delta_eac_raw = delta_eac_by_project.get(project_id)
+            delta_eac_b = (
+                await _to_base(delta_eac_raw, currency)
+                if delta_eac_raw is not None
+                else None
+            )
+
+            spi = metrics.spi
+            at_risk = spi is not None and spi < 0.9
+
+            breakdown.append(
+                PortfolioProjectMetrics(
+                    project_id=project.project_id,
+                    name=project.name,
+                    status=project.status,
+                    cpi=metrics.cpi,
+                    spi=spi,
+                    vac=vac_b,
+                    contract_value=contract_value_b,
+                    bac=bac_b if bac_b is not None else 0.0,
+                    eac=eac_b,
+                    currency=currency,
+                    organizational_unit_id=project.organizational_unit_id,
+                    project_manager_id=project.project_manager_id,
+                    customer_id=project.customer_id,
+                    at_risk=at_risk,
+                    delta_eac=delta_eac_b,
+                )
+            )
+
+            # cv/sv omitted on purpose: aggregate_evm_metrics re-derives them
+            # from the (now base-converted) pv/ac/ev.
+            per_project_converted.append(
+                EVMMetricsResponse(
+                    entity_type=EntityType.PROJECT,
+                    entity_id=project_id,
+                    bac=bac_b if bac_b is not None else Decimal("0"),
+                    pv=pv_b if pv_b is not None else Decimal("0"),
+                    ac=ac_b if ac_b is not None else Decimal("0"),
+                    ev=ev_b if ev_b is not None else Decimal("0"),
+                    cv=Decimal("0"),
+                    sv=Decimal("0"),
+                    cpi=metrics.cpi,
+                    spi=metrics.spi,
+                    eac=eac_b,
+                    vac=vac_b,
+                    etc=metrics.etc,
+                    tcpi=metrics.tcpi,
+                    control_date=metrics.control_date,
+                    branch=metrics.branch,
+                    branch_mode=metrics.branch_mode,
+                    progress_percentage=metrics.progress_percentage,
+                    warning=metrics.warning,
+                )
+            )
+
+        if per_project_converted:
+            summary = self.aggregate_evm_metrics(per_project_converted)
+        else:
+            # No project produced metrics — return an empty summary.
+            summary = EVMMetricsResponse(
+                entity_type=EntityType.PROJECT,
+                entity_id=project_ids[0],
+                bac=Decimal("0"),
+                pv=Decimal("0"),
+                ac=Decimal("0"),
+                ev=Decimal("0"),
+                cv=Decimal("0"),
+                sv=Decimal("0"),
+                cpi=None,
+                spi=None,
+                eac=None,
+                vac=None,
+                etc=None,
+                tcpi=None,
+                control_date=control_date,
+                branch=branch,
+                branch_mode=branch_mode,
+                progress_percentage=None,
+                warning="No accessible projects with EVM data",
+            )
+
+        return PortfolioEVMResponse(
+            summary=summary,
+            projects=breakdown,
+            at_risk_projects=[p for p in breakdown if p.at_risk],
+            control_date=control_date,
+        )
 
     def _aggregate_timeseries(
         self,

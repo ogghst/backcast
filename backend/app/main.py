@@ -32,7 +32,9 @@ from app.api.routes import (
     cost_events,
     cost_registration_attachments,
     cost_registrations,
+    currency_rates,
     custom_entity_templates,
+    customers,
     dashboard,
     dashboard_layouts,
     documents,
@@ -520,6 +522,16 @@ app.include_router(
     cost_element_types.router,
     prefix=f"{settings.API_V1_STR}/cost-element-types",
     tags=["Cost Element Types"],
+)
+app.include_router(
+    customers.router,
+    prefix=f"{settings.API_V1_STR}/customers",
+    tags=["Customers"],
+)
+app.include_router(
+    currency_rates.router,
+    prefix=f"{settings.API_V1_STR}/currency-rates",
+    tags=["Currency Rates"],
 )
 app.include_router(
     custom_entity_templates.router,

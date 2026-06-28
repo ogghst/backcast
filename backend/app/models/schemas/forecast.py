@@ -4,7 +4,7 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 from app.models.schemas.temporal_validators import TemporalRange
 
@@ -71,6 +71,39 @@ class ForecastRead(ForecastBase):
     cost_element_code: str | None = None
     cost_element_name: str | None = None
     cost_element_budget_amount: Decimal | None = None
+
+
+class ForecastHistoryEntry(BaseModel):
+    """A single point in the EAC-over-time history of a forecast.
+
+    Used by the ΔEAC forecast-drift view (G11). One entry per Forecast
+    version, newest version first.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    version_id: UUID = Field(
+        ...,
+        description="Primary key of the version row",
+        # The ORM row's PK column is ``id``; expose it as ``version_id`` in the
+        # API (clearer for a version-history endpoint).
+        validation_alias=AliasChoices("version_id", "id"),
+    )
+    forecast_id: UUID = Field(..., description="Root forecast id (stable)")
+    eac_amount: Decimal = Field(
+        ..., description="Estimate at Completion on this version"
+    )
+    branch: str = Field(..., description="Branch the version lives on")
+    created_by: UUID = Field(..., description="Actor that created this version")
+    created_by_name: str | None = Field(
+        None, description="Display name of the actor that created this version"
+    )
+    valid_time: TemporalRange = Field(
+        None, description="Valid-time range (when this version is/was in effect)"
+    )
+    transaction_time: TemporalRange = Field(
+        None, description="Transaction-time range (when this version was recorded)"
+    )
 
 
 class ForecastComparison(BaseModel):

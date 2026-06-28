@@ -225,6 +225,11 @@ const DashboardPage = lazy(() =>
     default: m.DashboardPage,
   })),
 );
+const PortfolioPage = lazy(() =>
+  import("@/features/portfolio/pages/PortfolioPage").then((m) => ({
+    default: m.PortfolioPage,
+  })),
+);
 const ChangeOrderConfigPage = lazy(() =>
   import("@/features/change-orders/components/ChangeOrderConfigPage").then((m) => ({
     default: m.ChangeOrderConfigPage,
@@ -345,6 +350,15 @@ export const router = createBrowserRouter([
       {
         path: "/projects",
         element: <ProjectList />,
+      },
+      {
+        // Portfolio dashboard — cross-project EVM roll-up gated by portfolio-read.
+        path: "/portfolio",
+        element: (
+          <Can permission="portfolio-read" fallback={<Navigate to="/" replace />}>
+            <PortfolioPage />
+          </Can>
+        ),
       },
       {
         path: "/admin/projects",

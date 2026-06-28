@@ -201,6 +201,13 @@ class EVMMetricsResponse(BaseModel):
         description="Estimate to Complete = EAC - AC (remaining work cost)",
     )
 
+    tcpi: float | None = Field(
+        None,
+        description="To-Complete Performance Index = BAC / EAC "
+        "(>= 1.0 = on track to meet the EAC budget; < 1.0 = remaining work must be done more cheaply than planned). "
+        "Defaults to 1.0 when EAC is missing or zero.",
+    )
+
     # Metadata
     control_date: datetime = Field(
         ..., description="Control date for time-travel query"
@@ -273,3 +280,92 @@ class EVMTimeSeriesResponse(BaseModel):
     start_date: datetime = Field(..., description="Start date of the time series")
     end_date: datetime = Field(..., description="End date of the time series")
     total_points: int = Field(..., description="Total number of data points")
+
+
+# ---------------------------------------------------------------------------
+# Portfolio (G1) — cross-project EVM rollup + per-project breakdown.
+# ---------------------------------------------------------------------------
+
+
+class PortfolioProjectMetrics(BaseModel):
+    """Per-project EVM row in the portfolio breakdown."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    project_id: UUID = Field(..., description="Root project id")
+    name: str = Field(..., description="Project name")
+    status: str = Field(..., description="Project status (draft/active/...)")
+    cpi: float | None = Field(
+        None, description="Cost Performance Index (null when AC is zero)"
+    )
+    spi: float | None = Field(
+        None, description="Schedule Performance Index (null when PV is zero)"
+    )
+    vac: float | None = Field(
+        None, description="Variance at Completion in base currency (BAC - EAC)"
+    )
+    contract_value: float | None = Field(
+        None,
+        description=(
+            "Contract value converted to the portfolio base currency at "
+            "control_date (null when the project has no contract value)."
+        ),
+    )
+    bac: float = Field(..., description="Budget at Completion in base currency")
+    eac: float | None = Field(
+        None, description="Estimate at Completion in base currency"
+    )
+    currency: str = Field(..., description="Project's native ISO-4217 currency code")
+    organizational_unit_id: UUID | None = Field(
+        None, description="Root id of the owning organizational unit"
+    )
+    project_manager_id: UUID | None = Field(
+        None, description="Root id of the project manager (User)"
+    )
+    customer_id: UUID | None = Field(
+        None, description="Root id of the customer (Customer)"
+    )
+    at_risk: bool = Field(
+        ..., description="True when SPI is present and below 0.9 (delay proxy)"
+    )
+    delta_eac: float | None = Field(
+        None,
+        description=(
+            "ΔEAC forecast drift = latest EAC minus previous EAC (summed over "
+            "the project's work-package forecasts). Null when no forecast "
+            "history exists."
+        ),
+    )
+
+
+class PortfolioEVMResponse(BaseModel):
+    """Response for ``GET /api/v1/evm/portfolio``.
+
+    Combines a rolled-up portfolio summary (industry-standard 'roll up, never
+    average' across the accessible project set) with a per-project breakdown
+    and the SPI-based at-risk subset.
+
+    Currency assumption: every monetary value is expressed in the project base
+    currency (EUR) via ``convert_to_base`` applied per project at
+    ``control_date``. Today all projects are EUR so conversion is a no-op, but
+    the path is wired for the multi-currency case.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    summary: EVMMetricsResponse = Field(
+        ..., description="Rolled-up portfolio EVM metrics"
+    )
+    projects: list[PortfolioProjectMetrics] = Field(
+        ..., description="Per-project breakdown of the accessible portfolio"
+    )
+    at_risk_projects: list[PortfolioProjectMetrics] = Field(
+        ...,
+        description=(
+            "Subset of ``projects`` where SPI is present and < 0.9 "
+            "(the interim at-risk / delayed proxy)"
+        ),
+    )
+    control_date: datetime = Field(
+        ..., description="Control date used for the time-travel EVM query"
+    )

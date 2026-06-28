@@ -77,6 +77,7 @@ export type Permission =
   | "ai-config-delete"
   | "ai-chat"
   | "dashboard-template-update"
+  | "portfolio-read"
   | "role-assignment-read"
   | "role-assignment-create"
   | "role-assignment-update"

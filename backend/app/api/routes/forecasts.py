@@ -8,7 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import RoleChecker, UserIdentity, get_current_user
 from app.db.session import get_db
-from app.models.schemas.forecast import ForecastCreate, ForecastUpdate
+from app.models.schemas.forecast import (
+    ForecastCreate,
+    ForecastHistoryEntry,
+    ForecastUpdate,
+)
 from app.services.forecast_service import ForecastService
 
 router = APIRouter()
@@ -181,29 +185,29 @@ async def delete_forecast(
 
 @router.get(
     "/{forecast_id}/history",
-    response_model=None,
+    response_model=list[ForecastHistoryEntry],
     operation_id="get_forecast_history",
     dependencies=[Depends(RoleChecker(required_permission="forecast-read"))],
 )
 async def get_forecast_history(
     forecast_id: UUID,
     service: ForecastService = Depends(get_forecast_service),
-) -> None:
-    """Get full version history for a forecast across all branches.
+) -> list[ForecastHistoryEntry]:
+    """Get the EAC-over-time version history for a forecast (G11 ΔEAC drift).
 
-    **DEPRECATED**: This endpoint is deprecated as of 2026-01-18.
+    Returns every version of the forecast (across all branches) ordered newest
+    first, each carrying its ``eac_amount`` and the temporal/audit fields needed
+    to plot the Estimate-at-Completion drift over time.
 
-    Forecast history is still available via the cost element history endpoint.
-    Use: GET /api/v1/cost-elements/{cost_element_id}/history
+    Requires ``forecast-read`` permission.
     """
-    raise HTTPException(
-        status_code=status.HTTP_410_GONE,
-        detail={
-            "message": "This endpoint is deprecated. Use the cost element history endpoint instead.",
-            "new_endpoint": "GET /api/v1/cost-elements/{cost_element_id}/history",
-            "deprecated_since": "2026-01-18",
-        },
-    )
+    history = await service.get_eac_history(forecast_id)
+    if not history:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No history found for forecast {forecast_id}",
+        )
+    return [ForecastHistoryEntry.model_validate(entry) for entry in history]
 
 
 @router.get(

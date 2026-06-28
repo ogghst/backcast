@@ -7,10 +7,63 @@ import type { BranchMode } from '../models/BranchMode';
 import type { EVMMetricsResponse } from '../models/EVMMetricsResponse';
 import type { EVMTimeSeriesGranularity } from '../models/EVMTimeSeriesGranularity';
 import type { EVMTimeSeriesResponse } from '../models/EVMTimeSeriesResponse';
+import type { PortfolioEVMResponse } from '../models/PortfolioEVMResponse';
 import type { CancelablePromise } from '../core/CancelablePromise';
 import { OpenAPI } from '../core/OpenAPI';
 import { request as __request } from '../core/request';
 export class EvmService {
+    /**
+     * Get Evm Portfolio
+     * Get portfolio EVM metrics across the caller's accessible projects (G1).
+     *
+     * Membership-scoped: resolves the caller's accessible project set via the
+     * unified RBAC ``get_accessible_projects`` (same pattern as ``/projects``)
+     * before computing EVM, so a non-member sees only their own projects (or an
+     * empty portfolio).
+     *
+     * Returns:
+     * - ``summary``: rolled-up portfolio metrics (CPI/SPI/VAC/EAC/BAC/TCPI) via
+     * the industry-standard 'roll up, never average' aggregation.
+     * Monetary values are converted to the base currency (EUR) per project's
+     * currency at ``control_date`` before aggregation.
+     * - ``projects``: per-project breakdown ``{project_id, name, status, cpi, spi,
+     * vac, contract_value, bac, eac, currency, organizational_unit_id,
+     * project_manager_id, customer_id, at_risk, delta_eac}``.
+     * - ``at_risk_projects``: the subset where SPI is present and < 0.9 (the
+     * interim delayed / at-risk proxy until milestone-gate detection lands).
+     *
+     * Currency: all monetary values are in the project base currency (EUR). The
+     * ``convert_to_base`` path is wired but today every project is EUR, so it is
+     * a no-op pass-through.
+     *
+     * Performance: ~1 real + ~130 synthetic seed projects today; live per-project
+     * loop is fine. Revisit if the active portfolio exceeds ~50 real projects.
+     *
+     * Requires ``portfolio-read`` permission.
+     * @param controlDate Control date for the time-travel EVM query (ISO 8601, defaults to now). Monetary values are converted to the base currency (EUR) at this date.
+     * @param branch Branch to query
+     * @param branchMode Branch mode: ISOLATED (only this branch) or MERGED (fall back to parent branches)
+     * @returns PortfolioEVMResponse Successful Response
+     * @throws ApiError
+     */
+    public static getEvmPortfolio(
+        controlDate?: (string | null),
+        branch: string = 'main',
+        branchMode: BranchMode = 'merged',
+    ): CancelablePromise<PortfolioEVMResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/evm/portfolio',
+            query: {
+                'control_date': controlDate,
+                'branch': branch,
+                'branch_mode': branchMode,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
     /**
      * Get Evm Metrics
      * Get EVM metrics for any entity type.
@@ -134,7 +187,8 @@ export class EvmService {
      *
      * Calculates EVM metrics for each entity individually, then aggregates them:
      * - Sums amount fields (BAC, PV, AC, EV, CV, SV, EAC, VAC, ETC)
-     * - Calculates BAC-weighted average for indices (CPI, SPI)
+     * - Re-derives indices (CPI, SPI) from summed EV/AC/PV (industry-standard
+     * 'roll up, never average')
      *
      * Request body:
      * entity_type: Type of entities (cost_element, wbe, project)
@@ -145,8 +199,9 @@ export class EvmService {
      *
      * Supports entity types:
      * - cost_element: Aggregate multiple cost elements
-     * - wbe: Aggregate multiple WBEs (not yet implemented)
-     * - project: Aggregate multiple projects (not yet implemented)
+     * - wbe: Aggregate multiple WBS Elements
+     * - project: Aggregate multiple projects (membership-scoped: project IDs the
+     * caller cannot access are silently dropped)
      *
      * Returns:
      * EVMMetricsResponse with aggregated metrics

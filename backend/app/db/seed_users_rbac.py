@@ -144,6 +144,14 @@ ROLE_PERMISSIONS: dict[str, dict[str, str | list[str]]] = {
             "system-dump-reseed",
             "agent-schedule-manage",
             "notifications-send",
+            "portfolio-read",
+            "customer-read",
+            "customer-create",
+            "customer-update",
+            "customer-delete",
+            "currency-rate-read",
+            "currency-rate-create",
+            "currency-rate-update",
         ],
     },
     "manager": {
@@ -215,6 +223,11 @@ ROLE_PERMISSIONS: dict[str, dict[str, str | list[str]]] = {
             "project-budget-settings-write",
             "agent-schedule-manage",
             "notifications-send",
+            "portfolio-read",
+            "customer-read",
+            "customer-create",
+            "customer-update",
+            "customer-delete",
         ],
     },
     "viewer": {
@@ -236,6 +249,9 @@ ROLE_PERMISSIONS: dict[str, dict[str, str | list[str]]] = {
             "change-order-approve",
             "forecast-read",
             "schedule-baseline-read",
+            "customer-read",
+            # portfolio-read is intentionally NOT granted to viewer/ai-viewer:
+            # portfolio dashboards are manager+ only (locked decision).
         ],
     },
     "ai-viewer": {
@@ -261,6 +277,7 @@ ROLE_PERMISSIONS: dict[str, dict[str, str | list[str]]] = {
             "ai-chat",
             "mcp-tool-execute",
             "progress-entry-read",
+            "customer-read",
         ],
     },
     "ai-manager": {
@@ -336,6 +353,11 @@ ROLE_PERMISSIONS: dict[str, dict[str, str | list[str]]] = {
             "project-delete",
             "agent-schedule-manage",
             "notifications-send",
+            "portfolio-read",
+            "customer-read",
+            "customer-create",
+            "customer-update",
+            "customer-delete",
         ],
     },
     "ai-admin": {
@@ -433,6 +455,14 @@ ROLE_PERMISSIONS: dict[str, dict[str, str | list[str]]] = {
             "change-order-workflow-config-override",
             "temporal-write",
             "notifications-send",
+            "portfolio-read",
+            "customer-read",
+            "customer-create",
+            "customer-update",
+            "customer-delete",
+            "currency-rate-read",
+            "currency-rate-create",
+            "currency-rate-update",
         ],
     },
 }

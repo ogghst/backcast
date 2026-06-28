@@ -392,6 +392,25 @@ export const queryKeys = createQueryKeys("backcast-evs", {
       ["evm", "batch", entityType, entityIds, context] as const,
   },
 
+  // Portfolio (cross-project EVM roll-up + change-order pipeline)
+  portfolio: {
+    all: ["portfolio"] as const,
+    evm: (
+      params?: {
+        controlDate?: string | null;
+        branch?: string;
+        branchMode?: string;
+      },
+    ) => ["portfolio", "evm", params] as const,
+    changeOrders: (
+      params?: {
+        asOf?: string | null;
+        branch?: string;
+        agingThresholdDays?: number;
+      },
+    ) => ["portfolio", "change-orders", params] as const,
+  },
+
   // Gantt Chart
   gantt: {
     all: ["gantt"] as const,

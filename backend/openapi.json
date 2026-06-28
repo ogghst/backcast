@@ -3355,6 +3355,648 @@
         }
       }
     },
+    "/api/v1/customers": {
+      "get": {
+        "tags": [
+          "Customers"
+        ],
+        "summary": "Read Customers",
+        "description": "Retrieve customers with server-side search, filtering, and sorting.",
+        "operationId": "get_customers",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page number (1-indexed)",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number (1-indexed)"
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Items per page",
+              "default": 20,
+              "title": "Per Page"
+            },
+            "description": "Items per page"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Search term (code, name)",
+              "title": "Search"
+            },
+            "description": "Search term (code, name)"
+          },
+          {
+            "name": "filters",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filters in format 'column:value;column:value1,value2'",
+              "title": "Filters"
+            },
+            "description": "Filters in format 'column:value;column:value1,value2'"
+          },
+          {
+            "name": "sort_field",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Field to sort by",
+              "title": "Sort Field"
+            },
+            "description": "Field to sort by"
+          },
+          {
+            "name": "sort_order",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(asc|desc)$",
+              "description": "Sort order (asc or desc)",
+              "default": "asc",
+              "title": "Sort Order"
+            },
+            "description": "Sort order (asc or desc)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Customers"
+        ],
+        "summary": "Create Customer",
+        "description": "Create a new customer.",
+        "operationId": "create_customer",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomerCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/customers/{customer_id}": {
+      "get": {
+        "tags": [
+          "Customers"
+        ],
+        "summary": "Read Customer",
+        "description": "Get a specific customer by id.",
+        "operationId": "get_customer",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "customer_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Customer Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Customers"
+        ],
+        "summary": "Update Customer",
+        "description": "Update a customer.",
+        "operationId": "update_customer",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "customer_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Customer Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomerUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Customers"
+        ],
+        "summary": "Delete Customer",
+        "description": "Hard delete a customer (idempotent: 204 even if absent).",
+        "operationId": "delete_customer",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "customer_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Customer Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/currency-rates": {
+      "get": {
+        "tags": [
+          "Currency Rates"
+        ],
+        "summary": "Read Currency Rates",
+        "description": "Retrieve currency rates with server-side search/filter/sort.",
+        "operationId": "get_currency_rates",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page number (1-indexed)",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number (1-indexed)"
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Items per page",
+              "default": 20,
+              "title": "Per Page"
+            },
+            "description": "Items per page"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Search term (currency code)",
+              "title": "Search"
+            },
+            "description": "Search term (currency code)"
+          },
+          {
+            "name": "filters",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filters in format 'column:value;column:value1,value2'",
+              "title": "Filters"
+            },
+            "description": "Filters in format 'column:value;column:value1,value2'"
+          },
+          {
+            "name": "sort_field",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Field to sort by",
+              "title": "Sort Field"
+            },
+            "description": "Field to sort by"
+          },
+          {
+            "name": "sort_order",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(asc|desc)$",
+              "description": "Sort order (asc or desc)",
+              "default": "asc",
+              "title": "Sort Order"
+            },
+            "description": "Sort order (asc or desc)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Currency Rates"
+        ],
+        "summary": "Create Currency Rate",
+        "description": "Create a new currency rate.",
+        "operationId": "create_currency_rate",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CurrencyRateCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrencyRateRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/currency-rates/{rate_id}": {
+      "get": {
+        "tags": [
+          "Currency Rates"
+        ],
+        "summary": "Read Currency Rate",
+        "description": "Get a specific currency rate by id.",
+        "operationId": "get_currency_rate",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rate_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Rate Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrencyRateRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Currency Rates"
+        ],
+        "summary": "Update Currency Rate",
+        "description": "Update a currency rate.",
+        "operationId": "update_currency_rate",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rate_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Rate Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CurrencyRateUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrencyRateRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Currency Rates"
+        ],
+        "summary": "Delete Currency Rate",
+        "description": "Hard delete a currency rate (idempotent: 204 even if absent).\n\nUses ``currency-rate-update`` (same admin-only guard as create) since FX\nreference data is admin-managed.",
+        "operationId": "delete_currency_rate",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rate_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Rate Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/custom-entity-templates": {
       "get": {
         "tags": [
@@ -6747,6 +7389,90 @@
         }
       }
     },
+    "/api/v1/change-orders/portfolio-stats": {
+      "get": {
+        "tags": [
+          "Change Orders"
+        ],
+        "summary": "Get Portfolio Change Order Stats",
+        "description": "Get aggregated change-order statistics across the accessible portfolio.\n\nMembership-scoped: resolves the caller's accessible project set via the\nunified RBAC ``get_accessible_projects`` (same pattern as ``/projects``)\nand aggregates per-project change-order stats across that set.\n\nReturns the same shape as ``/stats`` but rolled up across projects: summed\ntotals, merged by_status / by_impact_level buckets, recombined cost trend,\nre-aggregated approval workload by approver, combined aging items.\n\nRequires ``portfolio-read`` permission.",
+        "operationId": "get_portfolio_change_order_stats",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Branch name",
+              "default": "main",
+              "title": "Branch"
+            },
+            "description": "Branch name"
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Time travel timestamp",
+              "title": "As Of"
+            },
+            "description": "Time travel timestamp"
+          },
+          {
+            "name": "aging_threshold_days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 30,
+              "minimum": 1,
+              "description": "Aging threshold in days",
+              "default": 7,
+              "title": "Aging Threshold Days"
+            },
+            "description": "Aging threshold in days"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeOrderStatsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/change-orders/stats": {
       "get": {
         "tags": [
@@ -8742,7 +9468,7 @@
           "Forecasts"
         ],
         "summary": "Get Forecast History",
-        "description": "Get full version history for a forecast across all branches.\n\n**DEPRECATED**: This endpoint is deprecated as of 2026-01-18.\n\nForecast history is still available via the cost element history endpoint.\nUse: GET /api/v1/cost-elements/{cost_element_id}/history",
+        "description": "Get the EAC-over-time version history for a forecast (G11 \u0394EAC drift).\n\nReturns every version of the forecast (across all branches) ordered newest\nfirst, each carrying its ``eac_amount`` and the temporal/audit fields needed\nto plot the Estimate-at-Completion drift over time.\n\nRequires ``forecast-read`` permission.",
         "operationId": "get_forecast_history",
         "security": [
           {
@@ -8766,7 +9492,13 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ForecastHistoryEntry"
+                  },
+                  "title": "Response Get Forecast History"
+                }
               }
             }
           },
@@ -11301,6 +12033,87 @@
         }
       }
     },
+    "/api/v1/evm/portfolio": {
+      "get": {
+        "tags": [
+          "EVM"
+        ],
+        "summary": "Get Evm Portfolio",
+        "description": "Get portfolio EVM metrics across the caller's accessible projects (G1).\n\nMembership-scoped: resolves the caller's accessible project set via the\nunified RBAC ``get_accessible_projects`` (same pattern as ``/projects``)\nbefore computing EVM, so a non-member sees only their own projects (or an\nempty portfolio).\n\nReturns:\n- ``summary``: rolled-up portfolio metrics (CPI/SPI/VAC/EAC/BAC/TCPI) via\n  the industry-standard 'roll up, never average' aggregation.\n  Monetary values are converted to the base currency (EUR) per project's\n  currency at ``control_date`` before aggregation.\n- ``projects``: per-project breakdown ``{project_id, name, status, cpi, spi,\n  vac, contract_value, bac, eac, currency, organizational_unit_id,\n  project_manager_id, customer_id, at_risk, delta_eac}``.\n- ``at_risk_projects``: the subset where SPI is present and < 0.9 (the\n  interim delayed / at-risk proxy until milestone-gate detection lands).\n\nCurrency: all monetary values are in the project base currency (EUR). The\n``convert_to_base`` path is wired but today every project is EUR, so it is\na no-op pass-through.\n\nPerformance: ~1 real + ~130 synthetic seed projects today; live per-project\nloop is fine. Revisit if the active portfolio exceeds ~50 real projects.\n\nRequires ``portfolio-read`` permission.",
+        "operationId": "get_evm_portfolio",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "control_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Control date for the time-travel EVM query (ISO 8601, defaults to now). Monetary values are converted to the base currency (EUR) at this date.",
+              "title": "Control Date"
+            },
+            "description": "Control date for the time-travel EVM query (ISO 8601, defaults to now). Monetary values are converted to the base currency (EUR) at this date."
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Branch to query",
+              "default": "main",
+              "title": "Branch"
+            },
+            "description": "Branch to query"
+          },
+          {
+            "name": "branch_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/BranchMode",
+              "description": "Branch mode: ISOLATED (only this branch) or MERGED (fall back to parent branches)",
+              "default": "merged"
+            },
+            "description": "Branch mode: ISOLATED (only this branch) or MERGED (fall back to parent branches)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortfolioEVMResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/evm/{entity_type}/{entity_id}/metrics": {
       "get": {
         "tags": [
@@ -11516,7 +12329,7 @@
           "EVM"
         ],
         "summary": "Get Evm Batch",
-        "description": "Get aggregated EVM metrics for multiple entities.\n\nCalculates EVM metrics for each entity individually, then aggregates them:\n- Sums amount fields (BAC, PV, AC, EV, CV, SV, EAC, VAC, ETC)\n- Calculates BAC-weighted average for indices (CPI, SPI)\n\nRequest body:\n    entity_type: Type of entities (cost_element, wbe, project)\n    entity_ids: List of entity IDs to calculate metrics for\n    control_date: Optional control date for time-travel (defaults to now)\n    branch: Branch name (defaults to \"main\")\n    branch_mode: Branch isolation mode (defaults to \"merged\")\n\nSupports entity types:\n- cost_element: Aggregate multiple cost elements\n- wbe: Aggregate multiple WBEs (not yet implemented)\n- project: Aggregate multiple projects (not yet implemented)\n\nReturns:\n    EVMMetricsResponse with aggregated metrics",
+        "description": "Get aggregated EVM metrics for multiple entities.\n\nCalculates EVM metrics for each entity individually, then aggregates them:\n- Sums amount fields (BAC, PV, AC, EV, CV, SV, EAC, VAC, ETC)\n- Re-derives indices (CPI, SPI) from summed EV/AC/PV (industry-standard\n  'roll up, never average')\n\nRequest body:\n    entity_type: Type of entities (cost_element, wbe, project)\n    entity_ids: List of entity IDs to calculate metrics for\n    control_date: Optional control date for time-travel (defaults to now)\n    branch: Branch name (defaults to \"main\")\n    branch_mode: Branch isolation mode (defaults to \"merged\")\n\nSupports entity types:\n- cost_element: Aggregate multiple cost elements\n- wbe: Aggregate multiple WBS Elements\n- project: Aggregate multiple projects (membership-scoped: project IDs the\n  caller cannot access are silently dropped)\n\nReturns:\n    EVMMetricsResponse with aggregated metrics",
         "operationId": "get_evm_batch_metrics",
         "requestBody": {
           "content": {
@@ -23427,6 +24240,115 @@
         "title": "CostRegistrationUpdate",
         "description": "Properties that can be updated on a Cost Registration."
       },
+      "CurrencyRateCreate": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "maxLength": 3,
+            "minLength": 3,
+            "title": "Currency",
+            "description": "ISO-4217 code"
+          },
+          "rate_to_base": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              }
+            ],
+            "title": "Rate To Base",
+            "description": "1 unit of currency = rate_to_base base"
+          },
+          "effective_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Effective Date",
+            "description": "Date from which the rate is valid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "rate_to_base",
+          "effective_date"
+        ],
+        "title": "CurrencyRateCreate",
+        "description": "Properties required for creating a CurrencyRate."
+      },
+      "CurrencyRateRead": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "maxLength": 3,
+            "minLength": 3,
+            "title": "Currency",
+            "description": "ISO-4217 code"
+          },
+          "rate_to_base": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Rate To Base",
+            "description": "1 unit of currency = rate_to_base base"
+          },
+          "effective_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Effective Date",
+            "description": "Date from which the rate is valid"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "rate_to_base",
+          "effective_date",
+          "id"
+        ],
+        "title": "CurrencyRateRead",
+        "description": "Properties returned to client."
+      },
+      "CurrencyRateUpdate": {
+        "properties": {
+          "rate_to_base": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rate To Base"
+          },
+          "effective_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective Date"
+          }
+        },
+        "type": "object",
+        "title": "CurrencyRateUpdate",
+        "description": "Properties that can be updated."
+      },
       "CustomEntityTemplateCreate": {
         "properties": {
           "code": {
@@ -23746,6 +24668,145 @@
         ],
         "title": "CustomFieldType",
         "description": "Supported custom field types."
+      },
+      "CustomerCreate": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Code"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "name"
+        ],
+        "title": "CustomerCreate",
+        "description": "Properties required for creating a Customer."
+      },
+      "CustomerRead": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Code"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active",
+            "default": true
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "name",
+          "id"
+        ],
+        "title": "CustomerRead",
+        "description": "Properties returned to client."
+      },
+      "CustomerUpdate": {
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          }
+        },
+        "type": "object",
+        "title": "CustomerUpdate",
+        "description": "Properties that can be updated."
       },
       "DashboardActivity": {
         "properties": {
@@ -24674,6 +25735,18 @@
             "title": "Etc",
             "description": "Estimate to Complete = EAC - AC (remaining work cost)"
           },
+          "tcpi": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tcpi",
+            "description": "To-Complete Performance Index = BAC / EAC (>= 1.0 = on track to meet the EAC budget; < 1.0 = remaining work must be done more cheaply than planned). Defaults to 1.0 when EAC is missing or zero."
+          },
           "control_date": {
             "type": "string",
             "format": "date-time",
@@ -25261,6 +26334,85 @@
         ],
         "title": "ForecastCreate",
         "description": "Properties required for creating a Forecast."
+      },
+      "ForecastHistoryEntry": {
+        "properties": {
+          "version_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Version Id",
+            "description": "Primary key of the version row"
+          },
+          "forecast_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Forecast Id",
+            "description": "Root forecast id (stable)"
+          },
+          "eac_amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Eac Amount",
+            "description": "Estimate at Completion on this version"
+          },
+          "branch": {
+            "type": "string",
+            "title": "Branch",
+            "description": "Branch the version lives on"
+          },
+          "created_by": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Created By",
+            "description": "Actor that created this version"
+          },
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name",
+            "description": "Display name of the actor that created this version"
+          },
+          "valid_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Time",
+            "description": "Valid-time range (when this version is/was in effect)"
+          },
+          "transaction_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transaction Time",
+            "description": "Transaction-time range (when this version was recorded)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version_id",
+          "forecast_id",
+          "eac_amount",
+          "branch",
+          "created_by"
+        ],
+        "title": "ForecastHistoryEntry",
+        "description": "A single point in the EAC-over-time history of a forecast.\n\nUsed by the \u0394EAC forecast-drift view (G11). One entry per Forecast\nversion, newest version first."
       },
       "ForecastRead": {
         "properties": {
@@ -27101,6 +28253,202 @@
           "per_page"
         ],
         "title": "PaginatedResponse[NotificationResponse]"
+      },
+      "PortfolioEVMResponse": {
+        "properties": {
+          "summary": {
+            "$ref": "#/components/schemas/EVMMetricsResponse",
+            "description": "Rolled-up portfolio EVM metrics"
+          },
+          "projects": {
+            "items": {
+              "$ref": "#/components/schemas/PortfolioProjectMetrics"
+            },
+            "type": "array",
+            "title": "Projects",
+            "description": "Per-project breakdown of the accessible portfolio"
+          },
+          "at_risk_projects": {
+            "items": {
+              "$ref": "#/components/schemas/PortfolioProjectMetrics"
+            },
+            "type": "array",
+            "title": "At Risk Projects",
+            "description": "Subset of ``projects`` where SPI is present and < 0.9 (the interim at-risk / delayed proxy)"
+          },
+          "control_date": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Control Date",
+            "description": "Control date used for the time-travel EVM query"
+          }
+        },
+        "type": "object",
+        "required": [
+          "summary",
+          "projects",
+          "at_risk_projects",
+          "control_date"
+        ],
+        "title": "PortfolioEVMResponse",
+        "description": "Response for ``GET /api/v1/evm/portfolio``.\n\nCombines a rolled-up portfolio summary (industry-standard 'roll up, never\naverage' across the accessible project set) with a per-project breakdown\nand the SPI-based at-risk subset.\n\nCurrency assumption: every monetary value is expressed in the project base\ncurrency (EUR) via ``convert_to_base`` applied per project at\n``control_date``. Today all projects are EUR so conversion is a no-op, but\nthe path is wired for the multi-currency case."
+      },
+      "PortfolioProjectMetrics": {
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Project Id",
+            "description": "Root project id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Project name"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "Project status (draft/active/...)"
+          },
+          "cpi": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cpi",
+            "description": "Cost Performance Index (null when AC is zero)"
+          },
+          "spi": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spi",
+            "description": "Schedule Performance Index (null when PV is zero)"
+          },
+          "vac": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vac",
+            "description": "Variance at Completion in base currency (BAC - EAC)"
+          },
+          "contract_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contract Value",
+            "description": "Contract value converted to the portfolio base currency at control_date (null when the project has no contract value)."
+          },
+          "bac": {
+            "type": "number",
+            "title": "Bac",
+            "description": "Budget at Completion in base currency"
+          },
+          "eac": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eac",
+            "description": "Estimate at Completion in base currency"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency",
+            "description": "Project's native ISO-4217 currency code"
+          },
+          "organizational_unit_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organizational Unit Id",
+            "description": "Root id of the owning organizational unit"
+          },
+          "project_manager_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Manager Id",
+            "description": "Root id of the project manager (User)"
+          },
+          "customer_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Id",
+            "description": "Root id of the customer (Customer)"
+          },
+          "at_risk": {
+            "type": "boolean",
+            "title": "At Risk",
+            "description": "True when SPI is present and below 0.9 (delay proxy)"
+          },
+          "delta_eac": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delta Eac",
+            "description": "\u0394EAC forecast drift = latest EAC minus previous EAC (summed over the project's work-package forecasts). Null when no forecast history exists."
+          }
+        },
+        "type": "object",
+        "required": [
+          "project_id",
+          "name",
+          "status",
+          "bac",
+          "currency",
+          "at_risk"
+        ],
+        "title": "PortfolioProjectMetrics",
+        "description": "Per-project EVM row in the portfolio breakdown."
       },
       "ProgressEntryCreate": {
         "properties": {

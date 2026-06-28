@@ -485,6 +485,189 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
 
         return forecasts
 
+    async def get_eac_history(self, forecast_id: UUID) -> builtins.list[Forecast]:
+        """Get the EAC-over-time version history for a forecast.
+
+        Mirrors :meth:`CostElementService.get_history`: selects every version
+        row for the root ``forecast_id`` (across all branches), ordered by
+        ``transaction_time`` descending (newest first). Each row carries its
+        ``eac_amount`` plus the temporal/audit fields a client needs to plot
+        EAC drift (``transaction_time``, ``valid_time``, ``created_by``,
+        ``branch``). ``created_by_name`` is populated per row.
+
+        Args:
+            forecast_id: Root forecast id.
+
+        Returns:
+            All non-deleted versions, newest version first. Empty list if the
+            forecast has no versions.
+        """
+        from app.models.domain.user import User
+
+        UserAlias = cast(Any, User)
+        creator_subq = (
+            select(UserAlias.user_id, UserAlias.full_name)
+            .distinct(UserAlias.user_id)
+            .order_by(UserAlias.user_id, UserAlias.transaction_time.desc())
+            .subquery("creator_lookup")
+        )
+
+        stmt = (
+            select(
+                Forecast,
+                creator_subq.c.full_name.label("created_by_name"),
+            )
+            .outerjoin(
+                creator_subq,
+                Forecast.created_by == creator_subq.c.user_id,
+            )
+            .where(
+                Forecast.forecast_id == forecast_id,
+                cast(Any, Forecast).deleted_at.is_(None),
+            )
+            .order_by(cast(Any, Forecast).transaction_time.desc())
+        )
+
+        result = await self.session.execute(stmt)
+        history: builtins.list[Forecast] = []
+        for row in result.all():
+            entity = row[0]
+            entity.created_by_name = row[1]
+            history.append(entity)
+
+        return history
+
+    async def get_delta_eac_for_projects(
+        self,
+        project_ids: builtins.list[UUID],
+        branch: str = "main",
+    ) -> dict[UUID, Decimal | None]:
+        """Get the latest-vs-previous EAC drift (ΔEAC) per project.
+
+        For each project, resolves the work packages owned by that project (on
+        ``branch``), collects their forecasts' version histories, and computes
+        ``sum(latest EAC) - sum(previous EAC)`` across the portfolio of WPs.
+        Projects with no forecast history are omitted. The result is keyed by
+        ``project_id``.
+
+        The "latest" and "previous" EAC are the two most recent versions of
+        each forecast on the given branch (ordered by ``transaction_time``);
+        if a forecast has only one version, it contributes to the latest sum
+        but not to the previous sum (its drift is implicitly its full EAC).
+
+        Args:
+            project_ids: Projects to aggregate ΔEAC over.
+            branch: Branch name (default ``"main"``).
+
+        Returns:
+            Mapping of ``project_id`` -> ΔEAC (may be negative). Projects with
+            no forecasted work packages are absent.
+        """
+        if not project_ids:
+            return {}
+
+        from app.models.domain.control_account import ControlAccount
+        from app.models.domain.wbs_element import WBSElement
+        from app.models.domain.work_package import WorkPackage
+
+        # Resolve work_package_id -> project_id for the requested projects.
+        # Chain: WorkPackage -> ControlAccount -> WBSElement.project_id (root-id
+        # links; no DB FK per the EVCS convention).
+        wp_to_project: dict[UUID, UUID] = {}
+        wp_stmt = (
+            select(
+                WorkPackage.work_package_id,
+                WBSElement.project_id,
+            )
+            .select_from(WorkPackage)
+            .join(
+                ControlAccount,
+                WorkPackage.control_account_id == ControlAccount.control_account_id,
+            )
+            .join(
+                WBSElement,
+                ControlAccount.wbs_element_id == WBSElement.wbs_element_id,
+            )
+            .where(
+                WBSElement.project_id.in_(project_ids),
+                WorkPackage.branch == branch,
+                WorkPackage.forecast_id.is_not(None),
+                is_current_version_on_branch(
+                    cast(Any, WorkPackage).valid_time,
+                    WorkPackage.branch,
+                    branch,
+                    cast(Any, WorkPackage).deleted_at,
+                ),
+            )
+        )
+        wp_result = await self.session.execute(wp_stmt)
+        for wp_id, project_id in wp_result.all():
+            wp_to_project[wp_id] = project_id
+
+        if not wp_to_project:
+            return {}
+
+        all_forecasts = await self.get_forecasts_for_work_packages(
+            builtins.list(wp_to_project.keys()), branch=branch
+        )
+        # forecast_id -> work_package_id (latest current forecast per WP).
+        forecast_to_wp: dict[UUID, UUID] = {
+            f.forecast_id: wp_id for wp_id, f in all_forecasts.items()
+        }
+        if not forecast_to_wp:
+            return {}
+
+        # Fetch the two most recent versions per forecast in one query.
+        from sqlalchemy import literal_column
+
+        rank_col = (
+            func.row_number()
+            .over(
+                partition_by=Forecast.forecast_id,
+                order_by=cast(Any, Forecast).transaction_time.desc(),
+            )
+            .label("rn")
+        )
+        hist_stmt = (
+            select(
+                Forecast.forecast_id,
+                Forecast.eac_amount,
+                rank_col,
+            )
+            .where(
+                Forecast.forecast_id.in_(builtins.list(forecast_to_wp.keys())),
+                Forecast.branch == branch,
+                cast(Any, Forecast).deleted_at.is_(None),
+            )
+            .order_by(literal_column("rn"))
+        )
+        hist_result = await self.session.execute(hist_stmt)
+
+        # latest[forecast_id] and previous[forecast_id]
+        latest: dict[UUID, Decimal] = {}
+        previous: dict[UUID, Decimal] = {}
+        for fid, eac, rn in hist_result.all():
+            rn_int = int(rn)
+            if rn_int == 1:
+                latest[fid] = eac
+            elif rn_int == 2:
+                previous[fid] = eac
+
+        # Aggregate ΔEAC per project.
+        delta_by_project: dict[UUID, Decimal] = {}
+        for fid, wp_id in forecast_to_wp.items():
+            project_id = wp_to_project.get(wp_id)
+            if project_id is None or fid not in latest:
+                continue
+            eac_latest = latest[fid]
+            eac_prev = previous.get(fid, Decimal("0"))
+            delta_by_project[project_id] = delta_by_project.get(
+                project_id, Decimal("0")
+            ) + (eac_latest - eac_prev)
+
+        result: dict[UUID, Decimal | None] = dict(delta_by_project)
+        return result
+
     # --- Backward-compatible aliases ---
 
     async def get_for_cost_element(

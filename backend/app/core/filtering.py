@@ -7,11 +7,17 @@ across all entity list endpoints.
 URL Filter Format:
     ?filters=column:value;column:value1,value2
 
+Range operators (G4): an operator suffix may follow the column after ``__``.
+    ?filters=contract_value__gte:1000
+    ?filters=start_date__date_range:2026-01-01,2026-12-31
+    ?filters=progress__between:10,90
+
 Examples:
     - Single filter: "status:active"
     - Multiple filters: "status:active;branch:main"
     - Multi-value filter: "branch:main,dev,staging"
-    - Combined: "status:active;branch:main,dev;level:1,2,3"
+    - Range filter: "contract_value__gte:1000"
+    - Combined: "status:active;branch:main,dev;level__gte:1"
 
 Security:
     - Field names are validated against the model
@@ -19,11 +25,17 @@ Security:
     - SQL injection is prevented through SQLAlchemy ORM
 """
 
-from typing import Any
+from typing import Any, cast
 
-from sqlalchemy import BinaryExpression, Numeric, case, literal
+from sqlalchemy import BinaryExpression, Numeric, and_, case, literal
 from sqlalchemy import cast as sql_cast
 from sqlalchemy.orm import DeclarativeMeta
+
+#: recognized operator suffixes (after ``__``) on a filter key. ``eq`` is the
+#: implicit default when no suffix is present (backward-compatible).
+RANGE_OPERATORS: frozenset[str] = frozenset(
+    {"gte", "lte", "between", "date_range", "eq"}
+)
 
 #: numeric custom-field type codes — values are compared after casting the
 #: JSONB text extraction to NUMERIC so "10" sorts/equals numerically.
@@ -180,33 +192,40 @@ class FilterParser:
     """Parser for URL filter strings to SQLAlchemy expressions."""
 
     @staticmethod
-    def parse_filters(filter_string: str | None) -> dict[str, list[str]]:
-        """Parse URL filter string to dictionary.
+    def parse_filters(
+        filter_string: str | None,
+    ) -> dict[tuple[str, str], list[str]]:
+        """Parse URL filter string to a dict keyed by ``(column, operator)``.
+
+        Operator detection: split the key on the LAST ``__``. If the suffix is
+        one of :data:`RANGE_OPERATORS`, it is treated as the operator and the
+        remainder as the column; otherwise the operator is ``eq`` and the whole
+        key is the column (so a column literally named ``foo__bar`` with no
+        operator suffix still resolves to ``("foo__bar", "eq")``).
 
         Args:
-            filter_string: Filter string in format "column:value;column:value1,value2"
+            filter_string: Filter string, e.g.
+                ``"status:active;branch:main,dev"``
+                or ``"contract_value__gte:1000"``
 
         Returns:
-            Dictionary mapping column names to lists of values.
-            Example: {"status": ["active"], "branch": ["main", "dev"]}
+            Dictionary mapping ``(column, operator)`` tuples to value lists.
+            Example: ``{("status", "eq"): ["active"], ("branch", "eq"): ["main", "dev"]}``
 
         Examples:
             >>> FilterParser.parse_filters("status:active")
-            {"status": ["active"]}
+            {("status", "eq"): ["active"]}
 
-            >>> FilterParser.parse_filters("status:active;branch:main,dev")
-            {"status": ["active"], "branch": ["main", "dev"]}
+            >>> FilterParser.parse_filters("contract_value__gte:1000")
+            {("contract_value", "gte"): ["1000"]}
 
             >>> FilterParser.parse_filters(None)
-            {}
-
-            >>> FilterParser.parse_filters("")
             {}
         """
         if not filter_string:
             return {}
 
-        filters: dict[str, list[str]] = {}
+        filters: dict[tuple[str, str], list[str]] = {}
 
         # Split by semicolon to get individual filter expressions
         for filter_expr in filter_string.split(";"):
@@ -215,40 +234,82 @@ class FilterParser:
                 continue
 
             # Split by colon to get column and values
-            column, values_str = filter_expr.split(":", 1)
-            column = column.strip()
+            column_key, values_str = filter_expr.split(":", 1)
+            column_key = column_key.strip()
             values_str = values_str.strip()
 
-            if not column or not values_str:
+            if not column_key or not values_str:
                 continue
+
+            # Detect operator suffix: split on the LAST '__'. A column literally
+            # named ``foo__bar`` (no recognized op suffix) parses as
+            # (column='foo__bar', op='eq').
+            if "__" in column_key:
+                head, _, maybe_op = column_key.rpartition("__")
+                if maybe_op in RANGE_OPERATORS:
+                    column = head
+                    operator = maybe_op
+                else:
+                    column = column_key
+                    operator = "eq"
+            else:
+                column = column_key
+                operator = "eq"
 
             # Split values by comma
             values = [v.strip() for v in values_str.split(",") if v.strip()]
 
             if values:
-                filters[column] = values
+                filters[(column, operator)] = values
 
         return filters
 
     @staticmethod
     def build_sqlalchemy_filters(
         model: type[DeclarativeMeta],
-        filters: dict[str, list[str]],
+        filters: dict[tuple[str, str], list[str]] | dict[str, list[str]],
         allowed_fields: list[str] | None = None,
         custom_field_specs: dict[str, dict[str, Any]] | None = None,
+        allowed_operators: dict[str, list[str]] | None = None,
     ) -> list[BinaryExpression[Any]]:
         """Build SQLAlchemy filter expressions from parsed filters.
 
-        ... (docstring) ...
+        Accepts the new tuple-keyed dict from :meth:`parse_filters`. For
+        backward compatibility a plain ``dict[str, list[str]]`` (column ->
+        values) is also accepted and treated as ``eq`` per key.
+
+        ``allowed_operators`` is an optional per-field operator allowlist
+        ``{field: [op, ...]}``. When omitted, every operator in
+        :data:`RANGE_OPERATORS` is permitted (keeps existing call sites
+        working).
+
+        Operator semantics:
+
+        * ``eq`` (default): 1 value -> ``==``; >1 values -> ``.in_()``.
+        * ``gte`` / ``lte``: exactly 1 value -> ``>=`` / ``<=``.
+        * ``between``: exactly 2 values -> ``column.between(lo, hi)``.
+        * ``date_range``: exactly 2 values -> ``AND(column >= lo, column <= hi)``
+          (values parsed as ISO date/datetime).
+
+        Custom-field (JSONB) path supports ``eq`` only; any other operator
+        raises :class:`FilterOperatorNotAllowedError`.
         """
         from app.core.exceptions.filtering import (
             FilterFieldNotAllowedError,
+            FilterOperatorNotAllowedError,
             FilterValueTypeError,
         )
 
         expressions: list[BinaryExpression[Any]] = []
 
-        for field_name, values in filters.items():
+        for raw_key, values in filters.items():
+            # Normalize the key: accept both the tuple-keyed shape (preferred)
+            # and the legacy plain-string shape (treated as eq).
+            if isinstance(raw_key, tuple):
+                field_name, operator = raw_key
+            else:
+                field_name, operator = str(raw_key), "eq"
+
             # PHASE 2: real columns ALWAYS win. A custom field literally named
             # ``status`` MUST NOT shadow the real ``status`` column — so the
             # ``hasattr`` check runs FIRST, and only when the key is NOT a real
@@ -256,6 +317,13 @@ class FilterParser:
             if not hasattr(model, field_name):
                 if custom_field_specs is not None and field_name in custom_field_specs:
                     # JSONB custom-field expression (equality / IN only).
+                    # Range operators on custom fields are out of scope for G4.
+                    if operator != "eq":
+                        raise FilterOperatorNotAllowedError(
+                            field_name,
+                            operator,
+                            allowed_operators=["eq"],
+                        )
                     # Only allowlist-resolved keys reach this branch — the key
                     # is bound via .op('->>'), never f-stringed into SQL.
                     expressions.append(
@@ -275,6 +343,18 @@ class FilterParser:
             if allowed_fields is not None and field_name not in allowed_fields:
                 raise FilterFieldNotAllowedError(field_name, allowed_fields)
 
+            # Validate operator is in the per-field allowlist (if provided).
+            # When allowed_operators is None, every RANGE_OPERATORS value is
+            # permitted — keeps existing call sites working.
+            if (
+                allowed_operators is not None
+                and field_name in allowed_operators
+                and operator not in allowed_operators[field_name]
+            ):
+                raise FilterOperatorNotAllowedError(
+                    field_name, operator, allowed_operators[field_name]
+                )
+
             # Get the column from the model
             column = getattr(model, field_name)
 
@@ -283,9 +363,15 @@ class FilterParser:
             try:
                 col_type = column.type.python_type
 
-                # Only cast if not already compatible (e.g. str to int)
-                # But we blindly try to cast to ensure safety, except for str which is already what we have
-                if col_type is not str:
+                # date_range semantics are date-like; cast via fromisoformat so
+                # YYYY-MM-DD and full datetimes both work regardless of column
+                # python_type. between/gte/lte/eq use the column's python_type.
+                if operator == "date_range":
+                    parsed: list[Any] = []
+                    for v in values:
+                        parsed.append(_parse_iso_value(v))
+                    values = parsed
+                elif col_type is not str:
                     casted_values = []
                     for v in values:
                         if col_type is bool:
@@ -303,9 +389,6 @@ class FilterParser:
             except (ValueError, TypeError, Exception) as e:
                 # Catching general Exception here because third-party types (like Decimal)
                 # can raise specific errors (decimal.InvalidOperation) that don't inherit from ValueError.
-                # In strict mode, we capture this.
-                # The `pass` in the original instruction was likely a misunderstanding;
-                # we want to catch these errors and then raise our specific FilterValueTypeError.
                 type_name = (
                     getattr(col_type, "__name__", "unknown") if col_type else "unknown"
                 )
@@ -316,12 +399,72 @@ class FilterParser:
                 # Some types like JSON/Array might not support python_type
                 pass
 
-            # Build expression based on number of values
-            if len(values) == 1:
-                # Single value: equality check
-                expressions.append(column == values[0])
+            # Dispatch by operator.
+            if operator == "eq":
+                if len(values) == 1:
+                    expressions.append(column == values[0])
+                else:
+                    expressions.append(column.in_(values))
+            elif operator == "gte":
+                if len(values) != 1:
+                    raise FilterValueTypeError(
+                        field=field_name,
+                        value=str(values),
+                        expected_type="single value",
+                    )
+                expressions.append(column >= values[0])
+            elif operator == "lte":
+                if len(values) != 1:
+                    raise FilterValueTypeError(
+                        field=field_name,
+                        value=str(values),
+                        expected_type="single value",
+                    )
+                expressions.append(column <= values[0])
+            elif operator == "between":
+                if len(values) != 2:
+                    raise FilterValueTypeError(
+                        field=field_name,
+                        value=str(values),
+                        expected_type="two values (lo,hi)",
+                    )
+                expressions.append(column.between(values[0], values[1]))
+            elif operator == "date_range":
+                if len(values) != 2:
+                    raise FilterValueTypeError(
+                        field=field_name,
+                        value=str(values),
+                        expected_type="two values (start,end)",
+                    )
+                expressions.append(
+                    cast(
+                        "BinaryExpression[Any]",
+                        and_(column >= values[0], column <= values[1]),
+                    )
+                )
             else:
-                # Multiple values: IN clause
-                expressions.append(column.in_(values))
+                # Operator is in RANGE_OPERATORS but not handled above; treat as
+                # a programming error rather than silently ignoring.
+                raise FilterOperatorNotAllowedError(
+                    field_name, operator, sorted(RANGE_OPERATORS)
+                )
 
         return expressions
+
+
+def _parse_iso_value(value: str) -> Any:
+    """Parse an ISO-8601 date or datetime string for range filters.
+
+    Accepts ``YYYY-MM-DD`` (returns ``datetime.date``) and full ISO datetimes
+    (with optional trailing ``Z``). Raises ``ValueError`` on parse failure so
+    the caller can surface a :class:`FilterValueTypeError`.
+    """
+    from datetime import date, datetime
+
+    normalized = value.replace("Z", "+00:00")
+    try:
+        return datetime.fromisoformat(normalized)
+    except ValueError:
+        pass
+    # Fall back to a pure date (YYYY-MM-DD without time).
+    return date.fromisoformat(value)

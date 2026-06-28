@@ -53,6 +53,66 @@ def get_reporting_service(
 
 
 @router.get(
+    "/portfolio-stats",
+    response_model=ChangeOrderStatsResponse,
+    operation_id="get_portfolio_change_order_stats",
+    dependencies=[Depends(RoleChecker(required_permission="portfolio-read"))],
+)
+async def get_portfolio_change_order_stats(
+    branch: str = Query("main", description="Branch name"),
+    as_of: datetime | None = Query(None, description="Time travel timestamp"),
+    aging_threshold_days: int = Query(
+        7, ge=1, le=30, description="Aging threshold in days"
+    ),
+    current_user: UserIdentity = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+    service: ChangeOrderReportingService = Depends(get_reporting_service),
+) -> ChangeOrderStatsResponse:
+    """Get aggregated change-order statistics across the accessible portfolio.
+
+    Membership-scoped: resolves the caller's accessible project set via the
+    unified RBAC ``get_accessible_projects`` (same pattern as ``/projects``)
+    and aggregates per-project change-order stats across that set.
+
+    Returns the same shape as ``/stats`` but rolled up across projects: summed
+    totals, merged by_status / by_impact_level buckets, recombined cost trend,
+    re-aggregated approval workload by approver, combined aging items.
+
+    Requires ``portfolio-read`` permission.
+    """
+    from datetime import UTC
+
+    if as_of is None:
+        as_of = datetime.now(UTC)
+
+    # Resolve the caller's accessible project set (RBAC membership scoping).
+    from app.core.rbac_unified import (
+        get_unified_rbac_service,
+        set_unified_rbac_session,
+    )
+
+    set_unified_rbac_session(session)
+    unified_service = get_unified_rbac_service()
+    accessible_project_ids = await unified_service.get_accessible_projects(
+        user_id=current_user.user_id,
+    )
+    set_unified_rbac_session(None)
+
+    if not accessible_project_ids:
+        # No accessible projects -> empty portfolio stats (not an error).
+        return ChangeOrderStatsResponse(
+            aging_threshold_days=aging_threshold_days,
+        )
+
+    return await service.get_portfolio_change_order_stats(
+        project_ids=accessible_project_ids,
+        branch=branch,
+        as_of=as_of,
+        aging_threshold_days=aging_threshold_days,
+    )
+
+
+@router.get(
     "/stats",
     response_model=ChangeOrderStatsResponse,
     operation_id="get_change_order_stats",
@@ -85,19 +145,26 @@ async def get_change_order_stats(
         as_of = datetime.now(UTC)
 
     try:
-        stats = await service.get_change_order_stats(
+        return await service.get_change_order_stats(
             project_id=project_id,
             branch=branch,
             as_of=as_of,
             aging_threshold_days=aging_threshold_days,
         )
-        return stats
-    except Exception as e:
-        logger.error(f"Error getting change order stats: {e}")
+    except ValueError as e:
+        # Validation / not-found errors from the service layer.
+        message = str(e)
+        if "not found" in message.lower():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=message,
+            ) from e
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error retrieving change order statistics: {str(e)}",
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=message,
         ) from e
+    # Unexpected errors propagate to the app's global exception handler, which
+    # logs and returns a generic 500 without leaking internals.
 
 
 @router.get(

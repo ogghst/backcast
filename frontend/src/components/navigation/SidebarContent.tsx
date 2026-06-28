@@ -34,6 +34,7 @@ import {
 } from "antd";
 import {
   AppstoreOutlined,
+  BarChartOutlined,
   DownOutlined,
   HomeOutlined,
   MessageOutlined,
@@ -363,6 +364,22 @@ export function SidebarContent({
             indent={spacing.xs}
           />
         ))}
+
+        {/* Dashboards — navigates directly to /portfolio (no flyout, no
+            sub-routes). Gated by portfolio-read. */}
+        <Can permission="portfolio-read">
+          <NavRow
+            item={{
+              key: "dashboards",
+              label: "Dashboards",
+              path: "/portfolio",
+              icon: <BarChartOutlined />,
+            }}
+            active={isPrimaryActive(location.pathname, "/portfolio")}
+            onClick={() => go("/portfolio")}
+            indent={spacing.xs}
+          />
+        </Can>
       </div>
 
       {/* Entity section (only on entity-detail routes) */}
