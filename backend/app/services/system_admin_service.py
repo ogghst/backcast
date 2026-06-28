@@ -235,8 +235,33 @@ class SystemAdminService:
         result["mcp_servers"] = mcp_servers
 
         # --- Change order workflow ---
-        co_config_result = await self.session.execute(select(ChangeOrderWorkflowConfig))
-        co_config = co_config_result.scalar_one_or_none()
+        # Global config only — per-project overrides (project_id != NULL)
+        # are not part of the single-config system_config dump/reseed format.
+        global_configs_result = await self.session.execute(
+            select(ChangeOrderWorkflowConfig)
+            .where(ChangeOrderWorkflowConfig.project_id.is_(None))
+            .order_by(ChangeOrderWorkflowConfig.created_at)
+        )
+        global_configs = list(global_configs_result.scalars().all())
+        co_config = None
+        if global_configs:
+            # Prefer the config that actually has child rules; an empty
+            # duplicate global can exist alongside the populated seed config.
+            co_config = next(
+                (
+                    c
+                    for c in global_configs
+                    if c.impact_levels or c.approval_rules or c.sla_rules
+                ),
+                global_configs[0],
+            )
+            if len(global_configs) > 1:
+                logger.warning(
+                    "Multiple global change-order workflow configs found (%d); "
+                    "exporting %s",
+                    len(global_configs),
+                    co_config.id,
+                )
         if co_config is not None:
             config_dict = _model_to_dict(
                 co_config, exclude={"created_at", "updated_at"}
