@@ -145,10 +145,11 @@ export function AppSidebar(): React.JSX.Element | null {
   const agentsActive =
     isPrimaryActive(location.pathname, "/admin/agent-schedules") ||
     isPrimaryActive(location.pathname, "/agents-history");
-  // Poll unconditionally (Rules of Hooks); gate the value so unauthorized users
-  // never show a badge. TanStack stops polling when the component unmounts.
-  const runningCountQuery = useRunningExecutionsCount();
-  const runningCount = canAgents ? (runningCountQuery.data ?? 0) : 0;
+  // Poll only when the user can actually see agents (ai-chat /
+  // agent-schedule-manage). The endpoint requires `ai-chat`, so an ungated
+  // query would 403-storm for limited-permission users.
+  const runningCountQuery = useRunningExecutionsCount({ enabled: canAgents });
+  const runningCount = runningCountQuery.data ?? 0;
 
   const adminItems = useAdminNavItems();
   const showAdmin = hasRole("admin") && adminItems.length > 0;

@@ -11,7 +11,7 @@
  * manual refetch (TanStack stops polling once the query is inactive).
  */
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, type UseQueryOptions } from "@tanstack/react-query";
 import axios from "axios";
 import { toast } from "sonner";
 import { queryKeys } from "@/api/queryKeys";
@@ -130,12 +130,19 @@ export function useAgentExecutions({
 
 /**
  * Count of currently-running executions. Polls every 5s — used for the menu badge.
+ *
+ * The endpoint requires the `ai-chat` permission; callers MUST pass
+ * `enabled: <user can see agents>` so unauthorized users don't trigger a 403
+ * storm (the query is disabled, not just its result masked).
  */
-export function useRunningExecutionsCount() {
+export function useRunningExecutionsCount(
+  options?: Pick<UseQueryOptions<number>, "enabled">,
+) {
   return useQuery<number>({
     queryKey: queryKeys.ai.chat.executions.runningCount(),
     queryFn: fetchRunningCount,
     refetchInterval: 5000,
+    ...options,
   });
 }
 
