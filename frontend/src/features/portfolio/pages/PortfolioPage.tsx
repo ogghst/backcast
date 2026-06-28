@@ -17,9 +17,9 @@
  * TCPI, which the hand-written EVM type does not).
  */
 
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Card, Col, Empty, Row, Space, Spin, Statistic, Tag, Typography, theme } from "antd";
+import { Card, Col, Empty, Pagination, Row, Space, Spin, Statistic, Tag, Typography, theme } from "antd";
 import type { ColumnType } from "antd/es/table";
 import type { SortOrder } from "antd/es/table/interface";
 import { PageWrapper } from "@/components/layout/PageWrapper";
@@ -288,6 +288,17 @@ function DistressList({
 }): React.JSX.Element {
   const { spacing } = useThemeTokens();
   const { token } = theme.useToken();
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  // Reset page on data change so the current page can never be out of range
+  // after the underlying list changes (refetch / control-date change).
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset on data change (documented React exception)
+    setPage(1);
+  }, [projects]);
+
+  const pageItems = projects.slice((page - 1) * pageSize, page * pageSize);
 
   return (
     <div
@@ -306,29 +317,46 @@ function DistressList({
           description={emptyDescription}
         />
       ) : (
-        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-          {projects.map((p) => (
-            <li
-              key={p.project_id}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: spacing.sm,
-                padding: `${spacing.xs}px 0`,
-                borderBottom: `1px solid ${token.colorBorderSecondary}`,
-              }}
-            >
-              <Link to={`/projects/${p.project_id}`}>{p.name}</Link>
-              <Space size={spacing.sm}>
-                <Typography.Text type="secondary">
-                  {indexKey.toUpperCase()} {formatValue(p[indexKey] ?? null, "number")}
-                </Typography.Text>
-                <Tag color="error">At Risk</Tag>
-              </Space>
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+            {pageItems.map((p) => (
+              <li
+                key={p.project_id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: spacing.sm,
+                  padding: `${spacing.xs}px 0`,
+                  borderBottom: `1px solid ${token.colorBorderSecondary}`,
+                }}
+              >
+                <Link to={`/projects/${p.project_id}`}>{p.name}</Link>
+                <Space size={spacing.sm}>
+                  <Typography.Text type="secondary">
+                    {indexKey.toUpperCase()} {formatValue(p[indexKey] ?? null, "number")}
+                  </Typography.Text>
+                  <Tag color="error">At Risk</Tag>
+                </Space>
+              </li>
+            ))}
+          </ul>
+          {projects.length > pageSize && (
+            <div style={{ display: "flex", justifyContent: "center", marginTop: token.marginLG }}>
+              <Pagination
+                current={page}
+                pageSize={pageSize}
+                total={projects.length}
+                onChange={(p, ps) => {
+                  setPage(p);
+                  setPageSize(ps);
+                }}
+                showSizeChanger={false}
+                size="small"
+              />
+            </div>
+          )}
+        </>
       )}
     </div>
   );
