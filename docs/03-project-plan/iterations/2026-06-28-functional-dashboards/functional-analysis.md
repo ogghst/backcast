@@ -310,6 +310,8 @@ For each role: what the dashboard should show (industry), what Backcast delivers
 
 ## 10. Open Questions for Product Owners (implement vs. defer)
 
+> **✅ RESOLVED 2026-06-28** — all 15 questions below are decided. See **§13 Refinement Decisions** for the authoritative choices. Summary: **IN** = G1, G2, G3, G4, G6, G11, G12, G17, G19, G25; **resolved via RAG bands** = G7, G16; **deferred** = G5, G8, G9, G10, G13, G14, G15, G18, G20, G21, G23, G24, G26. The questions are retained below for context.
+
 1. **Portfolio endpoint (G1+G2):** Build `GET /api/v1/evm/portfolio` resolving accessible projects, returning a per-project breakdown `[{project_id,name,cpi,spi,vac,contract_value}]`, enforcing RBAC scoping, and fixing the stale docstring? *Tradeoff:* the keystone unlocking most role KPIs, reusing correct math — but the first real cross-project query path to maintain.
 2. **Global filter bar vs. per-page filters (G3):** Invest in a persistent global `FilterBar` (date range, org unit, PM, customer, RAG) with URL-persisted + saved-view state? *Tradeoff:* prerequisite for any director/executive dashboard and an industry standard — but L-effort frontend infra that only pays off if a portfolio route also ships.
 3. **FilterParser range ops + filterable EVM indices (G4):** Extend `FilterParser` with range/date operators, and should CPI/SPI/VAC become filterable/sortable? *Tradeoff:* operators are S–M; making *computed* indices filterable needs materializing/specialized-querying them (the deeper sub-question: persist EVM snapshots?).
@@ -392,4 +394,46 @@ For each role: what the dashboard should show (industry), what Backcast delivers
 - **CO analytics mandatory project-scoped:** `backend/app/api/routes/change_orders.py:61–62` (`project_id: UUID = Query(...)`).
 - **Home = single project spotlight:** `backend/app/api/routes/dashboard.py:54` ("project spotlight"); `frontend/src/pages/Home.tsx:44–74`.
 - **"Cost Controller" template is a per-project layout:** `backend/app/services/dashboard_layout_service.py:147–187`.
+
+---
+
+## 13. Refinement Decisions (2026-06-28)
+
+A 5-round refinement Q&A with the product owner **locked the v1 scope**. This section is the authoritative decision record; it resolves §10 and fixes the v1 slice of §11. An implementation plan was approved on 2026-06-28 (foundation: Phase 0 + Phase 1).
+
+### 13.1 Scope & approach (locked)
+
+| Decision | Choice |
+|---|---|
+| Overall scope | **Foundation only** (analysis Phase 0 + Phase 1). No role-specific dashboards; no new domain entities beyond `Customer` + `CurrencyRate`. |
+| Optimized for | **Cost Controlling + PMO Director** (the two cited pains). |
+| Delay detection | **SPI-based at-risk proxy** (transient). True forecast-finish (G14) + milestone/gate (G15) deferred. |
+| Project attribution | Real FK columns `organizational_unit_id` + `project_manager_id` + `customer_id` on `Project` + a minimal **`Customer`** entity (`SimpleEntityBase`). Backfill = **default/GLOBAL org unit + creator-as-PM + null customer**. |
+| EVM indexing | **Live, display + client-side sort/filter only** — no server-side CPI/SPI filtering, no snapshots. |
+| RAG bands | Transient, client-side; **Green ≥ 1.0 / Amber 0.9–1.0 / Red < 0.9** (CPI & SPI identical); cost-distress CPI floor = **0.9**. |
+| FilterBar v1 slicers | **Date/fiscal-period + Status + RAG**. BU/PM/customer columns are added now (enable breakdown grouping/sort) but their **slicer UI is deferred**. |
+| Fiscal year | **Calendar year, Jan–Dec.** |
+| Date scope | The date filter sets the EVM **control date (`as_of`)**; "current year" = portfolio EVM as-of today (or a chosen date). |
+| Currency | **`CurrencyRate` table** (manual, admin-entered), convert at EVM as-of date → **EUR** base; forward-looking (all EUR today, seed rate 1.0). No external FX integration. |
+| Access | New **`portfolio-read`** permission; **admin + manager (+ ai-manager)** by default; the endpoint is also membership-scoped via `get_accessible_projects`. |
+| Nav | New top-level **"Dashboards"** section; `/portfolio` lives under it. |
+| Add-ons IN | **TCPI (G12)**, **portfolio CO pipeline + 500-hardening (G17)**, **ΔEAC forecast-drift history (G11)**. |
+| Add-ons OUT | **gross-margin (G18)** (owner-excluded); saved filter presets → v2. |
+| Delivery | **Full-stack** co-delivery (portfolio endpoint + FilterBar land together). |
+
+### 13.2 v1 IN scope (gaps → implemented)
+
+**G1** portfolio EVM endpoint · **G2** batch-route RBAC scoping (security) + stale-docstring fix · **G3** global FilterBar + `/portfolio` route · **G4** FilterParser range/date operators · **G6** Project attribution + `Customer` entity + backfill · **G11** ΔEAC history · **G12** TCPI · **G16/G7** RAG bands + cost-distress floor (transient) · **G17** portfolio CO pipeline + route hardening · **G19** currency normalization (`CurrencyRate`) · **G25** SPI at-risk proxy. Plus the new `portfolio-read` permission and the "Dashboards" nav section.
+
+### 13.3 Deferred (explicitly out of v1)
+
+**G5** functional roles · **G8** committed/PO/invoice · **G9** contingency · **G10** per-CostElement budget · **G13/G26** capacity/FTE · **G14** forecast-finish · **G15** milestone/gates · **G18** gross-margin (owner-excluded) · **G20** portfolio EVM time-series · **G21** document compliance · **G23** cost-reg data-quality · **G24** capacity/resource/defect · BU/PM/customer **FilterBar slicers** (columns in, slicers v2) · saved filter presets (v2).
+
+### 13.4 Feasibility note
+
+Live per-project EVM across the portfolio was validated against current data volume — **1 project / 5 WBS elements / 3 work packages / 4 cost registrations** — so the live "display + sort only" approach is comfortably fast and **no snapshot/materialization infrastructure is needed** for v1. Add a performance revisit if the active portfolio exceeds ~50 projects.
+
+### 13.5 Effect on §11 sequencing
+
+The approved v1 = **Phase 0 + Phase 1** of §11 (the foundation spine), with the parameters above (RAG bands, calendar year, EVM-as-of date scope, EUR base, `portfolio-read` gating). **Phase 2** (functional roles + role dashboards) and **Phase 3** (domain-depth gaps) remain **deferred** per §13.3.
 - **Only "overdue/at_risk" logic is CO SLA:** `backend/app/models/domain/change_order.py:59` (`sla_status`); `ev_status` dashboard stub returns `on_track` if cost elements exist.
