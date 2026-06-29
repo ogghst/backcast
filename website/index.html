@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Backcast — A Time Machine for Project Governance</title>
+  <meta name="description" content="Backcast pairs multi-agent AI with a deterministic, fully-audited ledger. Build work breakdowns, book costs, run change orders, and revisit any moment in a project's history — by talking to it." />
+  <meta name="theme-color" content="#FAFAF8" />
+
+  <!-- Favicon: minimal serif mark (replace with a real asset/favicon.svg later) -->
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23FAFAF8'/%3E%3Ctext x='16' y='24' font-family='Georgia,serif' font-size='22' font-weight='600' fill='%23B8860B' text-anchor='middle'%3EB%3C/text%3E%3C/svg%3E" />
+
+  <!-- Fonts: Playfair Display (display), Source Sans 3 (body), IBM Plex Mono (labels) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Source+Sans+3:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="css/tokens.css" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="container container--wide site-header__inner">
+      <a class="wordmark" href="/">Backcast</a>
+
+      <button class="nav-toggle" data-nav-toggle aria-expanded="false" aria-controls="primary-nav" aria-label="Toggle menu">
+        <span></span><span></span><span></span>
+      </button>
+
+      <nav class="primary-nav" id="primary-nav" data-nav aria-label="Primary">
+        <a href="#features">Capabilities</a>
+        <a href="#action">In action</a>
+        <a href="#how">Under the hood</a>
+        <a class="btn btn--primary" href="https://app.backcast.duckdns.org" target="_blank" rel="noopener noreferrer">Live demo &rarr;</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- HERO — the essentials only -->
+    <section class="section section--lg hero has-glow" data-reveal>
+      <div class="container hero__inner">
+        <div class="section-label section-label--center">
+          <span class="section-label__rule"></span>
+          <span class="small-caps section-label__text">Autonomous Project Governance</span>
+          <span class="section-label__rule"></span>
+        </div>
+        <h1 class="hero__title">A time machine for project governance.</h1>
+        <p class="lede">Multi-agent AI meets a deterministic, fully-audited ledger. Build work breakdowns, book costs, run change orders, and revisit any moment in a project&rsquo;s history &mdash; by talking to it.</p>
+        <div class="hero__cta">
+          <a class="btn btn--primary" href="https://app.backcast.duckdns.org" target="_blank" rel="noopener noreferrer">Try the live demo &rarr;</a>
+          <a class="btn btn--outline" href="#action">See it in action</a>
+        </div>
+      </div>
+    </section>
+
+    <hr class="rule" />
+
+    <!-- PILLARS — the differentiators at a glance -->
+    <section class="section pillars-section" data-reveal aria-label="What makes it different">
+      <div class="container container--wide">
+        <ul class="pillars">
+          <li class="pillar">
+            <h3 class="pillar__title">Time-travel ledger</h3>
+            <p class="pillar__body">Reconstruct the exact state of any project on any past date.</p>
+          </li>
+          <li class="pillar">
+            <h3 class="pillar__title">Deterministic guardrails</h3>
+            <p class="pillar__body">Agents use the same APIs, RBAC and audit trail as humans.</p>
+          </li>
+          <li class="pillar">
+            <h3 class="pillar__title">Multi-agent teams</h3>
+            <p class="pillar__body">Orchestrator&ndash;worker roles that critique their own work first.</p>
+          </li>
+          <li class="pillar">
+            <h3 class="pillar__title">MCP-native</h3>
+            <p class="pillar__body">Reach legacy ERPs, the web and custom skills beyond the core.</p>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <hr class="rule" />
+
+    <!-- THESIS — asymmetric, short -->
+    <section class="section benefits" id="thesis" data-reveal>
+      <div class="container container--wide benefits__grid">
+        <div class="benefits__lead">
+          <div class="section-label section-label--start">
+            <span class="section-label__rule"></span>
+            <span class="small-caps section-label__text">Why it&rsquo;s different</span>
+          </div>
+          <h2 class="benefits__title">Statistical AI. Deterministic governance. Finally, both.</h2>
+          <p>LLMs are brilliant at intent &mdash; and unreliable at structure. Left to parse work breakdowns or compute Earned Value on token probabilities, they drift. Backcast doesn&rsquo;t let them.</p>
+        </div>
+        <ul class="benefits__points">
+          <li class="benefit"><span class="benefit__mark">&mdash;</span><span>The AI proposes the intent.</span></li>
+          <li class="benefit"><span class="benefit__mark">&mdash;</span><span>A rigid application layer guarantees the structure.</span></li>
+          <li class="benefit"><span class="benefit__mark">&mdash;</span><span>Every action audited, every time.</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <hr class="rule" />
+
+    <!-- CAPABILITIES — scannable cards -->
+    <section class="section features" id="features" data-reveal>
+      <div class="container container--wide">
+        <div class="section-label section-label--start">
+          <span class="section-label__rule"></span>
+          <span class="small-caps section-label__text">What it does</span>
+        </div>
+        <h2 class="features__title">From a sentence to a structured project.</h2>
+
+        <ul class="features__grid">
+          <li class="card card--hover">
+            <span class="card__index small-caps">01</span>
+            <h3 class="card__title">Autonomous WBS generation</h3>
+            <p class="card__body">Turn a statement of work into a complete tree of tasks, control accounts and milestones &mdash; reviewed before anything is committed.</p>
+          </li>
+          <li class="card card--hover">
+            <span class="card__index small-caps">02</span>
+            <h3 class="card__title">Intelligent change orders</h3>
+            <p class="card__body">Analyze downstream impact across budget, schedule, revenue and EVM &mdash; then draft a compliant change order for approval.</p>
+          </li>
+          <li class="card card--hover">
+            <span class="card__index small-caps">03</span>
+            <h3 class="card__title">Semantic EVM</h3>
+            <p class="card__body">CPI, SPI, EAC and variance translated into plain-language strategic readouts &mdash; not just dashboards.</p>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <hr class="rule" />
+
+    <!-- IN ACTION — progressive disclosure via scroll-revealed chat prompts -->
+    <section class="section action" id="action" data-reveal>
+      <div class="container">
+        <div class="section-label section-label--start">
+          <span class="section-label__rule"></span>
+          <span class="small-caps section-label__text">See it in action</span>
+        </div>
+        <h2 class="action__title">Just talk to your project.</h2>
+        <p class="action__intro">Your assistant already knows your WBS conventions, approval thresholds and reporting standards. Here&rsquo;s what that looks like &mdash; one capability at a time.</p>
+
+        <div class="prompts">
+          <figure class="prompt" data-reveal>
+            <p class="prompt__command"><span class="small-caps prompt__label">You say</span> &ldquo;Create the &lsquo;Renovation HQ 2027&rsquo; project with a 3-level WBS, &euro;8.4M budget, starting in March.&rdquo;</p>
+            <p class="prompt__outcome">The AI builds the entire structure &mdash; work breakdown elements, control accounts, work packages, cost elements &mdash; and you review before anything is committed.</p>
+          </figure>
+
+          <figure class="prompt" data-reveal>
+            <p class="prompt__command"><span class="small-caps prompt__label">You say</span> &ldquo;Record the &euro;142k invoice from supplier Alpha on the HVAC cost element.&rdquo;</p>
+            <p class="prompt__outcome">Actuals are booked against the right cost element, EVM metrics recalculate instantly, and the audit trail captures who recorded what, when and why.</p>
+          </figure>
+
+          <figure class="prompt" data-reveal>
+            <p class="prompt__command"><span class="small-caps prompt__label">You say</span> &ldquo;Open a change order shifting Electrical by 3 months and raising Mechanical by 18%. Show EAC and TCPI impact.&rdquo;</p>
+            <p class="prompt__outcome">A branch is created. The AI runs a four-dimension impact analysis &mdash; budget, schedule, revenue, EVM &mdash; and presents findings in plain language so the Change Control Board decides faster.</p>
+          </figure>
+
+          <figure class="prompt" data-reveal>
+            <p class="prompt__command"><span class="small-caps prompt__label">You say</span> &ldquo;Compare current status with the project state from 45 days ago.&rdquo;</p>
+            <p class="prompt__outcome">The time machine reconstructs the project as it existed 45 days ago &mdash; CPI, SPI, EAC and every other metric at that point in time, with full variance context explained.</p>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <hr class="rule" />
+
+    <!-- UNDER THE HOOD — depth on demand, behind accordions -->
+    <section class="section how" id="how" data-reveal>
+      <div class="container">
+        <div class="section-label section-label--start">
+          <span class="section-label__rule"></span>
+          <span class="small-caps section-label__text">Under the hood</span>
+        </div>
+        <h2 class="how__title">Depth, on demand.</h2>
+        <p class="how__intro">The essentials above. The architecture below &mdash; open only what you need.</p>
+
+        <div class="accordions">
+          <div class="accordion" data-accordion>
+            <button class="accordion__trigger" data-accordion-trigger aria-expanded="false" aria-controls="acc-ledger">The Temporal Ledger</button>
+            <div class="accordion__panel" id="acc-ledger" data-accordion-panel hidden>
+              <p>Every change to a task, baseline or cost is captured as a historical delta. Reconstruct the full state of a project at any point in time &mdash; the archaeological layers, not just today&rsquo;s surface.</p>
+            </div>
+          </div>
+
+          <div class="accordion" data-accordion>
+            <button class="accordion__trigger" data-accordion-trigger aria-expanded="false" aria-controls="acc-guard">Grounded application security</button>
+            <div class="accordion__panel" id="acc-guard" data-accordion-panel hidden>
+              <p>No raw database access. Agents act through the same Application APIs as human users, passing identical RBAC, constraints and audit. The LLM suggests the intent; the application layer guarantees the structure.</p>
+            </div>
+          </div>
+
+          <div class="accordion" data-accordion>
+            <button class="accordion__trigger" data-accordion-trigger aria-expanded="false" aria-controls="acc-harness">Configurable agent harness</button>
+            <div class="accordion__panel" id="acc-harness" data-accordion-panel hidden>
+              <p>Declarative manifests define roles, specialized prompts, permissions and tool mappings &mdash; applying Orchestrator&ndash;Workers and Reflection patterns directly to project controls.</p>
+            </div>
+          </div>
+
+          <div class="accordion" data-accordion>
+            <button class="accordion__trigger" data-accordion-trigger aria-expanded="false" aria-controls="acc-mcp">Extensibility via MCP</button>
+            <div class="accordion__panel" id="acc-mcp" data-accordion-panel hidden>
+              <p>Plug in legacy ERPs, web search and custom skills through the Model Context Protocol. Agents discover capabilities dynamically, based on their manifest.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <hr class="rule" />
+
+    <!-- GET STARTED — minimal -->
+    <section class="section start" id="start" data-reveal>
+      <div class="container">
+        <div class="section-label section-label--start">
+          <span class="section-label__rule"></span>
+          <span class="small-caps section-label__text">Get started</span>
+        </div>
+        <h2 class="how__title">Run it yourself.</h2>
+        <p class="how__intro">Docker is the recommended path. Clone, configure, bring it up.</p>
+
+        <pre class="code"><code>git clone https://github.com/ogghst/backcast.git &amp;&amp; cd backcast
+docker network create traefik-public
+cd deploy &amp;&amp; cp .env.production.example .env.production
+docker compose --env-file .env.production up -d --build</code></pre>
+
+        <div class="start__links">
+          <a class="btn btn--ghost" href="https://github.com/ogghst/backcast/blob/main/docs/05-user-guide/docker-deployment-guide.md" target="_blank" rel="noopener noreferrer">Full deployment guide &rarr;</a>
+          <a class="btn btn--ghost" href="https://github.com/ogghst/backcast/blob/main/docs/00-meta/onboarding.md" target="_blank" rel="noopener noreferrer">Local dev &amp; onboarding &rarr;</a>
+        </div>
+      </div>
+    </section>
+
+    <hr class="rule" />
+
+    <!-- LIVE DEMO CTA -->
+    <section class="section section--lg cta has-glow" id="demo" data-reveal>
+      <div class="container cta__inner">
+        <div class="section-label section-label--center">
+          <span class="section-label__rule"></span>
+          <span class="small-caps section-label__text">Try it now</span>
+          <span class="section-label__rule"></span>
+        </div>
+        <h2 class="cta__title">The demo is built to be tested hard.</h2>
+        <p class="lede">Jump in, create projects, open change orders, travel through time. Shared credentials below.</p>
+
+        <dl class="creds">
+          <div class="cred">
+            <dt class="small-caps cred__label">Email</dt>
+            <dd class="cred__value">admin@backcast.org</dd>
+          </div>
+          <div class="cred">
+            <dt class="small-caps cred__label">Password</dt>
+            <dd class="cred__value">adminadmin</dd>
+          </div>
+        </dl>
+
+        <div class="hero__cta">
+          <a class="btn btn--primary" href="https://app.backcast.duckdns.org" target="_blank" rel="noopener noreferrer">Open the live demo &rarr;</a>
+          <a class="btn btn--ghost" href="https://github.com/ogghst/backcast" target="_blank" rel="noopener noreferrer">Read the source &rarr;</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container container--wide site-footer__inner">
+      <a class="wordmark" href="/">Backcast</a>
+      <nav class="site-footer__nav" aria-label="Footer">
+        <a href="https://github.com/ogghst/backcast" target="_blank" rel="noopener noreferrer">GitHub</a>
+        <a href="https://app.backcast.duckdns.org" target="_blank" rel="noopener noreferrer">Live demo</a>
+        <a href="#start">Get started</a>
+        <a href="https://github.com/ogghst/backcast/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">MIT License</a>
+      </nav>
+      <p class="small-caps">&copy; <span data-year></span> Backcast &middot; An autonomous governance platform</p>
+    </div>
+  </footer>
+
+  <script src="js/main.js" defer></script>
+</body>
+</html>

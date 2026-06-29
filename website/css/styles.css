@@ -1,0 +1,298 @@
+/* =============================================================================
+   Backcast Showcase — component & page styles
+   Assembled from the Serif design system (see .claude/skills/website/design-system.md).
+   tokens.css must be linked first. Every design value is a token — no hardcoded
+   colors/sizes; extend tokens.css if a value is missing.
+   ========================================================================== */
+
+/* ---------------------------------------------------------------------------
+   Reveal on scroll (paired with [data-reveal] + main.js IntersectionObserver)
+--------------------------------------------------------------------------- */
+[data-reveal] {
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity 600ms var(--ease), transform 600ms var(--ease);
+}
+[data-reveal].is-visible { opacity: 1; transform: none; }
+/* Stagger chat prompts as they enter */
+.prompts .prompt:nth-child(2) { transition-delay: 80ms; }
+.prompts .prompt:nth-child(3) { transition-delay: 160ms; }
+.prompts .prompt:nth-child(4) { transition-delay: 240ms; }
+
+/* ---------------------------------------------------------------------------
+   Header / navigation
+--------------------------------------------------------------------------- */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: var(--background-translucent);
+  -webkit-backdrop-filter: saturate(140%) blur(8px);
+  backdrop-filter: saturate(140%) blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+.site-header__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-6);
+  min-height: var(--header-h);
+}
+.wordmark {
+  font-family: var(--font-display);
+  font-size: var(--text-h3);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--foreground);
+}
+.wordmark:hover { color: var(--accent); }
+
+/* Hamburger (mobile only) */
+.nav-toggle {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: var(--space-2);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.nav-toggle span {
+  width: 24px;
+  height: 1.5px;
+  background: var(--foreground);
+  transition: opacity var(--transition-fast);
+}
+.nav-toggle[aria-expanded="true"] span:nth-child(2) { opacity: 0; }
+
+/* Mobile dropdown panel */
+.primary-nav {
+  position: absolute;
+  top: var(--header-h);
+  left: 0;
+  right: 0;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding: var(--space-2) var(--space-6) var(--space-6);
+  background: var(--background);
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+  display: none;
+}
+.primary-nav.is-open { display: flex; }
+.primary-nav a:not(.btn) {
+  padding-block: var(--space-4);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-nav);
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  color: var(--muted-foreground);
+  transition: color var(--transition-fast);
+}
+.primary-nav a:not(.btn):hover { color: var(--foreground); }
+.primary-nav .btn { margin-top: var(--space-4); }
+
+/* ---------------------------------------------------------------------------
+   Section label (flanking rules + small caps)
+--------------------------------------------------------------------------- */
+.section-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+  max-width: 26rem;
+}
+.section-label__rule { height: 1px; flex: 1; background: var(--border); }
+.section-label__text { color: var(--accent); white-space: nowrap; }
+.section-label--center { justify-content: center; max-width: 26rem; margin-inline: auto; }
+.section-label--start { max-width: none; }
+.section-label--start .section-label__rule:last-child { display: none; }
+
+/* ---------------------------------------------------------------------------
+   Buttons
+--------------------------------------------------------------------------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: 0 var(--space-6);
+  font-family: var(--font-body);
+  font-size: var(--text-nav);
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  touch-action: manipulation;
+  text-align: center;
+  transition: background-color var(--transition), color var(--transition),
+              border-color var(--transition), box-shadow var(--transition),
+              transform var(--transition);
+}
+.btn--primary { background: var(--accent); color: var(--accent-foreground); box-shadow: var(--shadow-sm); }
+.btn--primary:hover { background: var(--accent-secondary); box-shadow: var(--shadow-accent); transform: translateY(-2px); }
+.btn--primary:active { transform: translateY(0); }
+
+.btn--outline { background: transparent; color: var(--foreground); border-color: var(--foreground); }
+.btn--outline:hover { background: var(--muted); color: var(--accent); border-color: var(--accent); }
+
+.btn--ghost { background: transparent; color: var(--muted-foreground); padding-inline: 0; }
+.btn--ghost:hover { color: var(--foreground); text-decoration: underline; text-decoration-color: var(--accent); text-underline-offset: 4px; }
+
+.btn--block { display: flex; width: 100%; }
+
+/* ---------------------------------------------------------------------------
+   Cards
+--------------------------------------------------------------------------- */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-8);
+  transition: box-shadow var(--transition), border-color var(--transition), background-color var(--transition);
+}
+.card--hover:hover { box-shadow: var(--shadow-md); border-color: var(--border-hover); background: var(--muted-50); }
+.card--accent-top { border-top: 2px solid var(--accent); }
+.card--elevated { box-shadow: var(--shadow-md); }
+.card--featured { background: var(--accent-muted); border-top: 2px solid var(--accent); box-shadow: var(--shadow-md); }
+.card__index { display: block; color: var(--accent); margin-bottom: var(--space-4); }
+.card__title { font-size: var(--text-card-title); margin-bottom: var(--space-3); }
+.card__body { color: var(--muted-foreground); max-width: 42ch; }
+
+/* ---------------------------------------------------------------------------
+   Hero / CTA
+--------------------------------------------------------------------------- */
+.hero, .cta { text-align: center; }
+.hero__inner, .cta__inner { display: flex; flex-direction: column; align-items: center; }
+.hero__title { font-size: clamp(2.5rem, 7vw, var(--text-hero)); line-height: 1.1; max-width: 16ch; }
+.cta__title { font-size: clamp(2.5rem, 6vw, var(--text-h2)); }
+.lede { font-size: var(--text-body-lg); color: var(--muted-foreground); max-width: 54ch; margin-top: var(--space-6); }
+.hero__cta { display: flex; flex-wrap: wrap; gap: var(--space-4); justify-content: center; margin-top: var(--space-10); }
+
+/* ---------------------------------------------------------------------------
+   Pillars (differentiators at a glance)
+--------------------------------------------------------------------------- */
+.pillars { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-8); grid-template-columns: 1fr; }
+.pillar { padding-top: var(--space-4); border-top: 1px solid var(--border); }
+.pillar__title { font-family: var(--font-display); font-size: var(--text-card-title); margin-bottom: var(--space-2); }
+.pillar__body { color: var(--muted-foreground); font-size: var(--text-nav); max-width: 30ch; }
+
+/* ---------------------------------------------------------------------------
+   Thesis (asymmetric benefits layout)
+--------------------------------------------------------------------------- */
+.benefits__grid { display: grid; gap: var(--space-12); grid-template-columns: 1fr; }
+.benefits__title { font-size: var(--text-h2); max-width: 18ch; margin-bottom: var(--space-6); }
+.benefits__lead p { color: var(--muted-foreground); font-size: var(--text-body-lg); max-width: 52ch; }
+.benefits__points { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: var(--space-4); }
+.benefit { display: flex; gap: var(--space-3); align-items: baseline; font-size: var(--text-body-lg); }
+.benefit__mark { color: var(--accent); }
+
+/* ---------------------------------------------------------------------------
+   Features (capabilities)
+--------------------------------------------------------------------------- */
+.features__title { font-size: var(--text-h2); max-width: 22ch; margin-bottom: var(--space-12); }
+.features__grid { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-8); grid-template-columns: 1fr; }
+
+/* ---------------------------------------------------------------------------
+   In action — chat prompts (progressive disclosure via scroll reveal)
+--------------------------------------------------------------------------- */
+.action__title { font-size: var(--text-h2); max-width: 16ch; }
+.action__intro { color: var(--muted-foreground); font-size: var(--text-body-lg); max-width: 54ch; margin-top: var(--space-6); }
+.prompts { margin-top: var(--space-12); display: flex; flex-direction: column; gap: var(--space-6); }
+.prompt {
+  margin: 0;
+  border-left: 2px solid var(--accent);
+  background: var(--muted);
+  padding: var(--space-5) var(--space-6);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+.prompt__command { font-family: var(--font-display); font-style: italic; font-size: var(--text-card-title); line-height: 1.5; }
+.prompt__label { font-style: normal; color: var(--accent); margin-right: var(--space-3); }
+.prompt__outcome { margin-top: var(--space-3); color: var(--muted-foreground); max-width: 64ch; }
+
+/* ---------------------------------------------------------------------------
+   Under the hood — accordions (depth on demand)
+--------------------------------------------------------------------------- */
+.how__title { font-size: var(--text-h2); max-width: 16ch; }
+.how__intro { color: var(--muted-foreground); font-size: var(--text-body-lg); max-width: 54ch; margin-top: var(--space-6); }
+.accordions { margin-top: var(--space-10); }
+.accordion { border-top: 1px solid var(--border); }
+.accordion__trigger {
+  width: 100%; display: flex; justify-content: space-between; align-items: center; gap: var(--space-4);
+  min-height: 44px; padding-block: var(--space-5);
+  background: transparent; border: 0; border-bottom: 1px solid var(--border);
+  font-family: var(--font-display); font-size: var(--text-card-title); text-align: left;
+  cursor: pointer; touch-action: manipulation; color: var(--foreground);
+  transition: color var(--transition-fast);
+}
+.accordion__trigger:hover { color: var(--accent); }
+.accordion__trigger::after { content: "+"; margin-left: auto; font-family: var(--font-mono); font-weight: 500; color: var(--accent); }
+.accordion.is-open .accordion__trigger::after { content: "\2212"; }
+.accordion__panel { padding-block: var(--space-4) var(--space-6); color: var(--muted-foreground); }
+.accordion__panel p { max-width: 64ch; }
+
+/* ---------------------------------------------------------------------------
+   Get started — code block + links
+--------------------------------------------------------------------------- */
+.code {
+  margin-top: var(--space-8);
+  font-family: var(--font-mono); font-size: var(--text-nav); line-height: 1.8;
+  background: var(--foreground); color: var(--background);
+  padding: var(--space-6); border-radius: var(--radius-md);
+  overflow-x: auto; white-space: pre;
+}
+.start__links { display: flex; flex-wrap: wrap; gap: var(--space-6); margin-top: var(--space-8); }
+
+/* ---------------------------------------------------------------------------
+   Live demo — credentials
+--------------------------------------------------------------------------- */
+.creds { display: flex; flex-wrap: wrap; gap: var(--space-8) var(--space-12); justify-content: center; margin-top: var(--space-10); margin-bottom: 0; }
+.cred { text-align: left; }
+.cred__label { color: var(--muted-foreground); margin-bottom: var(--space-1); }
+.cred__value { font-family: var(--font-mono); font-size: var(--text-body); color: var(--foreground); margin: 0; }
+
+/* ---------------------------------------------------------------------------
+   Footer
+--------------------------------------------------------------------------- */
+.site-footer { border-top: 1px solid var(--border); padding-block: var(--space-12); }
+.site-footer__inner { display: flex; flex-direction: column; gap: var(--space-6); }
+.site-footer__nav { display: flex; flex-wrap: wrap; gap: var(--space-6); }
+.site-footer__nav a { font-size: var(--text-nav); font-weight: 500; letter-spacing: 0.05em; color: var(--muted-foreground); }
+.site-footer__nav a:hover { color: var(--foreground); }
+.site-footer .small-caps { color: var(--muted-foreground); }
+
+/* ---------------------------------------------------------------------------
+   Responsive — mobile-first; enhance from 768px / 1024px
+--------------------------------------------------------------------------- */
+@media (min-width: 768px) {
+  /* Desktop nav: hide hamburger, show inline */
+  .nav-toggle { display: none; }
+  .primary-nav {
+    position: static; display: flex; flex-direction: row; align-items: center; gap: var(--space-8);
+    padding: 0; background: transparent; border: 0; box-shadow: none;
+  }
+  .primary-nav a:not(.btn) { padding-block: 0; border-bottom: 0; }
+  .primary-nav .btn { margin-top: 0; }
+
+  .pillars { grid-template-columns: repeat(2, 1fr); }
+  .features__grid { grid-template-columns: repeat(3, 1fr); }
+  .benefits__grid { grid-template-columns: 1.3fr 0.7fr; align-items: start; }
+  .site-footer__inner { flex-direction: row; flex-wrap: wrap; justify-content: space-between; align-items: center; }
+}
+
+@media (min-width: 1024px) {
+  .pillars { grid-template-columns: repeat(4, 1fr); }
+}
+
+/* Reveal: honor reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal] { opacity: 1; transform: none; transition: none; }
+  .prompts .prompt:nth-child(n) { transition-delay: 0ms; }
+}

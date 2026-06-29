@@ -1,0 +1,204 @@
+/* =============================================================================
+   Backcast Showcase — Design Tokens & Base Layer
+   Source of truth for the "Serif" editorial design system (vanilla HTML/CSS/JS).
+   Drop into the project as css/tokens.css and <link> it FIRST (before styles.css).
+
+   Fonts are NOT @imported here — load them via <link> in <head> for performance.
+   (See the page skeleton in design-system.md.)
+   ========================================================================== */
+
+:root {
+  /* ---- Color: monochrome canvas + single warm gold accent ---- */
+  --background: #FAFAF8;                   /* ivory canvas, warmer than pure white */
+  --foreground: #1A1A1A;                   /* rich black text (not pure #000)        */
+  --muted: #F5F3F0;                        /* secondary surfaces, slightly warmer    */
+  --muted-foreground: #6B6B6B;             /* secondary text, warm gray              */
+  --card: #FFFFFF;                         /* card surfaces — lift from ivory        */
+
+  --accent: #B8860B;                       /* burnished gold — links, highlights     */
+  --accent-secondary: #D4A84B;             /* lighter gold — hover/gradient          */
+  --accent-foreground: #FFFFFF;            /* text on accent backgrounds             */
+  --accent-muted: rgba(184, 134, 11, 0.06);/* featured-card tint (6%)               */
+
+  --border: #E8E4DF;                       /* warm gray rules, dividers, card borders*/
+  --border-hover: #D8D2CB;                 /* darker border on hover                 */
+  --input: #E8E4DF;                        /* input borders (matches --border)       */
+  --ring: #B8860B;                         /* focus ring (matches accent)            */
+
+  /* Surface alphas (over --background / --muted) */
+  --background-translucent: rgba(250, 250, 248, 0.85); /* sticky header frost */
+  --muted-50: rgba(245, 243, 240, 0.5);               /* card-hover tint      */
+
+  /* ---- Typography ---- */
+  --font-display: "Playfair Display", Georgia, "Times New Roman", serif;
+  --font-body: "Source Sans 3", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  /* Type scale (rem; 1rem = 16px). Tailwind origin noted for traceability. */
+  --text-hero: 4.5rem;       /* 72px  text-7xl — Playfair, leading 1.1, tracking -0.02em */
+  --text-h2: 2.5rem;         /* 40px  text-4xl — section headlines, leading 1.2          */
+  --text-h3: 1.5rem;         /* 24px  text-2xl                                          */
+  --text-card-title: 1.25rem;/* 20px  text-xl  — Playfair semibold, leading 1.3          */
+  --text-body-lg: 1.125rem;  /* 18px  text-lg                                           */
+  --text-body: 1rem;         /* 16px  text-base — body, leading 1.75                    */
+  --text-nav: 0.875rem;      /* 14px  text-sm  — nav, medium, tracking 0.05em           */
+  --text-label: 0.75rem;     /* 12px  text-xs  — mono small-caps, tracking 0.15em       */
+
+  /* ---- Radii ---- */
+  --radius-md: 0.375rem;     /* 6px  — buttons, inputs                                  */
+  --radius-lg: 0.5rem;       /* 8px  — cards                                            */
+
+  /* ---- Shadows (restrained; rgba over rich-black 26,26,26) ---- */
+  --shadow-sm: 0 1px 2px rgba(26, 26, 26, 0.04);
+  --shadow-md: 0 4px 12px rgba(26, 26, 26, 0.06);
+  --shadow-lg: 0 8px 24px rgba(26, 26, 26, 0.08);
+  --shadow-accent: 0 8px 24px rgba(184, 134, 11, 0.18); /* accent-tinted hover lift */
+
+  /* ---- Spacing scale (0.25rem rhythm; Tailwind step noted) ---- */
+  --space-1: 0.25rem;  --space-2: 0.5rem;   --space-3: 0.75rem; --space-4: 1rem;
+  --space-6: 1.5rem;   --space-8: 2rem;     --space-10: 2.5rem; --space-12: 3rem;
+  --space-16: 4rem;    --space-20: 5rem;    --space-24: 6rem;
+  --space-32: 8rem;    --space-40: 10rem;   --space-44: 11rem;
+
+  /* ---- Layout ---- */
+  --container-narrow: 64rem; /* 1024px — max-w-5xl, reading comfort                  */
+  --container-wide: 80rem;   /* 1280px — max-w-7xl, wider grids                       */
+  --header-h: 4.5rem;        /* sticky header height — used for scroll-margin         */
+
+  /* ---- Motion ---- */
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --transition: 200ms var(--ease);
+  --transition-fast: 150ms var(--ease);
+
+  /* ---- Signature texture strength (tune to taste) ---- */
+  --texture-opacity: 0.035;  /* spec says "30% layer intent"; fractalNoise reads far
+                                stronger than a flat tint, so a low alpha is correct  */
+}
+
+/* ---- Reset ---- */
+*, *::before, *::after { box-sizing: border-box; }
+* { margin: 0; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+img, svg, video { display: block; max-width: 100%; }
+input, button, textarea, select { font: inherit; color: inherit; }
+
+/* Respect reduced-motion globally */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---- Body ---- */
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-body);
+  font-size: var(--text-body);
+  line-height: 1.75;
+  letter-spacing: 0.01em;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* ---- Base typography ---- */
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  font-weight: 400;            /* Playfair reads best at normal weight */
+  line-height: 1.2;
+  color: var(--foreground);
+}
+h1 { font-size: var(--text-hero); line-height: 1.1; letter-spacing: -0.02em; }
+h2 { font-size: var(--text-h2); letter-spacing: -0.01em; }
+h3 { font-size: var(--text-card-title); font-weight: 600; line-height: 1.3; }
+
+p { line-height: 1.75; max-width: 65ch; }     /* comfortable measure for reading */
+a { color: var(--accent); text-decoration: none; transition: color var(--transition-fast); }
+a:hover { color: var(--accent-secondary); }
+strong { font-weight: 600; }
+
+/* ---- Selection ---- */
+::selection { background: var(--accent); color: var(--accent-foreground); }
+
+/* ---- Visible, accessible focus everywhere ---- */
+:where(a, button, input, textarea, select, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-md);
+}
+
+/* ---- Utilities ---- */
+.small-caps {
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  font-weight: 500;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.container {
+  width: 100%;
+  max-width: var(--container-narrow);
+  margin-inline: auto;
+  padding-inline: var(--space-6);
+}
+.container--wide { max-width: var(--container-wide); }
+
+.section { padding-block: var(--space-32); }     /* py-32 — paced, contemplative */
+.section--lg { padding-block: var(--space-44); } /* py-44 — premium breathing room  */
+
+.rule { height: 1px; background: var(--border); border: 0; width: 100%; }
+
+/* Scroll anchor offset so sticky header doesn't cover section tops */
+section[id] { scroll-margin-top: calc(var(--header-h) + var(--space-6)); }
+
+/* Skip link (a11y) — visible on focus */
+.skip-link {
+  position: absolute;
+  left: var(--space-4);
+  top: -100%;
+  z-index: 100;
+  background: var(--foreground);
+  color: var(--background);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  transition: top var(--transition-fast);
+}
+.skip-link:focus { top: var(--space-4); }
+
+/* ---- Signature: paper-texture overlay (print-like tactility) ---- */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: var(--texture-opacity);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+/* Keep real content above the texture layer */
+body > * { position: relative; z-index: 2; }
+
+/* ---- Signature: ambient glow (opt-in — add .has-glow to a section) ----
+   overflow:hidden clips the wide radial so it can't cause horizontal scroll
+   on narrow viewports (the glow is 60rem wide, centered). */
+.has-glow { position: relative; isolation: isolate; overflow: hidden; }
+.has-glow::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 60rem;
+  height: 60rem;
+  transform: translateX(-50%);
+  background: radial-gradient(circle, rgba(184, 134, 11, 0.03), transparent 70%);
+  filter: blur(40px);
+  z-index: -1;
+  pointer-events: none;
+}
