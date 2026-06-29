@@ -21,6 +21,7 @@ const CATEGORY_LABELS: Record<WidgetCategory, string> = {
   diagnostic: "Diagnostics",
   breakdown: "Breakdowns",
   action: "Actions",
+  schedule: "Schedule",
   settings: "Settings",
 };
 
@@ -30,6 +31,7 @@ const CATEGORY_ORDER: WidgetCategory[] = [
   "diagnostic",
   "breakdown",
   "action",
+  "schedule",
   "settings",
 ];
 

@@ -302,6 +302,45 @@ async def test_portfolio_evm_multi_currency_rollup(
     assert usd_row.bac == pytest.approx(float(Decimal(str(usd_metrics.bac)) * usd_rate))
 
 
+@pytest.mark.asyncio
+async def test_portfolio_evm_rows_carry_project_dates(
+    db: AsyncSession,
+    actor_id: UUID,
+) -> None:
+    """Each portfolio breakdown row carries the project's start/end_date.
+
+    A project with explicit dates surfaces them verbatim; a project with no
+    dates (the default factory) surfaces None. Required for the portfolio
+    Gantt widget to render one bar per project.
+    """
+    # Project with explicit planned dates.
+    start = datetime(2026, 1, 15, tzinfo=UTC)
+    end = datetime(2026, 9, 30, tzinfo=UTC)
+    dated = await create_test_project(
+        db, actor_id, start_date=start, end_date=end
+    )
+
+    # Project with no dates (factory default) — null case.
+    bare = await create_test_project(db, actor_id)
+
+    control_date = datetime.now(tz=UTC)
+    evm = EVMService(db)
+    portfolio = await evm.calculate_portfolio_evm(
+        project_ids=[dated.project_id, bare.project_id],
+        control_date=control_date,
+        branch="main",
+        branch_mode=BranchMode.MERGED,
+    )
+
+    dated_row = next(p for p in portfolio.projects if p.project_id == dated.project_id)
+    bare_row = next(p for p in portfolio.projects if p.project_id == bare.project_id)
+
+    assert dated_row.start_date == start
+    assert dated_row.end_date == end
+    assert bare_row.start_date is None
+    assert bare_row.end_date is None
+
+
 # ---------------------------------------------------------------------------
 # convert_to_base (load-bearing for the production portfolio-EVM path).
 # ---------------------------------------------------------------------------

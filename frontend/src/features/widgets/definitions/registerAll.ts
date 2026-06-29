@@ -32,6 +32,7 @@ import "./PortfolioKpiWidget";
 import "./PortfolioProjectsTableWidget";
 import "./PortfolioChangeOrderPipelineWidget";
 import "./PortfolioDistressListWidget";
+import "./PortfolioGanttWidget";
 
 export function registerAllWidgets() {
   // Widgets are registered via module-level side effects on import.
