@@ -133,29 +133,45 @@ class RoleChecker:
 
     Delegates to the UnifiedRBACService for permission checks.
 
-    Can be used in three modes:
+    Can be used in four modes (combined with OR logic across whichever
+    are provided):
     1. Role-only: RoleChecker(["admin", "manager"])
-    2. Permission-only: RoleChecker(required_permission="delete")
-    3. Combined (OR logic): RoleChecker(["admin"], "delete")
+    2. Single permission: RoleChecker(required_permission="delete")
+    3. Any-of permissions: RoleChecker(
+           required_permissions=["project-read", "portfolio-read"]
+       )  -- grants access if the user holds ANY of the listed permissions.
+    4. Combined: RoleChecker(["admin"], required_permission="delete")
+
+    The any-of mode (``required_permissions``) is what allows a route to be
+    reachable by holders of *different* read permissions (e.g. the dashboard
+    layout routes serve both project-read and portfolio-read roles).
     """
 
     def __init__(
         self,
         allowed_roles: list[str] | None = None,
         required_permission: str | None = None,
+        required_permissions: list[str] | None = None,
     ) -> None:
         """Initialize RoleChecker dependency.
 
         Args:
-            allowed_roles: List of roles that are allowed access
-            required_permission: Permission string that is required for access
+            allowed_roles: List of roles that are allowed access (any-of).
+            required_permission: Single permission string required for access.
+                Kept for backward compatibility; equivalent to
+                ``required_permissions=[required_permission]``.
+            required_permissions: List of permission strings; access is granted
+                if the user holds ANY of them. Mutually independent of
+                ``required_permission`` (both are checked when set).
 
         Note:
-            At least one of allowed_roles or required_permission must be provided.
-            If both are provided, access is granted if EITHER condition is met (OR logic).
+            At least one of ``allowed_roles``, ``required_permission``, or
+            ``required_permissions`` must be provided. If more than one is
+            provided, access is granted if ANY condition is met (OR logic).
         """
         self.allowed_roles = allowed_roles
         self.required_permission = required_permission
+        self.required_permissions = required_permissions
 
     async def __call__(
         self,
@@ -186,7 +202,7 @@ class RoleChecker:
                 if any(role in global_roles for role in self.allowed_roles):
                     return current_user
 
-            # Check permission-based authorization via unified system
+            # Check single-permission authorization via unified system
             if self.required_permission is not None:
                 has_perm = await unified_service.has_permission(
                     user_id=current_user.user_id,
@@ -196,6 +212,18 @@ class RoleChecker:
                 )
                 if has_perm:
                     return current_user
+
+            # Check any-of permissions: grant if the user holds ANY of them
+            if self.required_permissions is not None:
+                for perm in self.required_permissions:
+                    has_perm = await unified_service.has_permission(
+                        user_id=current_user.user_id,
+                        required_permission=perm,
+                        scope_type=ScopeType.GLOBAL,
+                        scope_id=None,
+                    )
+                    if has_perm:
+                        return current_user
         finally:
             set_unified_rbac_session(None)
 

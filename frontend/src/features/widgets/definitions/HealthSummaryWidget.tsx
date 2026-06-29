@@ -213,4 +213,6 @@ registerWidget<HealthSummaryConfig>({
     goodThreshold: 1.0,
     warningThreshold: 0.9,
   },
+  scope: "project",
+  requiredPermission: "evm-read",
 });

@@ -205,4 +205,6 @@ registerWidget<ChangeOrdersListConfig>({
     statusFilter: "all",
     pageSize: 5,
   },
+  scope: "project",
+  requiredPermission: "change-order-read",
 });

@@ -178,5 +178,7 @@ registerWidget<CostRegistrationsConfig>({
     pageSize: 10,
     showAddButton: false,
   },
+  scope: "project",
+  requiredPermission: ["cost-registration-read", "project-read"],
   configFormComponent: CostRegistrationsConfigForm,
 });

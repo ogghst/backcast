@@ -95,5 +95,7 @@ registerWidget<BudgetSettingsConfig>({
   },
   component: BudgetSettingsWidget,
   defaultConfig: {},
+  scope: "project",
+  requiredPermission: "project-budget-settings-read",
   requiresProjectContext: true,
 });

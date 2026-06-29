@@ -167,4 +167,6 @@ registerWidget<MiniGanttConfig>({
   },
   component: MiniGanttComponent,
   defaultConfig: {},
+  scope: "project",
+  requiredPermission: "cost-element-read",
 });

@@ -110,4 +110,6 @@ registerWidget<EVMTrendChartConfig>({
     entityType: EntityType.PROJECT,
     granularity: EVMTimeSeriesGranularity.MONTH,
   },
+  scope: "project",
+  requiredPermission: "evm-read",
 });

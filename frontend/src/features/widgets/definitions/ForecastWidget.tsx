@@ -91,5 +91,7 @@ registerWidget<ForecastWidgetConfig>({
     showVAC: true,
     showETC: true,
   },
+  scope: "project",
+  requiredPermission: "evm-read",
   configFormComponent: ForecastConfigForm,
 });

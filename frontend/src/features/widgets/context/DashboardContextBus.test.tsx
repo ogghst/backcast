@@ -182,3 +182,65 @@ describe("useDashboardContext", () => {
     expect(screen.getByTestId("captor-branch")).toHaveTextContent("main");
   });
 });
+
+describe("scope (portfolio-aware)", () => {
+  /** Probe that exposes the widened context fields. */
+  function ScopeProbe() {
+    const ctx = useDashboardContext();
+    return (
+      <div>
+        <span data-testid="scope-project-id">{ctx.projectId}</span>
+        <span data-testid="scope">{ctx.scope}</span>
+        <span data-testid="portfolio-control-date">
+          {ctx.portfolioFilter?.controlDate ?? "undefined"}
+        </span>
+      </div>
+    );
+  }
+
+  it("project scope (default) exposes projectId and no portfolioFilter", () => {
+    renderWithTheme(
+      <DashboardContextBus projectId="p-123">
+        <ScopeProbe />
+      </DashboardContextBus>,
+    );
+
+    expect(screen.getByTestId("scope-project-id")).toHaveTextContent("p-123");
+    expect(screen.getByTestId("scope")).toHaveTextContent("project");
+    expect(screen.getByTestId("portfolio-control-date")).toHaveTextContent(
+      "undefined",
+    );
+  });
+
+  it("portfolio scope coerces missing projectId to '' and carries portfolioFilter", () => {
+    renderWithTheme(
+      <DashboardContextBus
+        scope="portfolio"
+        portfolioFilter={{ controlDate: "2026-01-01", status: null, rag: null }}
+      >
+        <ScopeProbe />
+      </DashboardContextBus>,
+    );
+
+    expect(screen.getByTestId("scope-project-id")).toHaveTextContent("");
+    expect(screen.getByTestId("scope")).toHaveTextContent("portfolio");
+    expect(screen.getByTestId("portfolio-control-date")).toHaveTextContent(
+      "2026-01-01",
+    );
+  });
+
+  it("project scope without projectId throws", () => {
+    // Suppress console.error for the expected render error.
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    expect(() =>
+      renderWithTheme(
+        <DashboardContextBus scope="project">
+          <ScopeProbe />
+        </DashboardContextBus>,
+      ),
+    ).toThrow(/projectId is required/);
+
+    spy.mockRestore();
+  });
+});

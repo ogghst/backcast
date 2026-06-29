@@ -80,4 +80,6 @@ registerWidget<ChangeOrderAnalyticsConfig>({
   defaultConfig: {
     chartType: "distribution",
   },
+  scope: "project",
+  requiredPermission: "change-order-read",
 });

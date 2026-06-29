@@ -87,5 +87,7 @@ registerWidget<VarianceChartConfig>({
     showThresholds: false,
     thresholdPercent: 10,
   },
+  scope: "project",
+  requiredPermission: "evm-read",
   configFormComponent: VarianceChartConfigForm,
 });

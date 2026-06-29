@@ -153,4 +153,6 @@ registerWidget<ProjectHeaderConfig>({
     showDates: true,
     showStatus: true,
   },
+  scope: "project",
+  requiredPermission: "project-read",
 });

@@ -225,9 +225,11 @@ const DashboardPage = lazy(() =>
     default: m.DashboardPage,
   })),
 );
-const PortfolioPage = lazy(() =>
-  import("@/features/portfolio/pages/PortfolioPage").then((m) => ({
-    default: m.PortfolioPage,
+// /portfolio renders the widget-grid GlobalDashboardPage (Phase 8 cutover;
+// the legacy fixed PortfolioPage was retired in Phase 10).
+const GlobalDashboardPage = lazy(() =>
+  import("@/features/widgets/pages/GlobalDashboardPage").then((m) => ({
+    default: m.GlobalDashboardPage,
   })),
 );
 const ChangeOrderConfigPage = lazy(() =>
@@ -353,10 +355,11 @@ export const router = createBrowserRouter([
       },
       {
         // Portfolio dashboard — cross-project EVM roll-up gated by portfolio-read.
+        // Phase 8: widget-grid cutover (was the fixed PortfolioPage).
         path: "/portfolio",
         element: (
           <Can permission="portfolio-read" fallback={<Navigate to="/" replace />}>
-            <PortfolioPage />
+            <GlobalDashboardPage />
           </Can>
         ),
       },

@@ -81,5 +81,7 @@ registerWidget<EVMSummaryConfig>({
   defaultConfig: {
     entityType: EntityType.PROJECT,
   },
+  scope: "project",
+  requiredPermission: "evm-read",
   configFormComponent: EVMSummaryConfigForm,
 });

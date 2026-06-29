@@ -40,10 +40,11 @@ export const layoutApi = {
       query: projectId ? { project_id: projectId } : undefined,
     }),
 
-  templates: (): Promise<DashboardLayoutRead[]> =>
+  templates: (scope?: "project" | "portfolio"): Promise<DashboardLayoutRead[]> =>
     __request(OpenAPI, {
       method: "GET",
       url: `${API_BASE}/templates`,
+      query: scope ? { scope } : undefined,
     }),
 
   detail: (id: string): Promise<DashboardLayoutRead> =>
@@ -123,17 +124,21 @@ export const useDashboardLayouts = (
 };
 
 /**
- * List all template dashboard layouts.
+ * List template dashboard layouts, optionally scoped to "project" or "portfolio".
+ *
+ * The `scope` is threaded through both the API query and the cache key (G13-FE)
+ * so project vs portfolio template lists don't alias in the TanStack cache.
  */
 export const useDashboardLayoutTemplates = (
+  scope?: "project" | "portfolio",
   options?: Omit<
     UseQueryOptions<DashboardLayoutRead[], Error>,
     "queryKey" | "queryFn"
   >,
 ) => {
   return useQuery<DashboardLayoutRead[], Error>({
-    queryKey: queryKeys.dashboardLayouts.templates(),
-    queryFn: () => layoutApi.templates(),
+    queryKey: queryKeys.dashboardLayouts.templates(scope),
+    queryFn: () => layoutApi.templates(scope),
     ...options,
   });
 };

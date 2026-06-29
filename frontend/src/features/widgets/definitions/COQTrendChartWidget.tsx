@@ -224,4 +224,6 @@ registerWidget<COQTrendChartConfig>({
   defaultConfig: {
     granularity: "month",
   },
+  scope: "project",
+  requiredPermission: "cost-event-read",
 });

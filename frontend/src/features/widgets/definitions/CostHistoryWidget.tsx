@@ -87,4 +87,6 @@ registerWidget<CostHistoryConfig>({
   defaultConfig: {
     entityType: EntityType.PROJECT,
   },
+  scope: "project",
+  requiredPermission: "evm-read",
 });

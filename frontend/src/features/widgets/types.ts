@@ -1,5 +1,6 @@
 import type { ReactNode, FC } from "react";
 import type { ConfigFormProps } from "./components/config-forms/ConfigFormProps";
+import type { Permission } from "@/types/auth";
 
 // ============================================================================
 // Branded Type for Widget Type IDs
@@ -49,6 +50,22 @@ export type WidgetCategory =
   | "breakdown"
   | "action"
   | "settings";
+
+/**
+ * Dashboard scope this widget is valid on.
+ *
+ * NOTE: an UNSET `scope` does NOT default to "any" — the runtime resolver
+ * (`widgetPermissions.ts: isWidgetInScope`) treats unset scope as "project",
+ * so legacy widgets that omit `scope` stay project-only (hidden from the
+ * portfolio palette). To appear on BOTH dashboards, set `scope: "any"`
+ * explicitly.
+ *
+ * - **project**: project-scoped dashboards only
+ * - **portfolio**: portfolio (cross-project) dashboards only
+ * - **any**: valid on both project and portfolio dashboards (must be set
+ *   explicitly — this is NOT the default for an unset `scope`)
+ */
+export type WidgetScope = "project" | "portfolio" | "any";
 
 // ============================================================================
 // Widget Size Constraints
@@ -157,6 +174,10 @@ export interface WidgetDefinition<
   configFormComponent?: FC<ConfigFormProps<TConfig>>;
   /** Whether this widget requires a project context to function */
   requiresProjectContext?: boolean;
+  /** Dashboard scope this widget is valid on. An UNSET scope behaves as "project" (legacy widgets stay project-only, hidden from the portfolio palette); set "any" explicitly to appear on both project and portfolio dashboards. Portfolio widgets set "portfolio"; project widgets may set "project". */
+  scope?: WidgetScope;
+  /** Existing domain read-permission(s) this widget's data needs. When set, the palette hides the widget from users lacking the perm and the grid renders a locked placeholder. Omit for any-authenticated-user baseline. Multi-perm widgets (e.g. one needing project-read AND cost-registration-read) use the array form, gated via hasAllPermissions. */
+  requiredPermission?: Permission | Permission[];
 }
 
 // ============================================================================

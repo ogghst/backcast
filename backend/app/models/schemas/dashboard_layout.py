@@ -18,6 +18,13 @@ class DashboardLayoutCreate(BaseModel):
     is_default: bool = Field(
         False, description="Whether this is the user's default layout for this scope"
     )
+    scope: str | None = Field(
+        None,
+        description=(
+            "Template scope: 'project' or 'portfolio' (templates only). Null on "
+            "non-template user layouts."
+        ),
+    )
     widgets: list[dict[str, object]] = Field(
         default_factory=list, description="Widget instances array"
     )
@@ -50,6 +57,11 @@ class DashboardLayoutRead(BaseModel):
     is_template: bool
     is_default: bool
     widgets: list[dict[str, object]]
+    # role/scope are seeder-only attributes (templates); exposed read-only so
+    # the FE can resolve a user's role-tagged default template. Never on
+    # Create/Update.
+    role: str | None = None
+    scope: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -66,4 +78,12 @@ class CloneTemplateRequest(BaseModel):
         None,
         description="Name for the cloned layout (defaults to 'Copy of {template.name}')",
         max_length=255,
+    )
+    is_default: bool = Field(
+        False,
+        description=(
+            "When True, mark the cloned layout as the user's default for its "
+            "scope (clearing any prior default first). Used by the first-visit "
+            "global dashboard clone so a re-fire cannot leave two defaults."
+        ),
     )

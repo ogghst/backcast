@@ -109,5 +109,18 @@ registerWidget<WBETreeConfig>({
     showBudget: true,
     showDates: true,
   },
+  scope: "project",
+  // The widget renders <ProjectTree>, which lazily fetches 6 endpoints on
+  // expand (project / wbs / control-account / work-package / cost-element /
+  // schedule-baseline), each gated by a distinct read permission. A user
+  // needs all 6 to use the widget fully — gate via hasAllPermissions.
+  requiredPermission: [
+    "project-read",
+    "wbs-element-read",
+    "control-account-read",
+    "work-package-read",
+    "cost-element-read",
+    "schedule-baseline-read",
+  ],
   configFormComponent: WBETreeConfigForm,
 });

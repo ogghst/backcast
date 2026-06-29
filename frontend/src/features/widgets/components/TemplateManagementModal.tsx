@@ -37,6 +37,8 @@ interface TemplateManagementModalProps {
   open: boolean;
   /** Callback when the modal requests to close. */
   onClose: () => void;
+  /** Dashboard scope — filters the template list and is stamped on new templates. */
+  scope?: "project" | "portfolio";
 }
 
 /**
@@ -48,13 +50,14 @@ interface TemplateManagementModalProps {
 export function TemplateManagementModal({
   open,
   onClose,
+  scope = "project",
 }: TemplateManagementModalProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
 
   useDashboardCompositionStore((s) => s.activeDashboard);
 
-  const { data: templates = [] } = useDashboardLayoutTemplates();
+  const { data: templates = [] } = useDashboardLayoutTemplates(scope);
 
   const createMutation = useCreateDashboardLayout();
   const updateMutation = useUpdateDashboardTemplate();
@@ -86,6 +89,7 @@ export function TemplateManagementModal({
         await createMutation.mutateAsync({
           name: newName.trim(),
           is_template: true,
+          scope,
           widgets: serialized,
         });
         message.success("Template created");
@@ -101,7 +105,7 @@ export function TemplateManagementModal({
     } catch {
       message.error("Failed to save template");
     }
-  }, [selectedId, newName, createMutation, updateMutation]);
+  }, [selectedId, newName, createMutation, updateMutation, scope]);
 
   const handleSelectChange = useCallback((value: string) => {
     setSelectedId(value);
