@@ -83,4 +83,6 @@ registerWidget<QuickStatsBarConfig>({
     entityType: EntityType.PROJECT,
     variant: "full",
   },
+  scope: "project",
+  requiredPermission: "evm-read",
 });

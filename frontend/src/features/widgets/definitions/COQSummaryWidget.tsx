@@ -179,4 +179,6 @@ registerWidget<COQSummaryConfig>({
   },
   component: COQSummaryComponent,
   defaultConfig: {},
+  scope: "project",
+  requiredPermission: "cost-event-read",
 });

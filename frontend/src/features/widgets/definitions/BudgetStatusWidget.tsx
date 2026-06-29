@@ -87,5 +87,7 @@ registerWidget<BudgetStatusConfig>({
     entityType: EntityType.PROJECT,
     chartType: "bar",
   },
+  scope: "project",
+  requiredPermission: "evm-read",
   configFormComponent: BudgetStatusConfigForm,
 });

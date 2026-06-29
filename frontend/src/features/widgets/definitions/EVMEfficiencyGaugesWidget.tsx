@@ -133,4 +133,6 @@ registerWidget<EVMEfficiencyGaugesConfig>({
     goodThreshold: 1.0,
     warningPercent: 0.9,
   },
+  scope: "project",
+  requiredPermission: "evm-read",
 });

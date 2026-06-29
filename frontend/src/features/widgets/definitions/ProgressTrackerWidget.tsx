@@ -84,5 +84,7 @@ registerWidget<ProgressTrackerConfig>({
     showHistory: true,
     historyLimit: 5,
   },
+  scope: "project",
+  requiredPermission: "progress-entry-read",
   configFormComponent: ProgressTrackerConfigForm,
 });

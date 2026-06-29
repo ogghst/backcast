@@ -161,4 +161,6 @@ registerWidget<COQCategoryBreakdownConfig>({
   },
   component: COQCategoryBreakdownComponent,
   defaultConfig: {},
+  scope: "project",
+  requiredPermission: "cost-event-read",
 });

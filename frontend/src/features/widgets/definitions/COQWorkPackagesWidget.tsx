@@ -158,4 +158,6 @@ registerWidget<COQWorkPackagesConfig>({
   defaultConfig: {
     pageSize: 5,
   },
+  scope: "project",
+  requiredPermission: "cost-event-read",
 });
