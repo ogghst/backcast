@@ -27,6 +27,11 @@ import "./COQSummaryWidget";
 import "./COQTrendChartWidget";
 import "./COQCategoryBreakdownWidget";
 import "./COQWorkPackagesWidget";
+// Portfolio-scope widgets (global-dashboard-widgets Phase 4).
+import "./PortfolioKpiWidget";
+import "./PortfolioProjectsTableWidget";
+import "./PortfolioChangeOrderPipelineWidget";
+import "./PortfolioDistressListWidget";
 
 export function registerAllWidgets() {
   // Widgets are registered via module-level side effects on import.
