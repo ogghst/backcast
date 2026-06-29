@@ -285,4 +285,11 @@ describe("queryKeys — templates scope does not alias (G13-FE)", () => {
     expect(portfolio).not.toEqual(unsco);
     expect(project).not.toEqual(unsco);
   });
+
+  it("list(undefined) !== list('') — G6 sentinel (global projectId vs empty string)", async () => {
+    const { queryKeys } = await import("@/api/queryKeys");
+    expect(queryKeys.dashboardLayouts.list(undefined)).not.toEqual(
+      queryKeys.dashboardLayouts.list(""),
+    );
+  });
 });

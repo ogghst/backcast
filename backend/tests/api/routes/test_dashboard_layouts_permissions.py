@@ -57,6 +57,7 @@ from uuid import UUID, uuid4
 import pytest
 from fastapi import Depends, HTTPException, status
 from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import RoleChecker, UserIdentity, get_current_user
@@ -606,6 +607,221 @@ async def test_clone_template_default_false_does_not_disturb_existing_default(
             delete(DashboardLayout).where(DashboardLayout.name == "Template-B")
         )
         await db.flush()
+
+
+# ---------------------------------------------------------------------------
+# G8 (structural) — NULL-safe unique partial indexes on is_default
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_unique_partial_index_rejects_duplicate_global_default(
+    db: AsyncSession,
+) -> None:
+    """The ``uq_dashboard_layouts_default_global`` partial index rejects a 2nd
+    is_default=True non-template GLOBAL layout for the same user.
+
+    Postgres treats NULL != NULL in unique indexes, so the GLOBAL case
+    (``project_id IS NULL``) needs a dedicated partial index keyed on
+    ``user_id`` alone — a single ``(user_id, project_id)`` index would NOT
+    catch it. This test pins the global-scope invariant at the DB layer.
+    """
+    owner_id = uuid4()
+    rows: list[DashboardLayout] = []
+    try:
+        first = await _create_layout_row(
+            db,
+            user_id=owner_id,
+            name="First default",
+            project_id=None,
+            is_default=True,
+        )
+        rows.append(first)
+        await db.commit()  # persist so the constraint is checked against it
+
+        # Second is_default=True non-template global layout -> must violate the
+        # unique partial index. Bypassing the service (which clears the prior
+        # default) so we hit the DB constraint directly.
+        with pytest.raises(IntegrityError):
+            db.add(
+                DashboardLayout(
+                    name="Second default",
+                    description=None,
+                    user_id=owner_id,
+                    project_id=None,
+                    is_template=False,
+                    is_default=True,
+                    widgets=[],
+                )
+            )
+            await db.flush()
+        # Roll back the failed statement so the session is usable for cleanup.
+        await db.rollback()
+    finally:
+        # Re-query then delete (the failed flush may have detached the rows).
+        await db.execute(
+            delete(DashboardLayout).where(
+                DashboardLayout.user_id == owner_id,
+                DashboardLayout.name.in_(["First default", "Second default"]),
+            )
+        )
+        await db.commit()
+
+
+@pytest.mark.asyncio
+async def test_unique_partial_index_rejects_duplicate_project_default(
+    db: AsyncSession,
+) -> None:
+    """The ``uq_dashboard_layouts_default_project`` partial index rejects a 2nd
+    is_default=True non-template layout for the same (user, project).
+
+    Distinct projects may each have their own default for the same user; only
+    duplicates WITHIN one (user, project) are rejected.
+    """
+    owner_id = uuid4()
+    project_id = uuid4()
+    other_project_id = uuid4()
+    try:
+        first = await _create_layout_row(
+            db,
+            user_id=owner_id,
+            name="Proj default",
+            project_id=project_id,
+            is_default=True,
+        )
+        # A default for a DIFFERENT project is fine (different (user, project)).
+        other = await _create_layout_row(
+            db,
+            user_id=owner_id,
+            name="Other proj default",
+            project_id=other_project_id,
+            is_default=True,
+        )
+        await db.commit()
+
+        # Second is_default=True non-template layout for the SAME project ->
+        # must violate the unique partial index.
+        with pytest.raises(IntegrityError):
+            db.add(
+                DashboardLayout(
+                    name="Proj default dup",
+                    description=None,
+                    user_id=owner_id,
+                    project_id=project_id,
+                    is_template=False,
+                    is_default=True,
+                    widgets=[],
+                )
+            )
+            await db.flush()
+        await db.rollback()
+
+        # Sanity: the two distinct-project defaults both persisted (1 each).
+        stmt = (
+            select(DashboardLayout)
+            .where(
+                DashboardLayout.user_id == owner_id,
+                DashboardLayout.is_default == True,  # noqa: E712
+                DashboardLayout.is_template == False,  # noqa: E712
+            )
+            .order_by(DashboardLayout.name)
+        )
+        defaults = (await db.execute(stmt)).scalars().all()
+        assert {d.name for d in defaults} == {"Other proj default", "Proj default"}
+    finally:
+        await db.execute(
+            delete(DashboardLayout).where(
+                DashboardLayout.user_id == owner_id,
+                DashboardLayout.name.in_(
+                    ["Proj default", "Other proj default", "Proj default dup"]
+                ),
+            )
+        )
+        await db.commit()
+
+
+@pytest.mark.asyncio
+async def test_clone_template_recovers_after_concurrent_default_race(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``clone_template(is_default=True)`` catches IntegrityError and returns
+    the existing default layout for the scope (the race winner).
+
+    The recovery branch is only reachable under TRUE concurrency: two
+    transactions' clear-default UPDATE and INSERT interleave so the loser's
+    INSERT is rejected by the ``uq_dashboard_layouts_default_{global,project}``
+    partial index. Simulating that deterministically across two real sessions
+    is brittle, so this test injects the IntegrityError by patching
+    ``session.flush`` to raise on the INSERT flush, after a winner row already
+    exists in the scope. The service must NOT propagate the error — it must
+    return the winner.
+    """
+    owner_id = uuid4()
+    try:
+        system_id = uuid4()
+        template = await _create_layout_row(
+            db,
+            user_id=system_id,
+            name="TPL-Race",
+            project_id=None,
+            is_template=True,
+        )
+        winner = await _create_layout_row(
+            db,
+            user_id=owner_id,
+            name="Existing default",
+            project_id=None,
+            is_default=True,
+        )
+        await db.commit()
+
+        service = DashboardLayoutService(db)
+
+        # Force the INSERT flush (the 2nd flush in clone_template, after the
+        # clear-default UPDATE flush) to raise IntegrityError. The first flush
+        # is the clear-default UPDATE; the second is the new-row INSERT.
+        real_flush = db.flush
+        flush_call_count = {"n": 0}
+
+        async def _flush_once_raising() -> None:
+            flush_call_count["n"] += 1
+            if flush_call_count["n"] == 2:
+                # Simulate the partial-index reject on the INSERT flush.
+                raise IntegrityError("simulated unique violation", {}, None)
+            await real_flush()
+
+        monkeypatch.setattr(db, "flush", _flush_once_raising)
+
+        result = await service.clone_template(
+            template.id,
+            owner_id,
+            project_id=None,
+            name="Losing clone",
+            is_default=True,
+        )
+
+        assert result.id == winner.id
+        assert result.name == "Existing default"
+
+        # No "Losing clone" row leaked (rollback dropped the failed INSERT).
+        monkeypatch.undo()
+        leaked = (
+            await db.execute(
+                select(DashboardLayout).where(
+                    DashboardLayout.user_id == owner_id,
+                    DashboardLayout.name == "Losing clone",
+                )
+            )
+        ).scalar_one_or_none()
+        assert leaked is None
+    finally:
+        await db.execute(
+            delete(DashboardLayout).where(DashboardLayout.user_id == owner_id)
+        )
+        await db.execute(
+            delete(DashboardLayout).where(DashboardLayout.name == "TPL-Race")
+        )
+        await db.commit()
 
 
 # ---------------------------------------------------------------------------

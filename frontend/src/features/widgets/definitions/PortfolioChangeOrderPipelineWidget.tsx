@@ -182,7 +182,11 @@ registerWidget<PortfolioChangeOrderPipelineConfig>({
     maxW: 12,
   },
   scope: "portfolio",
-  requiredPermission: "change-order-read",
+  // G14 (capstone F-7): gated on `portfolio-read` to match the sole data route
+  // (`GET /change-orders/portfolio-stats` enforces portfolio-read), per D2
+  // ("gate on the permission the data route enforces"). Aligns this widget with
+  // the other 3 portfolio widgets.
+  requiredPermission: "portfolio-read",
   component: PortfolioChangeOrderPipelineComponent,
   defaultConfig: {
     agingThresholdDays: 7,

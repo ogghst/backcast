@@ -8,7 +8,7 @@ Satisfies SimpleEntityProtocol via SimpleEntityBase.
 from uuid import UUID
 
 import sqlalchemy as sa
-from sqlalchemy import String, Text
+from sqlalchemy import Index, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -44,6 +44,33 @@ class DashboardLayout(SimpleEntityBase):
     """
 
     __tablename__ = "dashboard_layouts"
+
+    __table_args__ = (
+        # G8 structural fix: NULL-safe unique partial indexes so a concurrent
+        # first-visit clone cannot leave two is_default=True non-template
+        # layouts in the same scope. Postgres treats NULL != NULL in unique
+        # indexes, so a single (user_id, project_id) index would NOT prevent
+        # duplicate GLOBAL defaults (project_id IS NULL). Two partial indexes
+        # are required: one for the global scope (project_id IS NULL, keyed on
+        # user_id alone) and one per (user, project) for project-scoped layouts.
+        Index(
+            "uq_dashboard_layouts_default_global",
+            "user_id",
+            unique=True,
+            postgresql_where=sa.text(
+                "is_template = false AND is_default = true AND project_id IS NULL"
+            ),
+        ),
+        Index(
+            "uq_dashboard_layouts_default_project",
+            "user_id",
+            "project_id",
+            unique=True,
+            postgresql_where=sa.text(
+                "is_template = false AND is_default = true AND project_id IS NOT NULL"
+            ),
+        ),
+    )
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)

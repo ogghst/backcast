@@ -533,6 +533,27 @@ export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
             (w) => w.instanceId === fullscreenInstanceId,
           );
           if (!widget) return null;
+          // F-8 (G3): defense-in-depth — `openFullscreen` is only reachable
+          // from an unlocked widget body, but gate the render path too so all
+          // three render branches (desktop / mobile / fullscreen) stay
+          // symmetric. Matches the desktop/mobile gating shape above.
+          const fullscreenDefinition = getWidgetDefinition(widget.typeId);
+          const fullscreenLocked = fullscreenDefinition
+            ? !isWidgetPermitted(
+                fullscreenDefinition,
+                hasPermission,
+                hasAllPermissions,
+              )
+            : false;
+          if (fullscreenLocked) {
+            return (
+              <WidgetPermissionPlaceholder
+                displayName={fullscreenDefinition?.displayName}
+                isEditing={isEditing}
+                onRemove={() => removeWidget(widget.instanceId)}
+              />
+            );
+          }
           return (
             <WidgetFullscreenModal
               key={widget.instanceId}

@@ -111,7 +111,7 @@ Each is `scope:"portfolio"`, self-registers in `registerAll.ts`, reuses the exis
 |---|---|---|---|
 | `portfolio-kpi` | `renderKpis` (KPI tiles + distress count) | `portfolio-read` | `defaultConfig.metrics` + `showDistressCount` encode the role's lead choice (replaces `roleLayout.leadMetrics/leadDistressCount`). |
 | `portfolio-projects-table` | `renderTable` + client-side status/RAG filter | `portfolio-read` | `StandardTable<PortfolioProjectMetrics>`, identical columns; `defaultConfig.defaultSort` replaces `roleLayout.defaultSort` (URL sort still wins). |
-| `portfolio-co-pipeline` | `ChangeOrderPipeline` | **`change-order-read`** | `usePortfolioCO` with `asOf=ctx.portfolioFilter.controlDate` (G17 behavioral change). The one portfolio widget whose gate differs from `portfolio-read`. |
+| `portfolio-co-pipeline` | `ChangeOrderPipeline` | **`portfolio-read`** | `usePortfolioCO` with `asOf=ctx.portfolioFilter.controlDate` (G17 behavioral change). Gates on `portfolio-read` to match its data route `/change-orders/portfolio-stats` (D2: gate on the permission the route enforces). |
 | `portfolio-distress-list` | `DistressList` (at-risk + cost-distress) | `portfolio-read` | Parameterized `config.mode:"schedule"\|"cost"`; the **pagination (10/page) lives inside this widget**. |
 
 ### 5.3 Global dashboard page + FilterBar (Phase 8)
@@ -155,7 +155,7 @@ Each is `scope:"portfolio"`, self-registers in `registerAll.ts`, reuses the exis
 | `cost-registrations` | `cost-registration-read` **+ `project-read`** (G15 dual) | `cost_registrations.py:68` + `useProjectCurrency` |
 | `change-order-analytics` | `change-order-read` | `change_orders.py:119` (project-scoped) |
 | `change-orders-list` | `change-order-read` | `change_orders.py:119` |
-| `wbe-tree` ⚠️ *(not wbs-tree)* | `wbs-element-read` | `wbs_elements.py:36` (audience gate; widget makes no call) |
+| `wbe-tree` ⚠️ *(not wbs-tree)* | `[project-read, wbs-element-read, control-account-read, work-package-read, cost-element-read, schedule-baseline-read]` *(hasAllPermissions)* | `<ProjectTree>` lazily fetches all 6 endpoints on expand (wbs_elements.py:36 et al.) |
 | `mini-gantt` | `cost-element-read` ⚠️ *(not schedule-baseline-read)* | `gantt.py:29` enforces cost-element-read |
 | `progress-tracker` | `progress-entry-read` | `progress_entries.py:35` |
 | `coq-summary` | `cost-event-read` | `cost_events.py:53` |
@@ -164,7 +164,7 @@ Each is `scope:"portfolio"`, self-registers in `registerAll.ts`, reuses the exis
 | `coq-work-packages` | `cost-event-read` | `cost_events.py:53` |
 | `portfolio-kpi` *(new)* | `portfolio-read` | `/evm/portfolio` (evm.py:46) |
 | `portfolio-projects-table` *(new)* | `portfolio-read` | evm.py:46 |
-| `portfolio-co-pipeline` *(new)* | **`change-order-read`** | `/change-orders/portfolio-stats` |
+| `portfolio-co-pipeline` *(new)* | **`portfolio-read`** | `/change-orders/portfolio-stats` (change_orders.py:59) |
 | `portfolio-distress-list` *(new)* | `portfolio-read` | evm.py:46 (derived) |
 
 **Consequence:** `viewer` lacks `evm-read` → 9 widgets (`quick-stats-bar, evm-summary, evm-efficiency-gauges, evm-trend-chart, variance-chart, budget-status, health-summary, forecast, cost-history`) lock for it. Any viewer-accessible template must exclude them or show locked placeholders.

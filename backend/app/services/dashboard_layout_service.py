@@ -10,6 +10,7 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.domain.dashboard_layout import DashboardLayout
@@ -665,6 +666,12 @@ class DashboardLayoutService:
         first-visit clone cannot leave two ``is_default=True`` layouts in the
         same scope.
 
+        If two first-visit clones race and the loser's INSERT is rejected by
+        the ``uq_dashboard_layouts_default_{global,project}`` unique partial
+        index, the IntegrityError is caught and the existing default layout for
+        the scope is returned instead, so the losing concurrent clone yields
+        the winner rather than erroring.
+
         Args:
             template_id: UUID of the template to clone
             user_id: UUID of the new layout owner
@@ -697,7 +704,21 @@ class DashboardLayoutService:
             widgets=template.widgets,
         )
         self.session.add(layout)
-        await self.session.flush()
+        try:
+            await self.session.flush()
+        except IntegrityError:
+            # A racing first-visit clone won the unique-partial-index race for
+            # this user/scope's default. Roll back the failed INSERT and return
+            # the winner so the losing concurrent clone is idempotent. Only
+            # relevant when is_default=True (the partial index predicate).
+            await self.session.rollback()
+            existing = await self._find_default_for_user_project(user_id, project_id)
+            if existing is None:
+                # Should not happen (the IntegrityError was the unique partial
+                # index), but don't swallow the error silently — re-raise so the
+                # caller sees an unexpected state instead of a None.
+                raise
+            return existing
         await self.session.refresh(layout)
         return layout
 
@@ -721,6 +742,32 @@ class DashboardLayoutService:
         )
         await self.session.execute(stmt)
         await self.session.flush()
+
+    async def _find_default_for_user_project(
+        self, user_id: UUID, project_id: UUID | None
+    ) -> DashboardLayout | None:
+        """Return the user's existing default layout for the scope, or None.
+
+        Used by :meth:`clone_template` to recover the winning row after a
+        concurrent-clone IntegrityError. Mirrors the
+        ``uq_dashboard_layouts_default_{global,project}`` predicate: exact
+        ``project_id`` match (no global union), non-template only.
+
+        Args:
+            user_id: UUID of the layout owner
+            project_id: Optional project scope (NULL for global)
+
+        Returns:
+            The default DashboardLayout for the scope, or None if none exists.
+        """
+        stmt = select(DashboardLayout).where(
+            DashboardLayout.user_id == user_id,
+            DashboardLayout.is_default == True,  # noqa: E712
+            DashboardLayout.is_template == False,  # noqa: E712
+            DashboardLayout.project_id == project_id,
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
 
     async def _auto_promote_default(
         self, user_id: UUID, project_id: UUID | None

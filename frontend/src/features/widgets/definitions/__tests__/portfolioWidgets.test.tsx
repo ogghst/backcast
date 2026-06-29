@@ -204,14 +204,11 @@ describe("portfolio widgets — registry", () => {
     }
   });
 
-  it("portfolio-co-pipeline gates on change-order-read; the other three on portfolio-read", () => {
-    expect(
-      getWidgetDefinition(widgetTypeId("portfolio-co-pipeline"))
-        ?.requiredPermission,
-    ).toBe("change-order-read");
+  it("all 4 portfolio widgets gate on portfolio-read (F-7/G14: portfolio-co-pipeline matches its data route)", () => {
     for (const id of [
       "portfolio-kpi",
       "portfolio-projects-table",
+      "portfolio-co-pipeline",
       "portfolio-distress-list",
     ]) {
       expect(

@@ -9,6 +9,8 @@
 
 import { useEffect, useRef, useCallback, useState } from "react";
 import { message } from "antd";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/api/queryKeys";
 import { useDashboardCompositionStore } from "@/stores/useDashboardCompositionStore";
 import {
   useCreateDashboardLayout,
@@ -49,6 +51,7 @@ export function useDashboardPersistence(
 
   const createMutation = useCreateDashboardLayout();
   const updateMutation = useUpdateDashboardLayout();
+  const queryClient = useQueryClient();
 
   // Track whether initial load has completed to avoid premature saves
   const [loadDone, setLoadDone] = useState(false);
@@ -124,14 +127,20 @@ export function useDashboardPersistence(
           if (namedLayout) {
             useDashboardCompositionStore.getState().loadFromBackend(namedLayout);
           } else {
-            // Auto-clone from the matching template
-            const templates = await layoutApi.templates();
+            // Auto-clone from the matching template.
+            // F-13 (G6): scope to "project" so a project dashboard can never
+            // match a portfolio template by name (the global branch below
+            // already passes "portfolio").
+            const templates = await layoutApi.templates("project");
             const template = templates.find((t) => t.name === dashboardName);
             if (template) {
               const cloned = await layoutApi.clone({
                 id: template.id,
                 data: { project_id: projectId, name: dashboardName } as CloneTemplateRequest,
               });
+              // F-6 (G13): this raw clone bypasses useCloneTemplate, so its
+              // onSettled invalidation never fires — invalidate explicitly.
+              await queryClient.invalidateQueries({ queryKey: queryKeys.dashboardLayouts.all });
               useDashboardCompositionStore.getState().loadFromBackend(cloned);
             }
           }
@@ -157,6 +166,9 @@ export function useDashboardPersistence(
               id: roleTemplate.id,
               data: { project_id: null, name: roleTemplate.name, is_default: true },
             });
+            // F-6 (G13): this raw clone bypasses useCloneTemplate, so its
+            // onSettled invalidation never fires — invalidate explicitly.
+            await queryClient.invalidateQueries({ queryKey: queryKeys.dashboardLayouts.all });
             useDashboardCompositionStore.getState().loadFromBackend(cloned);
           }
         }

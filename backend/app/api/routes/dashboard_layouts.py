@@ -50,8 +50,18 @@ async def list_dashboard_layouts(
     current_user: UserIdentity = Depends(get_current_user),
     service: DashboardLayoutService = Depends(get_dashboard_layout_service),
 ) -> list[DashboardLayoutRead]:
-    """List dashboard layouts for the current user, optionally filtered by project."""
-    layouts = await service.get_for_user_project(current_user.user_id, project_id)
+    """List dashboard layouts for the current user, optionally filtered by project.
+
+    ``strict_scope=True`` returns only the exact scope (a project_id -> only
+    that project's layouts; no project_id -> only global layouts), so a user's
+    global personal layouts no longer pollute every project list (G5 fix). The
+    frontend persistence loader finds project layouts by name (always
+    project-scoped clones), so removing global personal layouts from the
+    project list is safe.
+    """
+    layouts = await service.get_for_user_project(
+        current_user.user_id, project_id, strict_scope=True
+    )
     return [DashboardLayoutRead.model_validate(layout) for layout in layouts]
 
 
@@ -65,8 +75,9 @@ async def list_dashboard_layout_templates(
     scope: str | None = Query(
         None,
         description=(
-            "Filter templates by scope: 'global' (project_id IS NULL), "
-            "'project' (project_id IS NOT NULL), or omit for all."
+            "Filter templates by scope column: 'project' (project-content "
+            "templates) or 'portfolio' (portfolio templates). Any other value, "
+            "or omitted, returns all templates."
         ),
     ),
     current_user: UserIdentity = Depends(get_current_user),

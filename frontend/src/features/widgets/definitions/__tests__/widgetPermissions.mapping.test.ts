@@ -102,7 +102,7 @@ const EXPECTATIONS: Array<{
   {
     typeId: "portfolio-co-pipeline",
     scope: "portfolio",
-    requiredPermission: "change-order-read",
+    requiredPermission: "portfolio-read",
   },
   {
     typeId: "portfolio-distress-list",

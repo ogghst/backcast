@@ -26,8 +26,9 @@ registerAllWidgets();
  * On first visit with no saved global layout, `useDashboardPersistence` clones
  * the user's role-default portfolio template (project_id=null, is_default=true).
  *
- * FilterBar is imported cross-feature from features/portfolio (Phase 10 will
- * relocate it to features/widgets — deferred).
+ * FilterBar + the portfolio hooks/stores are kept cross-feature (deliberately
+ * deferred from the design's §8 relocation): they are still imported from
+ * features/portfolio and left in place rather than moved into features/widgets.
  *
  * Navigation guards prevent data loss when navigating away with unsaved changes.
  *
