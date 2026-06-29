@@ -6,9 +6,10 @@
  * portfolio retirement (which deletes the portfolio tree) and the Phase-4
  * portfolio widgets can import these helpers from a stable, co-located home.
  *
- * This module is the canonical source. The legacy files (until deleted in
- * Phase 10) re-export from here; do NOT import rag/cpiCostDistress/MetricMetadata
- * blocks from anywhere else.
+ * This module is the canonical source. Phase 3 already repointed every importer
+ * (PortfolioPage, roleLayout.test, FilterBar) to import these directly and
+ * removed the legacy copies (rag.ts deleted; cpiCostDistress removed from
+ * roleLayout.ts). Import rag/cpiCostDistress/MetricMetadata only from here.
  *
  * Source design: docs/03-project-plan/iterations/2026-06-29-global-dashboard-widgets/
  *   global-dashboard-widgets-design.md §7 Phase 3 + gap G12.

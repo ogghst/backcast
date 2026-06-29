@@ -54,9 +54,12 @@ describe("rag utils", () => {
       expect(indexBand(0)).toBe("Red");
     });
 
-    it("returns Unknown for null/undefined", () => {
+    it("returns Unknown for null/undefined/NaN", () => {
       expect(indexBand(null)).toBe("Unknown");
       expect(indexBand(undefined)).toBe("Unknown");
+      // NaN is a realistic input (CPI/SPI are EV/AC divisions); pin the
+      // defensive Number.isNaN branch so it can't silently regress to Red.
+      expect(indexBand(NaN)).toBe("Unknown");
     });
 
     it("treats the exact boundary 1.0 as Green", () => {
