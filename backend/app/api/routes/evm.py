@@ -9,13 +9,15 @@ These endpoints consolidate EVM calculations for cost_element, wbe, and project 
 """
 
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies.auth import RoleChecker
+from app.api.dependencies.auth import RoleChecker, UserIdentity, get_current_user
+from app.core.rbac_unified import get_unified_rbac_service, set_unified_rbac_session
 from app.core.versioning.enums import BranchMode
 from app.db.session import get_db
 from app.models.schemas.evm import (
@@ -23,8 +25,9 @@ from app.models.schemas.evm import (
     EVMMetricsResponse,
     EVMTimeSeriesGranularity,
     EVMTimeSeriesResponse,
+    PortfolioEVMResponse,
 )
-from app.services.evm_service import EVMService
+from app.services.evm_service import EVMService, _tcpi_from
 
 router = APIRouter()
 
@@ -34,6 +37,81 @@ def get_evm_service(
 ) -> EVMService:
     """Dependency to get EVMService instance."""
     return EVMService(session)
+
+
+@router.get(
+    "/portfolio",
+    response_model=PortfolioEVMResponse,
+    operation_id="get_evm_portfolio",
+    dependencies=[Depends(RoleChecker(required_permission="portfolio-read"))],
+)
+async def get_evm_portfolio(
+    control_date: datetime | None = Query(
+        None,
+        description="Control date for the time-travel EVM query (ISO 8601, "
+        "defaults to now). Monetary values are converted to the base currency "
+        "(EUR) at this date.",
+    ),
+    branch: str = Query("main", description="Branch to query"),
+    branch_mode: BranchMode = Query(
+        BranchMode.MERGED,
+        description="Branch mode: ISOLATED (only this branch) or "
+        "MERGED (fall back to parent branches)",
+    ),
+    current_user: UserIdentity = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+    service: EVMService = Depends(get_evm_service),
+) -> PortfolioEVMResponse:
+    """Get portfolio EVM metrics across the caller's accessible projects (G1).
+
+    Membership-scoped: resolves the caller's accessible project set via the
+    unified RBAC ``get_accessible_projects`` (same pattern as ``/projects``)
+    before computing EVM, so a non-member sees only their own projects (or an
+    empty portfolio).
+
+    Returns:
+    - ``summary``: rolled-up portfolio metrics (CPI/SPI/VAC/EAC/BAC/TCPI) via
+      the industry-standard 'roll up, never average' aggregation.
+      Monetary values are converted to the base currency (EUR) per project's
+      currency at ``control_date`` before aggregation.
+    - ``projects``: per-project breakdown ``{project_id, name, status, cpi, spi,
+      vac, contract_value, bac, eac, currency, organizational_unit_id,
+      project_manager_id, customer_id, at_risk, delta_eac}``.
+    - ``at_risk_projects``: the subset where SPI is present and < 0.9 (the
+      interim delayed / at-risk proxy until milestone-gate detection lands).
+
+    Currency: all monetary values are in the project base currency (EUR). The
+    ``convert_to_base`` path is wired but today every project is EUR, so it is
+    a no-op pass-through.
+
+    Performance: ~1 real + ~130 synthetic seed projects today; live per-project
+    loop is fine. Revisit if the active portfolio exceeds ~50 real projects.
+
+    Requires ``portfolio-read`` permission.
+    """
+    if control_date is None:
+        control_date = datetime.now(tz=UTC)
+
+    # Resolve the caller's accessible project set (RBAC membership scoping).
+    set_unified_rbac_session(session)
+    unified_service = get_unified_rbac_service()
+    accessible_project_ids = await unified_service.get_accessible_projects(
+        user_id=current_user.user_id,
+    )
+    set_unified_rbac_session(None)
+
+    if not accessible_project_ids:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No accessible projects found for the current user",
+        )
+
+    return await service.calculate_portfolio_evm(
+        project_ids=accessible_project_ids,
+        control_date=control_date,
+        branch=branch,
+        branch_mode=branch_mode,
+    )
 
 
 @router.get(
@@ -111,8 +189,12 @@ async def get_evm_metrics(
                 branch=branch,
                 branch_mode=branch_mode,
             )
-            # Convert to generic response format
-            from app.models.schemas.evm import EVMMetricsResponse
+            # Convert to generic response format. metrics is EVMMetricsRead
+            # (no tcpi field) — derive BAC/EAC via the shared helper.
+            tcpi = _tcpi_from(
+                Decimal(str(metrics.bac)),
+                Decimal(str(metrics.eac)) if metrics.eac is not None else None,
+            )
 
             response = EVMMetricsResponse(
                 entity_type=entity_type,
@@ -128,6 +210,7 @@ async def get_evm_metrics(
                 eac=metrics.eac,
                 vac=metrics.vac,
                 etc=metrics.etc,
+                tcpi=tcpi,
                 control_date=metrics.control_date,
                 branch=metrics.branch,
                 branch_mode=metrics.branch_mode,
@@ -145,7 +228,12 @@ async def get_evm_metrics(
                 branch=branch,
                 branch_mode=branch_mode,
             )
-            from app.models.schemas.evm import EVMMetricsResponse
+            # metrics is EVMMetricsRead (no tcpi field) — derive BAC/EAC via
+            # the shared helper.
+            tcpi = _tcpi_from(
+                Decimal(str(metrics.bac)),
+                Decimal(str(metrics.eac)) if metrics.eac is not None else None,
+            )
 
             response = EVMMetricsResponse(
                 entity_type=entity_type,
@@ -161,6 +249,7 @@ async def get_evm_metrics(
                 eac=metrics.eac,
                 vac=metrics.vac,
                 etc=metrics.etc,
+                tcpi=tcpi,
                 control_date=metrics.control_date,
                 branch=metrics.branch,
                 branch_mode=metrics.branch_mode,
@@ -290,13 +379,16 @@ async def get_evm_timeseries(
 )
 async def get_evm_batch(
     request_data: dict[str, Any],
+    current_user: UserIdentity = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
     service: EVMService = Depends(get_evm_service),
 ) -> dict[str, Any]:
     """Get aggregated EVM metrics for multiple entities.
 
     Calculates EVM metrics for each entity individually, then aggregates them:
     - Sums amount fields (BAC, PV, AC, EV, CV, SV, EAC, VAC, ETC)
-    - Calculates BAC-weighted average for indices (CPI, SPI)
+    - Re-derives indices (CPI, SPI) from summed EV/AC/PV (industry-standard
+      'roll up, never average')
 
     Request body:
         entity_type: Type of entities (cost_element, wbe, project)
@@ -307,8 +399,9 @@ async def get_evm_batch(
 
     Supports entity types:
     - cost_element: Aggregate multiple cost elements
-    - wbe: Aggregate multiple WBEs (not yet implemented)
-    - project: Aggregate multiple projects (not yet implemented)
+    - wbe: Aggregate multiple WBS Elements
+    - project: Aggregate multiple projects (membership-scoped: project IDs the
+      caller cannot access are silently dropped)
 
     Returns:
         EVMMetricsResponse with aggregated metrics
@@ -355,6 +448,20 @@ async def get_evm_batch(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid request body: {str(e)}",
         ) from e
+
+    # G2: scope PROJECT aggregation to the caller's accessible projects. Project
+    # IDs the user cannot access are silently dropped (mirrors the projects.py
+    # RBAC pattern). Non-project entity types keep current behavior (no
+    # portfolio-membership concept).
+    if entity_type == EntityType.PROJECT:
+        set_unified_rbac_session(session)
+        unified_service = get_unified_rbac_service()
+        accessible_project_ids = await unified_service.get_accessible_projects(
+            user_id=current_user.user_id,
+        )
+        set_unified_rbac_session(None)
+        accessible_set = set(accessible_project_ids)
+        entity_ids = [eid for eid in entity_ids if eid in accessible_set]
 
     try:
         # Calculate aggregated metrics

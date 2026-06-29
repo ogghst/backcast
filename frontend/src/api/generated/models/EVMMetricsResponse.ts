@@ -80,6 +80,10 @@ export type EVMMetricsResponse = {
      */
     etc?: (number | null);
     /**
+     * To-Complete Performance Index = BAC / EAC (>= 1.0 = on track to meet the EAC budget; < 1.0 = remaining work must be done more cheaply than planned). Defaults to 1.0 when EAC is missing or zero.
+     */
+    tcpi?: (number | null);
+    /**
      * Control date for time-travel query
      */
     control_date: string;

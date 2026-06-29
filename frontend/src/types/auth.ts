@@ -77,6 +77,7 @@ export type Permission =
   | "ai-config-delete"
   | "ai-chat"
   | "dashboard-template-update"
+  | "portfolio-read"
   | "role-assignment-read"
   | "role-assignment-create"
   | "role-assignment-update"
@@ -105,8 +106,18 @@ export type Permission =
   | "system-dump-reseed"
   | "agent-schedule-manage";
 
-// Type alias for role strings
-export type Role = "admin" | "manager" | "viewer";
+// Type alias for role strings.
+//
+// `admin`/`manager`/`viewer` are the platform roles; `cost-controller` and
+// `pmo-director` are functional roles seeded for the Phase 2 role-curated
+// PortfolioPage. Functional roles are role-curated only — they do not grant
+// platform permissions beyond what `portfolio-read` allows.
+export type Role =
+  | "admin"
+  | "manager"
+  | "viewer"
+  | "cost-controller"
+  | "pmo-director";
 
 // Token types - re-exported from @/api/generated
 export type { Token, TokenResponse } from "@/api/generated";

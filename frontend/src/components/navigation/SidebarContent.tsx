@@ -34,6 +34,7 @@ import {
 } from "antd";
 import {
   AppstoreOutlined,
+  BarChartOutlined,
   DownOutlined,
   HomeOutlined,
   MessageOutlined,
@@ -255,10 +256,11 @@ export function SidebarContent({
   const agentsActive =
     isPrimaryActive(location.pathname, "/admin/agent-schedules") ||
     isPrimaryActive(location.pathname, "/agents-history");
-  // Poll unconditionally (Rules of Hooks); gate the value so unauthorized users
-  // never show a badge. TanStack stops polling when the component unmounts.
-  const runningCountQuery = useRunningExecutionsCount();
-  const runningCount = canAgents ? (runningCountQuery.data ?? 0) : 0;
+  // Poll only when the user can actually see agents (ai-chat /
+  // agent-schedule-manage). The endpoint requires `ai-chat`, so an ungated
+  // query would 403-storm for limited-permission users.
+  const runningCountQuery = useRunningExecutionsCount({ enabled: canAgents });
+  const runningCount = runningCountQuery.data ?? 0;
   const adminItems = useAdminNavItems();
   // Section-level gate: admin role AND at least one visible item. Per-item
   // gating lives in `useAdminNavItems`; the section-level admin-role guard
@@ -363,6 +365,22 @@ export function SidebarContent({
             indent={spacing.xs}
           />
         ))}
+
+        {/* Dashboards — navigates directly to /portfolio (no flyout, no
+            sub-routes). Gated by portfolio-read. */}
+        <Can permission="portfolio-read">
+          <NavRow
+            item={{
+              key: "dashboards",
+              label: "Dashboards",
+              path: "/portfolio",
+              icon: <BarChartOutlined />,
+            }}
+            active={isPrimaryActive(location.pathname, "/portfolio")}
+            onClick={() => go("/portfolio")}
+            indent={spacing.xs}
+          />
+        </Can>
       </div>
 
       {/* Entity section (only on entity-detail routes) */}

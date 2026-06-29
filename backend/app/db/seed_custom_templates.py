@@ -12,7 +12,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 SYSTEM_ACTOR = UUID("00000000-0000-0000-0000-000000000001")
-GLOBAL_ORG_UNIT_ID = UUID("00000000-0000-4000-8000-000000000001")
+# DISTINCT root id for the GLOBAL org unit — mirrors the
+# 44d00c4e21f7 migration. Deliberately does NOT collide with the
+# seed_projects.json Engineering unit (...0001).
+GLOBAL_ORG_UNIT_ID = UUID("00000000-0000-4000-8000-00000000fffd")
 DEFAULT_CHANGE_ORDER_TEMPLATE_ROOT = UUID("00000000-0000-4000-8000-000000000201")
 
 # field_definitions MUST be a DICT keyed by field code (NOT a list) -- the

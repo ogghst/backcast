@@ -13,6 +13,7 @@ import { MobileSidebarDrawer } from "@/components/navigation/MobileSidebarDrawer
 import { WaveBackground } from "@/components/common/WaveBackground";
 import { SearchDialog, useSearchShortcut } from "@/features/search";
 import { NotificationBell, useNotificationStream } from "@/features/notifications";
+import { useAuth } from "@/hooks/useAuth";
 
 const BUILD_SHA = import.meta.env.VITE_GIT_SHA || "dev";
 const BUILD_DATE = import.meta.env.VITE_BUILD_DATE || "dev";
@@ -51,6 +52,14 @@ const AppLayout: React.FC = () => {
 
   // Single notification stream connection for the whole app (badge + list).
   useNotificationStream();
+
+  // Ensure /auth/me has a mounted observer for the whole app lifetime. Without
+  // this, limited-permission users in collapsed-sidebar/rail mode never trigger
+  // the user/permissions fetch (useAuth is otherwise only called in
+  // SidebarContent/Profile/UserProfile, none of which mount in rail mode), so
+  // the greeting shows "there" and permission-gated nav (e.g. Dashboards) stays
+  // hidden until the sidebar is expanded.
+  useAuth();
 
   const {
     token: {

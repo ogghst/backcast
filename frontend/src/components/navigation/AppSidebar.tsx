@@ -27,6 +27,7 @@ import { useEffect } from "react";
 import { Badge, Button, Grid, Layout, Tooltip, theme } from "antd";
 import {
   AppstoreOutlined,
+  BarChartOutlined,
   HomeOutlined,
   MessageOutlined,
   ProjectOutlined,
@@ -136,6 +137,7 @@ export function AppSidebar(): React.JSX.Element | null {
 
   const { can, canAny, hasRole } = usePermission();
   const canChat = can("ai-chat");
+  const canPortfolio = can("portfolio-read");
   const canAgents = canAny(["ai-chat", "agent-schedule-manage"]);
   const agentsDest = can("agent-schedule-manage")
     ? "/admin/agent-schedules"
@@ -143,10 +145,11 @@ export function AppSidebar(): React.JSX.Element | null {
   const agentsActive =
     isPrimaryActive(location.pathname, "/admin/agent-schedules") ||
     isPrimaryActive(location.pathname, "/agents-history");
-  // Poll unconditionally (Rules of Hooks); gate the value so unauthorized users
-  // never show a badge. TanStack stops polling when the component unmounts.
-  const runningCountQuery = useRunningExecutionsCount();
-  const runningCount = canAgents ? (runningCountQuery.data ?? 0) : 0;
+  // Poll only when the user can actually see agents (ai-chat /
+  // agent-schedule-manage). The endpoint requires `ai-chat`, so an ungated
+  // query would 403-storm for limited-permission users.
+  const runningCountQuery = useRunningExecutionsCount({ enabled: canAgents });
+  const runningCount = runningCountQuery.data ?? 0;
 
   const adminItems = useAdminNavItems();
   const showAdmin = hasRole("admin") && adminItems.length > 0;
@@ -275,6 +278,16 @@ export function AppSidebar(): React.JSX.Element | null {
           active={isPrimaryActive(location.pathname, "/projects")}
           onClick={() => navigate("/projects")}
         />
+
+        {/* Dashboards — navigates directly to /portfolio (no flyout). */}
+        {canPortfolio && (
+          <RailButton
+            label="Dashboards"
+            icon={<BarChartOutlined />}
+            active={isPrimaryActive(location.pathname, "/portfolio")}
+            onClick={() => navigate("/portfolio")}
+          />
+        )}
 
         {/* Entity tab (only on entity-detail routes) */}
         {entityNav && (

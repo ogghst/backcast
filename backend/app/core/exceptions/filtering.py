@@ -21,3 +21,18 @@ class FilterValueTypeError(FilterError):
         super().__init__(
             f"Invalid filter value for field '{field}': expected {expected_type}, got '{value}'"
         )
+
+
+class FilterOperatorNotAllowedError(FilterError):
+    """Raised when a filter operator is not allowed for a field."""
+
+    def __init__(
+        self,
+        field: str,
+        operator: str,
+        allowed_operators: list[str] | None = None,
+    ):
+        msg = f"Filter operator '{operator}' is not allowed for field '{field}'."
+        if allowed_operators:
+            msg += f" Allowed operators: {', '.join(allowed_operators)}"
+        super().__init__(msg)

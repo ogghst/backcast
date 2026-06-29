@@ -3,6 +3,7 @@
 /* tslint:disable */
 /* eslint-disable */
 import type { ForecastCreate } from '../models/ForecastCreate';
+import type { ForecastHistoryEntry } from '../models/ForecastHistoryEntry';
 import type { ForecastUpdate } from '../models/ForecastUpdate';
 import type { CancelablePromise } from '../core/CancelablePromise';
 import { OpenAPI } from '../core/OpenAPI';
@@ -173,19 +174,20 @@ export class ForecastsService {
     }
     /**
      * Get Forecast History
-     * Get full version history for a forecast across all branches.
+     * Get the EAC-over-time version history for a forecast (G11 ΔEAC drift).
      *
-     * **DEPRECATED**: This endpoint is deprecated as of 2026-01-18.
+     * Returns every version of the forecast (across all branches) ordered newest
+     * first, each carrying its ``eac_amount`` and the temporal/audit fields needed
+     * to plot the Estimate-at-Completion drift over time.
      *
-     * Forecast history is still available via the cost element history endpoint.
-     * Use: GET /api/v1/cost-elements/{cost_element_id}/history
+     * Requires ``forecast-read`` permission.
      * @param forecastId
-     * @returns any Successful Response
+     * @returns ForecastHistoryEntry Successful Response
      * @throws ApiError
      */
     public static getForecastHistory(
         forecastId: string,
-    ): CancelablePromise<any> {
+    ): CancelablePromise<Array<ForecastHistoryEntry>> {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/api/v1/forecasts/{forecast_id}/history',

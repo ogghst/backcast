@@ -17,6 +17,43 @@ import { OpenAPI } from '../core/OpenAPI';
 import { request as __request } from '../core/request';
 export class ChangeOrdersService {
     /**
+     * Get Portfolio Change Order Stats
+     * Get aggregated change-order statistics across the accessible portfolio.
+     *
+     * Membership-scoped: resolves the caller's accessible project set via the
+     * unified RBAC ``get_accessible_projects`` (same pattern as ``/projects``)
+     * and aggregates per-project change-order stats across that set.
+     *
+     * Returns the same shape as ``/stats`` but rolled up across projects: summed
+     * totals, merged by_status / by_impact_level buckets, recombined cost trend,
+     * re-aggregated approval workload by approver, combined aging items.
+     *
+     * Requires ``portfolio-read`` permission.
+     * @param branch Branch name
+     * @param asOf Time travel timestamp
+     * @param agingThresholdDays Aging threshold in days
+     * @returns ChangeOrderStatsResponse Successful Response
+     * @throws ApiError
+     */
+    public static getPortfolioChangeOrderStats(
+        branch: string = 'main',
+        asOf?: (string | null),
+        agingThresholdDays: number = 7,
+    ): CancelablePromise<ChangeOrderStatsResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/change-orders/portfolio-stats',
+            query: {
+                'branch': branch,
+                'as_of': asOf,
+                'aging_threshold_days': agingThresholdDays,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
      * Get Change Order Stats
      * Get aggregated statistics for change orders in a project.
      *

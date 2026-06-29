@@ -67,6 +67,16 @@ class Project(EntityBase, VersionableMixin, BranchableMixin):
     )
     currency: Mapped[str] = mapped_column(String(3), nullable=False, default="EUR")
 
+    # Portfolio attribution (root-id FKs — no DB-level constraint; integrity
+    # is app-level per the EVCS root-id convention). Nullable for backfill.
+    organizational_unit_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID, nullable=True, index=True
+    )
+    project_manager_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID, nullable=True, index=True
+    )
+    customer_id: Mapped[UUID | None] = mapped_column(PG_UUID, nullable=True, index=True)
+
     # Status
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="draft")
 
