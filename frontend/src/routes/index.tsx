@@ -225,9 +225,8 @@ const DashboardPage = lazy(() =>
     default: m.DashboardPage,
   })),
 );
-// Phase 8: /portfolio now renders the widget-grid GlobalDashboardPage. The
-// legacy PortfolioPage.tsx is orphaned (kept on disk for Phase 10 retirement;
-// its test files import it directly via relative path, not through routes).
+// /portfolio renders the widget-grid GlobalDashboardPage (Phase 8 cutover;
+// the legacy fixed PortfolioPage was retired in Phase 10).
 const GlobalDashboardPage = lazy(() =>
   import("@/features/widgets/pages/GlobalDashboardPage").then((m) => ({
     default: m.GlobalDashboardPage,
