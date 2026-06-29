@@ -28,10 +28,7 @@ import { StandardTable } from "@/components/common/StandardTable";
 import { useTableParams } from "@/hooks/useTableParams";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { MetricCard } from "@/features/evm/components/MetricCard";
-import {
-  MetricCategory,
-  type MetricMetadata,
-} from "@/features/evm/types";
+import type { MetricMetadata } from "@/features/evm/types";
 import { formatValue } from "@/features/evm/utils/formatters";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { usePortfolioFilterUrlSync } from "@/stores/usePortfolioFilterUrlSync";
@@ -39,14 +36,18 @@ import { usePortfolioFilterStore } from "@/stores/usePortfolioFilterStore";
 import { usePortfolioEVM } from "@/features/portfolio/api/usePortfolioEVM";
 import { usePortfolioCO } from "@/features/portfolio/api/usePortfolioCO";
 import {
+  CPI_METADATA,
+  SPI_METADATA,
+  VAC_METADATA,
+  TCPI_METADATA,
+  cpiCostDistress,
   ragBand,
   ragToStatus,
   RED_BAND_THRESHOLD,
   type RagBand,
-} from "@/features/portfolio/utils/rag";
+} from "@/features/widgets/definitions/shared/portfolioMetrics";
 import { FilterBar } from "@/features/portfolio/components/FilterBar";
 import {
-  cpiCostDistress,
   roleLayout,
   type LayoutConfig,
   type LeadMetric,
@@ -55,55 +56,10 @@ import {
 import type { PortfolioProjectMetrics } from "@/api/generated/models/PortfolioProjectMetrics";
 import type { ChangeOrderStatsResponse } from "@/api/generated/models/ChangeOrderStatsResponse";
 
-// ── KPI metadata (local — not coupled to a project) ────────────────────────
-// CPI/SPI/VAC `key` values ARE valid keyof EVMMetricsResponse, so the literals
-// satisfy MetricMetadata directly. TCPI is NOT in the hand-written EVM type
-// (only the generated one carries it); its `key` needs the documented double
-// cast. The field is only used for a11y IDs in MetricCard.
-
-const CPI_METADATA: MetricMetadata = {
-  key: "cpi",
-  name: "Portfolio CPI",
-  description:
-    "Cost Performance Index (EV / AC) rolled up across the portfolio. < 1.0 = over budget.",
-  category: MetricCategory.PERFORMANCE,
-  targetRanges: { min: 0, max: 2, good: 1.0 },
-  higherIsBetter: true,
-  format: "number",
-};
-
-const SPI_METADATA: MetricMetadata = {
-  key: "spi",
-  name: "Portfolio SPI",
-  description:
-    "Schedule Performance Index (EV / PV) rolled up across the portfolio. < 1.0 = behind schedule.",
-  category: MetricCategory.SCHEDULE,
-  targetRanges: { min: 0, max: 2, good: 1.0 },
-  higherIsBetter: true,
-  format: "number",
-};
-
-const VAC_METADATA: MetricMetadata = {
-  key: "vac",
-  name: "Portfolio VAC",
-  description:
-    "Variance at Completion (BAC − EAC) in portfolio base currency. Negative = over budget at completion.",
-  category: MetricCategory.FORECAST,
-  targetRanges: { min: -Infinity, max: Infinity, good: 0 },
-  higherIsBetter: true,
-  format: "currency",
-};
-
-const TCPI_METADATA = {
-  key: "tcpi",
-  name: "Portfolio TCPI",
-  description:
-    "To-Complete Performance Index (BAC / EAC). >= 1.0 = on track for the EAC budget; < 1.0 = remaining work must be done more cheaply.",
-  category: MetricCategory.PERFORMANCE,
-  targetRanges: { min: 0, max: 2, good: 1.0 },
-  higherIsBetter: true,
-  format: "number",
-} as unknown as MetricMetadata;
+// ── KPI metadata (imported from the shared module) ─────────────────────────
+// CPI_METADATA / SPI_METADATA / VAC_METADATA / TCPI_METADATA now live in
+// `@/features/widgets/definitions/shared/portfolioMetrics` (Phase 3 extraction
+// — they survive the Phase-10 portfolio retirement from there).
 
 /** Lead-metric key → KPI tile metadata. */
 const LEAD_METADATA: Record<LeadMetric, MetricMetadata> = {

@@ -14,7 +14,7 @@ import { ReloadOutlined } from "@ant-design/icons";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { usePortfolioFilterStore } from "@/stores/usePortfolioFilterStore";
 import { PortfolioDateRangePicker } from "./PortfolioDateRangePicker";
-import type { RagBand } from "../utils/rag";
+import type { RagBand } from "@/features/widgets/definitions/shared/portfolioMetrics";
 
 const STATUS_OPTIONS = [
   { label: "Active", value: "active" },

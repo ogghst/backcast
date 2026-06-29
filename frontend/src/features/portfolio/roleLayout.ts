@@ -14,7 +14,6 @@
  */
 
 import type { PortfolioProjectMetrics } from "@/api/generated/models/PortfolioProjectMetrics";
-import { RED_BAND_THRESHOLD } from "@/features/portfolio/utils/rag";
 
 /** Keys for the metric tiles shown as the prominent lead row. */
 export type LeadMetric = "cpi" | "spi" | "vac" | "tcpi";
@@ -59,19 +58,6 @@ export interface LayoutConfig {
    * Kept for forward-compat; v1 leaves column order untouched.
    */
   emphasizedColumns?: (keyof PortfolioProjectMetrics)[];
-}
-
-/**
- * Projects in cost distress: CPI present and strictly below the Red-band
- * threshold (mirrors the SPI<0.9 at-risk derivation). Ranked CPI ascending so
- * the worst performers surface first.
- */
-export function cpiCostDistress(
-  projects: PortfolioProjectMetrics[],
-): PortfolioProjectMetrics[] {
-  return projects
-    .filter((p) => p.cpi != null && p.cpi < RED_BAND_THRESHOLD)
-    .sort((a, b) => (a.cpi ?? Infinity) - (b.cpi ?? Infinity));
 }
 
 export const roleLayout: Record<string, LayoutConfig> = {

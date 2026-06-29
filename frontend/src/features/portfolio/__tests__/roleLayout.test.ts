@@ -2,31 +2,13 @@
  * Unit tests for the Phase 2 role-curated layout config.
  *
  * Covers: each role resolves to the approved title / lead metrics / default
- * sort / section order; an unknown role falls back to `default`; and the
- * `cpiCostDistress` selector mirrors the SPI<0.9 at-risk derivation.
+ * sort / section order; an unknown role falls back to `default`. (The
+ * `cpiCostDistress` selector moved to the shared module — see
+ * `features/widgets/definitions/shared/__tests__/portfolioMetrics.test.ts`.)
  */
 
 import { describe, it, expect } from "vitest";
-import {
-  roleLayout,
-  cpiCostDistress,
-} from "@/features/portfolio/roleLayout";
-import { RED_BAND_THRESHOLD } from "@/features/portfolio/utils/rag";
-import type { PortfolioProjectMetrics } from "@/api/generated/models/PortfolioProjectMetrics";
-
-function makeProject(
-  overrides: Partial<PortfolioProjectMetrics>,
-): PortfolioProjectMetrics {
-  return {
-    project_id: "p-1",
-    name: "P1",
-    status: "active",
-    bac: 1000,
-    currency: "EUR",
-    at_risk: false,
-    ...overrides,
-  };
-}
+import { roleLayout } from "@/features/portfolio/roleLayout";
 
 describe("roleLayout", () => {
   it("default role → CPI/SPI/VAC/TCPI leads, no default sort, kpis→coPipeline→table→atRisk", () => {
@@ -115,67 +97,5 @@ describe("roleLayout", () => {
         expect(valid.has(m)).toBe(true);
       }
     }
-  });
-});
-
-describe("cpiCostDistress", () => {
-  it("keeps only projects with cpi present and strictly below the Red-band threshold", () => {
-    const projects = [
-      makeProject({ project_id: "a", name: "A", cpi: 0.8 }),
-      makeProject({ project_id: "b", name: "B", cpi: RED_BAND_THRESHOLD }), // exactly 0.9 → NOT distressed
-      makeProject({ project_id: "c", name: "C", cpi: 0.95 }),
-      makeProject({ project_id: "d", name: "D", cpi: 1.1 }),
-      makeProject({ project_id: "e", name: "E", cpi: null }),
-    ];
-
-    const out = cpiCostDistress(projects);
-
-    expect(out.map((p) => p.project_id)).toEqual(["a"]);
-  });
-
-  it("excludes projects whose cpi is null or undefined", () => {
-    const projects = [
-      makeProject({ project_id: "a", name: "A", cpi: null }),
-      makeProject({ project_id: "b", name: "B" }), // cpi undefined
-      makeProject({ project_id: "c", name: "C", cpi: 0.5 }),
-    ];
-
-    const out = cpiCostDistress(projects);
-
-    expect(out.map((p) => p.project_id)).toEqual(["c"]);
-  });
-
-  it("ranks results CPI ascending (worst first)", () => {
-    const projects = [
-      makeProject({ project_id: "a", name: "A", cpi: 0.85 }),
-      makeProject({ project_id: "b", name: "B", cpi: 0.7 }),
-      makeProject({ project_id: "c", name: "C", cpi: 0.6 }),
-    ];
-
-    const out = cpiCostDistress(projects);
-
-    expect(out.map((p) => p.cpi)).toEqual([0.6, 0.7, 0.85]);
-  });
-
-  it("returns an empty array when no project is in distress", () => {
-    const projects = [
-      makeProject({ project_id: "a", name: "A", cpi: 1.0 }),
-      makeProject({ project_id: "b", name: "B", cpi: RED_BAND_THRESHOLD }),
-      makeProject({ project_id: "c", name: "C", cpi: null }),
-    ];
-
-    expect(cpiCostDistress(projects)).toEqual([]);
-  });
-
-  it("does not mutate the input array", () => {
-    const projects = [
-      makeProject({ project_id: "a", name: "A", cpi: 0.8 }),
-      makeProject({ project_id: "b", name: "B", cpi: 0.6 }),
-    ];
-    const snapshot = projects.map((p) => ({ ...p }));
-
-    cpiCostDistress(projects);
-
-    expect(projects).toEqual(snapshot);
   });
 });
