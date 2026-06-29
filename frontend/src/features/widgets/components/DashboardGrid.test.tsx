@@ -80,6 +80,26 @@ vi.mock("@/features/widgets/registry", () => ({
   getWidgetsByCategory: () => [],
 }));
 
+/**
+ * DashboardGrid reads the dashboard scope + auth permission checks.
+ * These tests render the grid bare (no DashboardContextBus provider) and
+ * do not exercise gating, so provide a permissive project-scope stub.
+ */
+vi.mock("../context/useDashboardContext", () => ({
+  useDashboardContext: () => ({ scope: "project" }),
+}));
+
+vi.mock("@/stores/useAuthStore", () => ({
+  useAuthStore: <T,>(selector: (s: {
+    hasPermission: () => boolean;
+    hasAllPermissions: () => boolean;
+  }) => T) =>
+    selector({
+      hasPermission: () => true,
+      hasAllPermissions: () => true,
+    }),
+}));
+
 /** Mock persistence hook */
 vi.mock("@/features/widgets/api/useDashboardPersistence", () => ({
   useDashboardPersistence: () => ({

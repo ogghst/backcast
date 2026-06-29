@@ -2,8 +2,11 @@ import React, { useCallback, useMemo, useState } from "react";
 import { Input, Modal, Tag, theme } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
 import { useDashboardCompositionStore } from "@/stores/useDashboardCompositionStore";
+import { useAuthStore } from "@/stores/useAuthStore";
 import { getAllWidgetDefinitions } from "@/features/widgets/registry";
 import type { WidgetCategory, WidgetDefinition } from "@/features/widgets/types";
+import type { DashboardScope } from "../context/DashboardContextBus";
+import { isWidgetInScope, isWidgetPermitted } from "../utils/widgetPermissions";
 
 /**
  * CSS class for widget palette items.
@@ -35,6 +38,13 @@ export interface WidgetPaletteProps {
   open: boolean;
   /** Called when the modal should close */
   onClose: () => void;
+  /**
+   * Dashboard scope the palette is filtering for. Widgets whose scope does
+   * not match (e.g. a portfolio widget on a project dashboard) are hidden.
+   * Defaults to `"project"` — preserving the pre-Phase-5 project-dashboard
+   * palette verbatim (legacy widgets with no scope set default to project).
+   */
+  scope?: DashboardScope;
 }
 
 /**
@@ -43,24 +53,39 @@ export interface WidgetPaletteProps {
  * Opens as an Ant Design Modal (no blocking overlay mask on the grid).
  * Shows all registered widgets grouped by category with search filtering.
  * Closes after each widget is added.
+ *
+ * Widgets are filtered by **scope + permission** (D2 / G19): a project
+ * dashboard only offers project widgets a user is permitted to use, a
+ * portfolio dashboard only portfolio widgets. The scope+permission filter
+ * runs inside the same `useMemo` pass as the registry enumeration so the
+ * fresh array returned by `getAllWidgetDefinitions()` is not re-filtered on
+ * every render.
  */
-export function WidgetPalette({ open, onClose }: WidgetPaletteProps) {
+export function WidgetPalette({ open, onClose, scope = "project" }: WidgetPaletteProps) {
   const { token } = theme.useToken();
   const [search, setSearch] = useState("");
 
   const addWidget = useDashboardCompositionStore((s) => s.addWidget);
+  const hasPermission = useAuthStore((s) => s.hasPermission);
+  const hasAllPermissions = useAuthStore((s) => s.hasAllPermissions);
 
-  const allDefinitions = getAllWidgetDefinitions();
-
+  // One memo pass: enumerate the registry, then keep only in-scope + permitted
+  // widgets. Runs the text search over THAT list so neither the registry
+  // enumeration nor the permission check repeats on unrelated re-renders.
   const filteredBySearch = useMemo(() => {
-    if (!search.trim()) return allDefinitions;
+    const visible = getAllWidgetDefinitions().filter(
+      (def) =>
+        isWidgetInScope(def, scope) &&
+        isWidgetPermitted(def, hasPermission, hasAllPermissions),
+    );
+    if (!search.trim()) return visible;
     const lower = search.toLowerCase();
-    return allDefinitions.filter(
+    return visible.filter(
       (def) =>
         def.displayName.toLowerCase().includes(lower) ||
         def.description.toLowerCase().includes(lower),
     );
-  }, [allDefinitions, search]);
+  }, [scope, hasPermission, hasAllPermissions, search]);
 
   const groupedByCategory = useMemo(() => {
     const groups: Array<{
@@ -137,6 +162,17 @@ export function WidgetPalette({ open, onClose }: WidgetPaletteProps) {
       />
 
       <div style={{ maxHeight: "60vh", overflow: "auto" }}>
+        {groupedByCategory.length === 0 && (
+          <div
+            style={{
+              textAlign: "center",
+              color: token.colorTextTertiary,
+              padding: `${token.paddingXL}px ${token.paddingMD}px`,
+            }}
+          >
+            No widgets available for your role
+          </div>
+        )}
         {groupedByCategory.map((group) => (
           <div key={group.category} style={{ marginBottom: token.paddingMD }}>
             <div

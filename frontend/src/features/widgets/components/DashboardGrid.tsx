@@ -12,6 +12,7 @@ import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import { useDashboardCompositionStore } from "@/stores/useDashboardCompositionStore";
 import { useFullscreenWidgetStore } from "@/stores/useFullscreenWidgetStore";
+import { useAuthStore } from "@/stores/useAuthStore";
 import { getWidgetDefinition } from "@/features/widgets/registry";
 import { DashboardToolbar } from "./DashboardToolbar";
 import { WidgetConfigDrawer } from "./WidgetConfigDrawer";
@@ -21,6 +22,9 @@ import {
   WidgetInteractionContext,
   type InteractionMode,
 } from "./WidgetInteractionContext";
+import { useDashboardContext } from "../context/useDashboardContext";
+import { isWidgetPermitted } from "../utils/widgetPermissions";
+import { WidgetPermissionPlaceholder } from "./WidgetPermissionPlaceholder";
 import { injectWidgetMotionStyles } from "../utils/animations";
 import { useUndoRedoKeyboard } from "../hooks/useUndoRedoKeyboard";
 import { useResponsiveLayout } from "../hooks/useResponsiveLayout";
@@ -112,6 +116,12 @@ export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
   const fullscreenInstanceId = useFullscreenWidgetStore(
     (s) => s.fullscreenInstanceId,
   );
+  // DashboardGrid is always rendered inside a DashboardContextBus (project +
+  // global dashboards both wrap it). `scope` flows to the palette; render
+  // gating uses permission only (scope is palette-only by design).
+  const { scope } = useDashboardContext();
+  const hasPermission = useAuthStore((s) => s.hasPermission);
+  const hasAllPermissions = useAuthStore((s) => s.hasAllPermissions);
 
   // Per-widget interaction tracking (move/resize toggle)
   const [activeInteraction, setActiveInteraction] = useState<{
@@ -310,6 +320,11 @@ export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
           {widgets.map((widget) => {
             const definition = getWidgetDefinition(widget.typeId);
             if (!definition) return null;
+            const locked = !isWidgetPermitted(
+              definition,
+              hasPermission,
+              hasAllPermissions,
+            );
             const WidgetComponent = definition.component;
             return (
               <div key={widget.instanceId} style={{ minHeight: 200 }}>
@@ -317,18 +332,26 @@ export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
                   instanceId={widget.instanceId}
                   onRemove={() => removeWidget(widget.instanceId)}
                 >
-                  <WidgetComponent
-                    config={
-                      widget.config as Parameters<typeof WidgetComponent>[0]["config"]
-                    }
-                    instanceId={widget.instanceId}
-                    isEditing={isEditing}
-                    onRemove={() => removeWidget(widget.instanceId)}
-                    onConfigure={() => selectWidget(widget.instanceId)}
-                    onFullscreen={() => openFullscreen(widget.instanceId)}
-                    widgetType={widget.typeId as string}
-                    dashboardName={activeDashboard?.name ?? "dashboard"}
-                  />
+                  {locked ? (
+                    <WidgetPermissionPlaceholder
+                      displayName={definition.displayName}
+                      isEditing={isEditing}
+                      onRemove={() => removeWidget(widget.instanceId)}
+                    />
+                  ) : (
+                    <WidgetComponent
+                      config={
+                        widget.config as Parameters<typeof WidgetComponent>[0]["config"]
+                      }
+                      instanceId={widget.instanceId}
+                      isEditing={isEditing}
+                      onRemove={() => removeWidget(widget.instanceId)}
+                      onConfigure={() => selectWidget(widget.instanceId)}
+                      onFullscreen={() => openFullscreen(widget.instanceId)}
+                      widgetType={widget.typeId as string}
+                      dashboardName={activeDashboard?.name ?? "dashboard"}
+                    />
+                  )}
                 </WidgetErrorBoundary>
               </div>
             );
@@ -428,6 +451,11 @@ export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
                 );
               }
 
+              const locked = !isWidgetPermitted(
+                definition,
+                hasPermission,
+                hasAllPermissions,
+              );
               const WidgetComponent = definition.component;
 
               return (
@@ -444,18 +472,26 @@ export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
                     instanceId={widget.instanceId}
                     onRemove={() => removeWidget(widget.instanceId)}
                   >
-                    <WidgetComponent
-                      config={
-                        widget.config as Parameters<typeof WidgetComponent>[0]["config"]
-                      }
-                      instanceId={widget.instanceId}
-                      isEditing={isEditing}
-                      onRemove={() => removeWidget(widget.instanceId)}
-                      onConfigure={() => selectWidget(widget.instanceId)}
-                      onFullscreen={() => openFullscreen(widget.instanceId)}
-                      widgetType={widget.typeId as string}
-                      dashboardName={activeDashboard?.name ?? "dashboard"}
-                    />
+                    {locked ? (
+                      <WidgetPermissionPlaceholder
+                        displayName={definition.displayName}
+                        isEditing={isEditing}
+                        onRemove={() => removeWidget(widget.instanceId)}
+                      />
+                    ) : (
+                      <WidgetComponent
+                        config={
+                          widget.config as Parameters<typeof WidgetComponent>[0]["config"]
+                        }
+                        instanceId={widget.instanceId}
+                        isEditing={isEditing}
+                        onRemove={() => removeWidget(widget.instanceId)}
+                        onConfigure={() => selectWidget(widget.instanceId)}
+                        onFullscreen={() => openFullscreen(widget.instanceId)}
+                        widgetType={widget.typeId as string}
+                        dashboardName={activeDashboard?.name ?? "dashboard"}
+                      />
+                    )}
                   </WidgetErrorBoundary>
                 </div>
               );
@@ -483,6 +519,7 @@ export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
       <WidgetPalette
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
+        scope={scope}
       />
 
       {/* Widget configuration drawer */}
