@@ -254,17 +254,31 @@ class DashboardLayoutService:
         return await self.session.get(DashboardLayout, entity_id)
 
     async def get_for_user_project(
-        self, user_id: UUID, project_id: UUID | None = None
+        self,
+        user_id: UUID,
+        project_id: UUID | None = None,
+        strict_scope: bool = False,
     ) -> list[DashboardLayout]:
         """Get user's non-template layouts for a specific project scope.
 
-        When project_id is provided, returns layouts scoped to that project
-        plus global layouts (project_id IS NULL). When project_id is None,
-        returns only global layouts.
+        When ``strict_scope`` is False (default, preserves the original union
+        behavior so the project dashboard still sees global layouts):
+
+        - ``project_id`` provided -> layouts scoped to that project plus global
+          layouts (``project_id IS NULL``).
+        - ``project_id`` is None -> only global layouts.
+
+        When ``strict_scope`` is True, returns only layouts matching the EXACT
+        scope (no global union): ``project_id`` provided -> only
+        ``project_id == project_id``; ``project_id`` is None -> only
+        ``project_id IS NULL``. This is the mode used by the global (portfolio)
+        dashboard so a user's global layouts do not pollute every project list
+        (and vice-versa).
 
         Args:
             user_id: UUID of the layout owner
             project_id: Optional UUID of the project to scope results
+            strict_scope: When True, match the exact scope only (no union)
 
         Returns:
             List of matching DashboardLayout entities ordered by default
@@ -275,7 +289,12 @@ class DashboardLayoutService:
             DashboardLayout.is_template == False,  # noqa: E712
         )
 
-        if project_id is not None:
+        if strict_scope:
+            if project_id is not None:
+                stmt = stmt.where(DashboardLayout.project_id == project_id)
+            else:
+                stmt = stmt.where(DashboardLayout.project_id.is_(None))
+        elif project_id is not None:
             stmt = stmt.where(
                 (DashboardLayout.project_id == project_id)
                 | (DashboardLayout.project_id.is_(None))
@@ -310,17 +329,26 @@ class DashboardLayoutService:
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def get_templates(self) -> list[DashboardLayout]:
-        """Get all template layouts.
+    async def get_templates(self, scope: str | None = None) -> list[DashboardLayout]:
+        """Get template layouts, optionally filtered by scope.
+
+        Args:
+            scope: Optional scope filter. ``"global"`` returns only templates
+                with ``project_id IS NULL``; ``"project"`` returns only
+                templates with ``project_id IS NOT NULL``; any other value (or
+                ``None``) returns all templates (the original behavior).
 
         Returns:
             List of template DashboardLayout entities ordered by name
         """
         stmt = (
-            select(DashboardLayout)
-            .where(DashboardLayout.is_template == True)  # noqa: E712
-            .order_by(DashboardLayout.name.asc())
+            select(DashboardLayout).where(DashboardLayout.is_template == True)  # noqa: E712
         )
+        if scope == "global":
+            stmt = stmt.where(DashboardLayout.project_id.is_(None))
+        elif scope == "project":
+            stmt = stmt.where(DashboardLayout.project_id.is_not(None))
+        stmt = stmt.order_by(DashboardLayout.name.asc())
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
@@ -457,17 +485,26 @@ class DashboardLayoutService:
         user_id: UUID,
         project_id: UUID | None = None,
         name: str | None = None,
+        is_default: bool = False,
     ) -> DashboardLayout:
         """Clone a template layout for a user.
 
         Creates a new non-template layout by copying the template's
         widget configuration.
 
+        When ``is_default`` is True, clears any existing default for the same
+        user/scope before inserting (mirrors :meth:`create`), so a re-firing
+        first-visit clone cannot leave two ``is_default=True`` layouts in the
+        same scope.
+
         Args:
             template_id: UUID of the template to clone
             user_id: UUID of the new layout owner
             project_id: Optional project scope for the cloned layout
             name: Optional name for the cloned layout
+            is_default: When True, mark the clone as the default layout for
+                this user/scope (clearing any prior default first). Defaults to
+                False so existing manual-clone callers are unaffected.
 
         Returns:
             Newly created DashboardLayout entity
@@ -479,13 +516,16 @@ class DashboardLayoutService:
         if template is None or not template.is_template:
             raise ValueError("Not a template layout")
 
+        if is_default:
+            await self._clear_default_for_user_project(user_id, project_id)
+
         layout = DashboardLayout(
             name=name or f"Copy of {template.name}",
             description=template.description,
             user_id=user_id,
             project_id=project_id,
             is_template=False,
-            is_default=False,
+            is_default=is_default,
             widgets=template.widgets,
         )
         self.session.add(layout)

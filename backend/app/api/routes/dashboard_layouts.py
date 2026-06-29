@@ -32,11 +32,18 @@ def get_dashboard_layout_service(
     return DashboardLayoutService(session)
 
 
+# Dashboard-layout routes serve both project-scoped and portfolio-scoped users.
+# Either of these read permissions grants access (any-of).
+_LAYOUT_READ_GUARD = Depends(
+    RoleChecker(required_permissions=["project-read", "portfolio-read"])
+)
+
+
 @router.get(
     "",
     response_model=list[DashboardLayoutRead],
     operation_id="list_dashboard_layouts",
-    dependencies=[Depends(RoleChecker(required_permission="project-read"))],
+    dependencies=[_LAYOUT_READ_GUARD],
 )
 async def list_dashboard_layouts(
     project_id: UUID | None = Query(None),
@@ -52,14 +59,21 @@ async def list_dashboard_layouts(
     "/templates",
     response_model=list[DashboardLayoutRead],
     operation_id="list_dashboard_layout_templates",
-    dependencies=[Depends(RoleChecker(required_permission="project-read"))],
+    dependencies=[_LAYOUT_READ_GUARD],
 )
 async def list_dashboard_layout_templates(
+    scope: str | None = Query(
+        None,
+        description=(
+            "Filter templates by scope: 'global' (project_id IS NULL), "
+            "'project' (project_id IS NOT NULL), or omit for all."
+        ),
+    ),
     current_user: UserIdentity = Depends(get_current_user),
     service: DashboardLayoutService = Depends(get_dashboard_layout_service),
 ) -> list[DashboardLayoutRead]:
-    """List all template dashboard layouts."""
-    layouts = await service.get_templates()
+    """List all template dashboard layouts, optionally filtered by scope."""
+    layouts = await service.get_templates(scope=scope)
     return [DashboardLayoutRead.model_validate(layout) for layout in layouts]
 
 
@@ -67,7 +81,7 @@ async def list_dashboard_layout_templates(
     "/{layout_id}",
     response_model=DashboardLayoutRead,
     operation_id="get_dashboard_layout",
-    dependencies=[Depends(RoleChecker(required_permission="project-read"))],
+    dependencies=[_LAYOUT_READ_GUARD],
 )
 async def get_dashboard_layout(
     layout_id: UUID,
@@ -94,7 +108,7 @@ async def get_dashboard_layout(
     response_model=DashboardLayoutRead,
     status_code=status.HTTP_201_CREATED,
     operation_id="create_dashboard_layout",
-    dependencies=[Depends(RoleChecker(required_permission="project-read"))],
+    dependencies=[_LAYOUT_READ_GUARD],
 )
 async def create_dashboard_layout(
     layout_in: DashboardLayoutCreate,
@@ -140,7 +154,7 @@ async def update_dashboard_layout(
     "/{layout_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     operation_id="delete_dashboard_layout",
-    dependencies=[Depends(RoleChecker(required_permission="project-read"))],
+    dependencies=[_LAYOUT_READ_GUARD],
 )
 async def delete_dashboard_layout(
     layout_id: UUID,
@@ -164,7 +178,7 @@ async def delete_dashboard_layout(
     response_model=DashboardLayoutRead,
     status_code=status.HTTP_201_CREATED,
     operation_id="clone_dashboard_layout_template",
-    dependencies=[Depends(RoleChecker(required_permission="project-read"))],
+    dependencies=[_LAYOUT_READ_GUARD],
 )
 async def clone_dashboard_layout_template(
     layout_id: UUID,
@@ -179,6 +193,7 @@ async def clone_dashboard_layout_template(
             current_user.user_id,
             clone_in.project_id,
             name=clone_in.name,
+            is_default=clone_in.is_default,
         )
     except ValueError as e:
         raise HTTPException(

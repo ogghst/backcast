@@ -67,3 +67,11 @@ class CloneTemplateRequest(BaseModel):
         description="Name for the cloned layout (defaults to 'Copy of {template.name}')",
         max_length=255,
     )
+    is_default: bool = Field(
+        False,
+        description=(
+            "When True, mark the cloned layout as the user's default for its "
+            "scope (clearing any prior default first). Used by the first-visit "
+            "global dashboard clone so a re-fire cannot leave two defaults."
+        ),
+    )
