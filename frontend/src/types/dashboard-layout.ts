@@ -40,7 +40,13 @@ export interface DashboardLayoutUpdate {
   widgets?: WidgetConfig[] | null;
 }
 
-/** Schema for reading dashboard layout data (API response). */
+/**
+ * Schema for reading dashboard layout data (API response).
+ *
+ * `role` / `scope` are seeder-only attributes on templates, exposed read-only so
+ * the FE can resolve a user's role-tagged default template. They are never on
+ * Create/Update (see backend schemas/dashboard_layout.py).
+ */
 export interface DashboardLayoutRead {
   id: string;
   name: string;
@@ -50,6 +56,10 @@ export interface DashboardLayoutRead {
   is_template: boolean;
   is_default: boolean;
   widgets: WidgetConfig[];
+  /** Template-only role tag (e.g. "cost-controller"); null = generic fallback. */
+  role?: string | null;
+  /** Template-only scope tag ("project" | "portfolio"); null when not a template. */
+  scope?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -58,4 +68,10 @@ export interface DashboardLayoutRead {
 export interface CloneTemplateRequest {
   project_id?: string | null;
   name?: string | null;
+  /**
+   * Whether the clone is the user's default for its scope (clearing any prior
+   * default first). Used by the global dashboard's first-visit role-default
+   * clone. See backend `clone_template(is_default=)`.
+   */
+  is_default?: boolean;
 }

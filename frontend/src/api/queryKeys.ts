@@ -424,7 +424,11 @@ export const queryKeys = createQueryKeys("backcast-evs", {
     lists: () => ["dashboard-layouts", "list"] as const,
     list: (projectId?: string) =>
       ["dashboard-layouts", "list", projectId] as const,
-    templates: () => ["dashboard-layouts", "templates"] as const,
+    // G13-FE: scope in the cache key so project vs portfolio template lists
+    // don't alias. The ["dashboard-layouts"] prefix (above) still covers all
+    // sub-keys for the mutation invalidations, so no onSettled change is needed.
+    templates: (scope?: "project" | "portfolio") =>
+      ["dashboard-layouts", "templates", scope] as const,
     details: () => ["dashboard-layouts", "detail"] as const,
     detail: (id: string) => ["dashboard-layouts", "detail", id] as const,
   },

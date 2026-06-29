@@ -37,8 +37,9 @@ const SAVE_DEBOUNCE_MS = 500;
  * - isSaving: Whether a save operation is currently in progress
  */
 export function useDashboardPersistence(
-  projectId: string,
+  projectId?: string,
   dashboardName?: string,
+  portfolioRole?: string | null,
 ) {
   // Reactive subscription to isDirty -- triggers re-render on change
   const isDirty = useDashboardCompositionStore((s) => s.isDirty);
@@ -88,7 +89,9 @@ export function useDashboardPersistence(
       } else {
         const result = await mutationsRef.current.createMutation.mutateAsync({
           name: dashboard.name,
-          project_id: pid,
+          // G7: global page has no project → pid is undefined → send JSON null,
+          // not "" (which 422s against `project_id: UUID | None`).
+          project_id: pid ?? null,
           is_default: dashboard.isDefault,
           widgets,
         } as DashboardLayoutCreate);
@@ -109,7 +112,7 @@ export function useDashboardPersistence(
     async function load() {
       // Reset store so navigating between dashboard pages clears stale data
       useDashboardCompositionStore.getState().resetDashboard();
-      useDashboardCompositionStore.getState().setProjectId(projectId);
+      useDashboardCompositionStore.getState().setProjectId(projectId ?? "");
 
       try {
         const layouts = await layoutApi.list(projectId);
@@ -137,6 +140,25 @@ export function useDashboardPersistence(
           const defaultLayout = layouts.find((l) => l.is_default);
           const layout = defaultLayout ?? layouts[0];
           useDashboardCompositionStore.getState().loadFromBackend(layout);
+        } else if (projectId === undefined && portfolioRole !== undefined) {
+          // Global dashboard, first visit, no saved global layout: clone the
+          // user's role-default portfolio template (mirrors backend
+          // get_default_template_for_role). This branch ONLY fires for the
+          // global page (projectId undefined + portfolioRole set); the project
+          // page (named mode) and any default-mode caller without portfolioRole
+          // are unaffected.
+          const templates = await layoutApi.templates("portfolio");
+          const roleTemplate =
+            templates.find((t) => t.role === portfolioRole) ??
+            templates.find((t) => (t.role ?? null) === null) ?? // generic fallback
+            templates[0];
+          if (roleTemplate) {
+            const cloned = await layoutApi.clone({
+              id: roleTemplate.id,
+              data: { project_id: null, name: roleTemplate.name, is_default: true },
+            });
+            useDashboardCompositionStore.getState().loadFromBackend(cloned);
+          }
         }
       } catch {
         // If load fails, the user starts with an empty dashboard.
@@ -151,8 +173,8 @@ export function useDashboardPersistence(
     return () => {
       cancelled = true;
     };
-    // Re-run when projectId or dashboardName changes (switching between pages)
-  }, [projectId, dashboardName]);
+    // Re-run when projectId, dashboardName, or portfolioRole changes
+  }, [projectId, dashboardName, portfolioRole]);
 
   // ------------------------------------------------------------------
   // Debounced auto-save when isDirty changes
