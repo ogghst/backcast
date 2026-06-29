@@ -682,7 +682,7 @@ async def test_unique_partial_index_rejects_duplicate_project_default(
     project_id = uuid4()
     other_project_id = uuid4()
     try:
-        first = await _create_layout_row(
+        await _create_layout_row(
             db,
             user_id=owner_id,
             name="Proj default",
@@ -690,7 +690,7 @@ async def test_unique_partial_index_rejects_duplicate_project_default(
             is_default=True,
         )
         # A default for a DIFFERENT project is fine (different (user, project)).
-        other = await _create_layout_row(
+        await _create_layout_row(
             db,
             user_id=owner_id,
             name="Other proj default",
@@ -1108,6 +1108,60 @@ def test_dashboard_layout_read_exposes_role_and_scope() -> None:
     read = DashboardLayoutRead.model_validate(_Row())
     assert read.role == "cost-controller"
     assert read.scope == "portfolio"
+
+
+# ---------------------------------------------------------------------------
+# Phase 10 follow-up — DashboardLayoutCreate carries scope (template save)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_create_persists_scope_for_template(db: AsyncSession) -> None:
+    """``service.create`` persists ``scope`` when supplied (template save).
+
+    The admin template picker sends ``scope`` ('project'|'portfolio') so a
+    saved template lands in the right scope-filtered list. ``scope`` flows
+    from ``DashboardLayoutCreate`` through the route's
+    ``**layout_in.model_dump()`` into ``create(**fields)`` and the model has
+    the column, so it must round-trip. A normal personal layout (no scope
+    sent) stays ``scope=None`` — personal layouts are distinguished by
+    ``project_id``, not ``scope``.
+    """
+    service = DashboardLayoutService(db)
+    user_id = uuid4()
+    created_ids: list[UUID] = []
+
+    try:
+        # Template create WITH scope — must persist scope='portfolio'.
+        template = await service.create(
+            user_id=user_id,
+            name="My Portfolio Template",
+            project_id=None,
+            is_template=True,
+            is_default=False,
+            scope="portfolio",
+            widgets=[],
+        )
+        created_ids.append(template.id)
+        assert template.scope == "portfolio"
+
+        # Personal layout create WITHOUT scope — must stay None (unchanged
+        # behavior; these are filtered by project_id, not scope).
+        personal = await service.create(
+            user_id=user_id,
+            name="My Personal Layout",
+            project_id=None,
+            is_template=False,
+            is_default=False,
+            widgets=[],
+        )
+        created_ids.append(personal.id)
+        assert personal.scope is None
+    finally:
+        await db.execute(
+            delete(DashboardLayout).where(DashboardLayout.id.in_(created_ids))
+        )
+        await db.flush()
 
 
 # ---------------------------------------------------------------------------

@@ -70,11 +70,16 @@ const mockTemplatesState: {
   isLoading: false,
 };
 
+const useTemplatesSpy = vi.fn();
+
 vi.mock("@/features/widgets/api/useDashboardLayouts", () => ({
-  useDashboardLayoutTemplates: () => ({
-    data: mockTemplatesState.data,
-    isLoading: mockTemplatesState.isLoading,
-  }),
+  useDashboardLayoutTemplates: (...args: unknown[]) => {
+    useTemplatesSpy(...args);
+    return {
+      data: mockTemplatesState.data,
+      isLoading: mockTemplatesState.isLoading,
+    };
+  },
 }));
 
 // ---------------------------------------------------------------------------
@@ -144,6 +149,7 @@ describe("DashboardToolbar", () => {
     mockSave.mockReset();
     mockTemplatesState.data = [];
     mockTemplatesState.isLoading = false;
+    useTemplatesSpy.mockReset();
     mockMessageApi.success.mockReset();
     mockMessageApi.error.mockReset();
   });
@@ -388,5 +394,15 @@ describe("DashboardToolbar", () => {
       screen.queryByRole("button", { name: /manage templates/i }),
     ).not.toBeInTheDocument();
     canRenderChildren = true; // restore for subsequent tests
+  });
+
+  it("forwards default project scope to the templates hook", async () => {
+    renderWithTheme(<DashboardToolbar onSave={mockSave} />);
+    expect(useTemplatesSpy).toHaveBeenCalledWith("project");
+  });
+
+  it("forwards portfolio scope to the templates hook when passed", async () => {
+    renderWithTheme(<DashboardToolbar onSave={mockSave} scope="portfolio" />);
+    expect(useTemplatesSpy).toHaveBeenCalledWith("portfolio");
   });
 });

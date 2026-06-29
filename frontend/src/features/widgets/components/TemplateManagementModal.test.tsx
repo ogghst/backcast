@@ -260,6 +260,56 @@ describe("TemplateManagementModal", () => {
     });
   });
 
+  it("stamps default project scope on new templates", async () => {
+    mockCreateMutateAsync.mockResolvedValue({});
+    renderWithTheme(
+      <TemplateManagementModal open={true} onClose={mockOnClose} />,
+    );
+    // Select "New template..." and enter a name
+    fireEvent.mouseDown(screen.getByRole("combobox"));
+    await waitFor(() => {
+      expect(document.querySelectorAll(".ant-select-item-option").length).toBe(1);
+    });
+    await selectOption("New template...");
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("Template name")).toBeInTheDocument();
+    });
+    fireEvent.change(screen.getByPlaceholderText("Template name"), {
+      target: { value: "Scoped Template" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /save/i }));
+    await waitFor(() => {
+      expect(mockCreateMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ scope: "project" }),
+      );
+    });
+  });
+
+  it("stamps portfolio scope on new templates when scope prop is portfolio", async () => {
+    mockCreateMutateAsync.mockResolvedValue({});
+    renderWithTheme(
+      <TemplateManagementModal open={true} onClose={mockOnClose} scope="portfolio" />,
+    );
+    // Select "New template..." and enter a name
+    fireEvent.mouseDown(screen.getByRole("combobox"));
+    await waitFor(() => {
+      expect(document.querySelectorAll(".ant-select-item-option").length).toBe(1);
+    });
+    await selectOption("New template...");
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("Template name")).toBeInTheDocument();
+    });
+    fireEvent.change(screen.getByPlaceholderText("Template name"), {
+      target: { value: "Portfolio Template" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /save/i }));
+    await waitFor(() => {
+      expect(mockCreateMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ scope: "portfolio" }),
+      );
+    });
+  });
+
   it("calls update mutation for existing template", async () => {
     mockUpdateMutateAsync.mockResolvedValue({});
     const template: DashboardLayoutRead = {

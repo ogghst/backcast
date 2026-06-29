@@ -261,7 +261,7 @@ export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
   return (
     <WidgetInteractionContext.Provider value={interactionContextValue}>
       {/* Dashboard toolbar */}
-      <DashboardToolbar onSave={onSave} />
+      <DashboardToolbar onSave={onSave} scope={scope} />
 
       <div
         ref={containerRef as React.Ref<HTMLDivElement>}

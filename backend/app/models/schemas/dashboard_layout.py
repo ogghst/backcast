@@ -18,6 +18,13 @@ class DashboardLayoutCreate(BaseModel):
     is_default: bool = Field(
         False, description="Whether this is the user's default layout for this scope"
     )
+    scope: str | None = Field(
+        None,
+        description=(
+            "Template scope: 'project' or 'portfolio' (templates only). Null on "
+            "non-template user layouts."
+        ),
+    )
     widgets: list[dict[str, object]] = Field(
         default_factory=list, description="Widget instances array"
     )

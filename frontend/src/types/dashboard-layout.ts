@@ -28,6 +28,8 @@ export interface DashboardLayoutCreate {
   project_id?: string | null;
   is_template?: boolean;
   is_default?: boolean;
+  /** Template-only scope tag ("project" | "portfolio"); null when not a template. */
+  scope?: string | null;
   widgets?: WidgetConfig[];
 }
 

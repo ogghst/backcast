@@ -36,7 +36,13 @@ const { Text } = Typography;
  * All buttons are icon-only with Tooltip wrappers.
  * Edit mode uses transactional semantics: Done saves, Cancel discards.
  */
-export function DashboardToolbar({ onSave }: { onSave: () => Promise<void> }) {
+export function DashboardToolbar({
+  onSave,
+  scope = "project",
+}: {
+  onSave: () => Promise<void>;
+  scope?: "project" | "portfolio";
+}) {
   const { token } = theme.useToken();
   const [messageApi, contextHolder] = message.useMessage();
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
@@ -63,7 +69,7 @@ export function DashboardToolbar({ onSave }: { onSave: () => Promise<void> }) {
 
   // Template query
   const { data: templates = [], isLoading: templatesLoading } =
-    useDashboardLayoutTemplates();
+    useDashboardLayoutTemplates(scope);
 
   // Categorize templates into system and user
   const { systemTemplates, userTemplates } = useMemo(() => {
@@ -182,6 +188,7 @@ export function DashboardToolbar({ onSave }: { onSave: () => Promise<void> }) {
       <TemplateManagementModal
         open={templateModalOpen}
         onClose={() => setTemplateModalOpen(false)}
+        scope={scope}
       />
       <div
         style={{
