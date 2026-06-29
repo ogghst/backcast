@@ -50,6 +50,11 @@ class DashboardLayoutRead(BaseModel):
     is_template: bool
     is_default: bool
     widgets: list[dict[str, object]]
+    # role/scope are seeder-only attributes (templates); exposed read-only so
+    # the FE can resolve a user's role-tagged default template. Never on
+    # Create/Update.
+    role: str | None = None
+    scope: str | None = None
     created_at: datetime
     updated_at: datetime
 

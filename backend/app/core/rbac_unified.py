@@ -410,6 +410,11 @@ class UnifiedRBACService:
                 if scope_id is not None
                 else UserRoleAssignment.scope_id.is_(None),
             )
+            # Deterministic order: multi-role users (the layered platform +
+            # functional model) must get a stable ``roles[0]`` so the
+            # display_role / global-dashboard first-visit template clone
+            # (Phase 7 G9) is reproducible. ASC by role name.
+            .order_by(RBACRole.name.asc())
         )
         result = await session.execute(stmt)
         role_names = [row[0] for row in result.all()]

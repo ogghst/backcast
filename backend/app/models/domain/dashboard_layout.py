@@ -34,6 +34,13 @@ class DashboardLayout(SimpleEntityBase):
         is_template: Whether this layout is a reusable template.
         is_default: Whether this is the user's default layout for its scope.
         widgets: JSONB array of widget configuration objects.
+        role: Which role this portfolio template defaults to (templates only).
+            ``NULL`` on user layouts and on the generic portfolio fallback
+            template. Set only on portfolio-scope templates.
+        scope: Template audience discriminator: ``"project"`` (project-content
+            widgets) or ``"portfolio"`` (portfolio widgets). ``NULL`` on
+            non-template user layouts (those are distinguished by
+            ``project_id``, not ``scope``).
     """
 
     __tablename__ = "dashboard_layouts"
@@ -77,6 +84,12 @@ class DashboardLayout(SimpleEntityBase):
         nullable=False,
         server_default="[]",
     )
+
+    # Template tagging (templates only). ``role`` selects which role a portfolio
+    # template defaults to; ``scope`` separates project vs portfolio templates.
+    # Both are NULL on user layouts.
+    role: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    scope: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
 
     def __repr__(self) -> str:
         return (

@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 _TEMPLATES: dict[str, dict[str, Any]] = {
     "Project Overview": {
         "description": "Standard project dashboard with header, KPIs, and budget overview",
+        "scope": "project",
         "widgets": [
             {
                 "instanceId": str(uuid.uuid4()),
@@ -87,6 +88,7 @@ _TEMPLATES: dict[str, dict[str, Any]] = {
     },
     "EVM Analysis": {
         "description": "Diagnostic EVM dashboard with trend analysis and efficiency gauges",
+        "scope": "project",
         "widgets": [
             {
                 "instanceId": str(uuid.uuid4()),
@@ -146,6 +148,7 @@ _TEMPLATES: dict[str, dict[str, Any]] = {
     },
     "Cost Controller": {
         "description": "Financial tracking with budget, costs, change orders, and forecasts",
+        "scope": "project",
         "widgets": [
             {
                 "instanceId": str(uuid.uuid4()),
@@ -187,6 +190,7 @@ _TEMPLATES: dict[str, dict[str, Any]] = {
     },
     "COQ Analysis": {
         "description": "Cost of Quality dashboard with 4-category breakdown, trends, and QPI",
+        "scope": "project",
         "widgets": [
             {
                 "instanceId": str(uuid.uuid4()),
@@ -221,6 +225,121 @@ _TEMPLATES: dict[str, dict[str, Any]] = {
                 "typeId": "coq-work-packages",
                 "config": {"pageSize": 10},
                 "layout": {"x": 0, "y": 5, "w": 12, "h": 3},
+            },
+        ],
+    },
+    # -----------------------------------------------------------------
+    # Portfolio (global) templates — Phase 7.
+    # ``scope="portfolio"`` + ``role`` select which template a user's first
+    # visit clones. ``role=NULL`` is the generic fallback for any
+    # portfolio-read role without an exact match (admin/manager).
+    # -----------------------------------------------------------------
+    "Portfolio Overview": {
+        "description": "Generic portfolio overview (fallback for admin/manager/any "
+        "portfolio-read role)",
+        "scope": "portfolio",
+        "role": None,
+        "widgets": [
+            {
+                "instanceId": str(uuid.uuid4()),
+                "typeId": "portfolio-kpi",
+                "config": {
+                    "metrics": ["cpi", "spi", "vac", "tcpi"],
+                    "showDistressCount": "none",
+                },
+                "layout": {"x": 0, "y": 0, "w": 12, "h": 3},
+            },
+            {
+                "instanceId": str(uuid.uuid4()),
+                "typeId": "portfolio-co-pipeline",
+                "config": {"agingThresholdDays": 7},
+                "layout": {"x": 0, "y": 3, "w": 12, "h": 3},
+            },
+            {
+                "instanceId": str(uuid.uuid4()),
+                "typeId": "portfolio-projects-table",
+                "config": {},
+                "layout": {"x": 0, "y": 6, "w": 12, "h": 6},
+            },
+            {
+                "instanceId": str(uuid.uuid4()),
+                "typeId": "portfolio-distress-list",
+                "config": {"mode": "schedule", "pageSize": 10},
+                "layout": {"x": 0, "y": 12, "w": 6, "h": 5},
+            },
+        ],
+    },
+    "Cost Controlling": {
+        "description": "Cost-controlling portfolio view (role=cost-controller)",
+        "scope": "portfolio",
+        "role": "cost-controller",
+        "widgets": [
+            {
+                "instanceId": str(uuid.uuid4()),
+                "typeId": "portfolio-kpi",
+                "config": {"metrics": ["cpi"], "showDistressCount": "cost"},
+                "layout": {"x": 0, "y": 0, "w": 12, "h": 3},
+            },
+            {
+                "instanceId": str(uuid.uuid4()),
+                "typeId": "portfolio-distress-list",
+                "config": {"mode": "cost", "pageSize": 10},
+                "layout": {"x": 0, "y": 3, "w": 6, "h": 5},
+            },
+            {
+                "instanceId": str(uuid.uuid4()),
+                "typeId": "portfolio-projects-table",
+                "config": {
+                    "defaultSortField": "cpi",
+                    "defaultSortOrder": "ascend",
+                },
+                "layout": {"x": 6, "y": 3, "w": 6, "h": 5},
+            },
+            {
+                "instanceId": str(uuid.uuid4()),
+                "typeId": "portfolio-co-pipeline",
+                "config": {"agingThresholdDays": 7},
+                "layout": {"x": 0, "y": 8, "w": 12, "h": 3},
+            },
+            {
+                "instanceId": str(uuid.uuid4()),
+                "typeId": "portfolio-distress-list",
+                "config": {"mode": "schedule", "pageSize": 10},
+                "layout": {"x": 0, "y": 11, "w": 12, "h": 5},
+            },
+        ],
+    },
+    "PMO Schedule": {
+        "description": "PMO schedule portfolio view (role=pmo-director)",
+        "scope": "portfolio",
+        "role": "pmo-director",
+        "widgets": [
+            {
+                "instanceId": str(uuid.uuid4()),
+                "typeId": "portfolio-kpi",
+                "config": {"metrics": ["spi"], "showDistressCount": "schedule"},
+                "layout": {"x": 0, "y": 0, "w": 12, "h": 3},
+            },
+            {
+                "instanceId": str(uuid.uuid4()),
+                "typeId": "portfolio-distress-list",
+                "config": {"mode": "schedule", "pageSize": 10},
+                "layout": {"x": 0, "y": 3, "w": 12, "h": 5},
+            },
+            {
+                "instanceId": str(uuid.uuid4()),
+                "typeId": "portfolio-projects-table",
+                "config": {
+                    "defaultSortField": "spi",
+                    "defaultSortOrder": "ascend",
+                },
+                "layout": {"x": 0, "y": 8, "w": 12, "h": 6},
+            },
+            {
+                "instanceId": str(uuid.uuid4()),
+                "typeId": "portfolio-co-pipeline",
+                "config": {"agingThresholdDays": 7},
+                "layout": {"x": 0, "y": 14, "w": 12, "h": 3},
             },
         ],
     },
@@ -332,11 +451,18 @@ class DashboardLayoutService:
     async def get_templates(self, scope: str | None = None) -> list[DashboardLayout]:
         """Get template layouts, optionally filtered by scope.
 
+        Scope is filtered on the ``scope`` COLUMN (templates only), NOT on
+        ``project_id`` — all templates are stored ``project_id=NULL`` (they are
+        global rows cloned into projects), so a ``project_id``-based filter is
+        a no-op for templates. The ``scope`` column was added in Phase 7 to
+        distinguish project-content templates (``scope="project"``) from
+        portfolio templates (``scope="portfolio"``).
+
         Args:
-            scope: Optional scope filter. ``"global"`` returns only templates
-                with ``project_id IS NULL``; ``"project"`` returns only
-                templates with ``project_id IS NOT NULL``; any other value (or
-                ``None``) returns all templates (the original behavior).
+            scope: Optional scope filter. ``"project"`` returns only templates
+                tagged ``scope="project"``; ``"portfolio"`` returns only those
+                tagged ``scope="portfolio"``; any other value (or ``None``)
+                returns all templates (the original behavior).
 
         Returns:
             List of template DashboardLayout entities ordered by name
@@ -344,13 +470,55 @@ class DashboardLayoutService:
         stmt = (
             select(DashboardLayout).where(DashboardLayout.is_template == True)  # noqa: E712
         )
-        if scope == "global":
-            stmt = stmt.where(DashboardLayout.project_id.is_(None))
-        elif scope == "project":
-            stmt = stmt.where(DashboardLayout.project_id.is_not(None))
+        if scope in ("project", "portfolio"):
+            stmt = stmt.where(DashboardLayout.scope == scope)
         stmt = stmt.order_by(DashboardLayout.name.asc())
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
+
+    async def get_default_template_for_role(
+        self, role: str | None
+    ) -> DashboardLayout | None:
+        """Return the portfolio default template for a role.
+
+        Looks only at portfolio-scope templates (``scope="portfolio"`` AND
+        ``is_template=True``). Resolution order:
+
+        1. Exact ``role == role`` match (e.g. ``"cost-controller"`` →
+           "Cost Controlling").
+        2. Generic fallback template with ``role IS NULL`` ("Portfolio
+           Overview"), used for admin/manager/any unmatched portfolio-read
+           role.
+        3. ``None`` if no portfolio template exists at all.
+
+        Never returns a project-scope template (``scope="project"``), so the
+        portfolio page cannot crash by cloning project-content widgets.
+
+        Args:
+            role: The user's display role (or ``None``).
+
+        Returns:
+            The matching portfolio DashboardLayout template, or ``None``.
+        """
+        base_filters = [
+            DashboardLayout.is_template == True,  # noqa: E712
+            DashboardLayout.scope == "portfolio",
+        ]
+        if role is not None:
+            stmt = (
+                select(DashboardLayout)
+                .where(*base_filters, DashboardLayout.role == role)
+                .limit(1)
+            )
+            row = (await self.session.execute(stmt)).scalar_one_or_none()
+            if row is not None:
+                return row
+        stmt = (
+            select(DashboardLayout)
+            .where(*base_filters, DashboardLayout.role.is_(None))
+            .limit(1)
+        )
+        return (await self.session.execute(stmt)).scalar_one_or_none()
 
     async def create(self, user_id: UUID, **fields: object) -> DashboardLayout:
         """Create a new dashboard layout.
@@ -614,6 +782,8 @@ class DashboardLayoutService:
                 is_template=True,
                 is_default=False,
                 widgets=tpl["widgets"],
+                scope=tpl.get("scope"),
+                role=tpl.get("role"),
             )
             self.session.add(layout)
             created += 1
