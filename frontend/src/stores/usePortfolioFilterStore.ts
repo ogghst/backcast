@@ -16,14 +16,18 @@
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
 
-/** State + actions for the portfolio filter store. */
-interface PortfolioFilterState {
+/** Portfolio filter as a plain value (no setters) — carried in DashboardContext for portfolio-scope widgets. */
+export interface PortfolioFilterValue {
   /** EVM control date (as-of) as an ISO date string; null = today. */
   controlDate: string | null;
   /** Selected project statuses; null = no status filter. */
   status: string[] | null;
   /** Selected RAG bands; null = no RAG filter. */
   rag: string[] | null;
+}
+
+/** State + actions for the portfolio filter store. */
+interface PortfolioFilterState extends PortfolioFilterValue {
   /** Set the EVM as-of control date (null clears it → today). */
   setControlDate: (d: string | null) => void;
   /** Set the status multi-select (null or empty = no filter). */
