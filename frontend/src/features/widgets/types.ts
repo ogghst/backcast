@@ -41,6 +41,7 @@ export function widgetTypeId(id: string): WidgetTypeId {
  * - **diagnostic**: Variance analysis, root-cause views
  * - **breakdown**: Structured drilldowns (WBS tree, cost element grids)
  * - **action**: Action-oriented lists (pending approvals, recent entries)
+ * - **schedule**: Timeline / Gantt views (project + portfolio spans)
  * - **settings**: Configuration widgets for project-specific settings
  */
 export type WidgetCategory =
@@ -49,6 +50,7 @@ export type WidgetCategory =
   | "diagnostic"
   | "breakdown"
   | "action"
+  | "schedule"
   | "settings";
 
 /**

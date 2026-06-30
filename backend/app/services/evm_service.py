@@ -1568,6 +1568,8 @@ class EVMService:
                     customer_id=project.customer_id,
                     at_risk=at_risk,
                     delta_eac=delta_eac_b,
+                    start_date=project.start_date,
+                    end_date=project.end_date,
                 )
             )
 

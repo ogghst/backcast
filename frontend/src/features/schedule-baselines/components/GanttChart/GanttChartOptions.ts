@@ -57,19 +57,100 @@ function progressionColor(
 }
 
 /**
+ * Default bar/row tooltip formatter for a Gantt row.
+ *
+ * Extracted verbatim from the inline `tooltip.formatter` body so alternate
+ * hosts (e.g. the portfolio Gantt widget, which renders project spans instead
+ * of cost elements) can supply their own `tooltipFormatter` while reusing the
+ * same engine. The default (cost-element / WBE) path is byte-identical to the
+ * pre-extraction inline formatter.
+ *
+ * @param row      - The matched GanttRow (params.data[3])
+ * @param currency - ISO currency code for the Budget line
+ * @param colors   - Theme palette (carries textSecondary for muted labels)
+ */
+export function defaultGanttTooltip(
+  row: GanttRow,
+  currency: string,
+  colors: EChartsColorPalette,
+): string {
+  const start = row.startDate!;
+  const end = row.endDate!;
+  const durationDays = Math.ceil(
+    (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
+  );
+  const format = (d: Date) =>
+    d.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+
+  // WBE group header tooltip
+  if (row.isWbe) {
+    return `<div style="font-weight:600;margin-bottom:4px;">${row.name}</div>
+<div style="color:${colors.textSecondary};font-size:11px;margin-bottom:4px;">WBE Group</div>
+<div style="display:flex;justify-content:space-between;gap:24px;">
+  <span>Start</span><span style="font-weight:600;">${format(start)}</span>
+</div>
+<div style="display:flex;justify-content:space-between;gap:24px;">
+  <span>End</span><span style="font-weight:600;">${format(end)}</span>
+</div>
+<div style="display:flex;justify-content:space-between;gap:24px;">
+  <span>Duration</span><span style="font-weight:600;">${durationDays} days</span>
+</div>
+<div style="display:flex;justify-content:space-between;gap:24px;">
+  <span>Items</span><span style="font-weight:600;">${row.childrenCount}</span>
+</div>`;
+  }
+
+  // Cost element tooltip
+  return `<div style="font-weight:600;margin-bottom:4px;">${row.name}</div>
+<div style="color:${colors.textSecondary};font-size:11px;margin-bottom:4px;">${row.wbeCode}</div>
+<div style="display:flex;justify-content:space-between;gap:24px;">
+  <span>Start</span><span style="font-weight:600;">${format(start)}</span>
+</div>
+<div style="display:flex;justify-content:space-between;gap:24px;">
+  <span>End</span><span style="font-weight:600;">${format(end)}</span>
+</div>
+<div style="display:flex;justify-content:space-between;gap:24px;">
+  <span>Duration</span><span style="font-weight:600;">${durationDays} days</span>
+</div>
+<div style="display:flex;justify-content:space-between;gap:24px;">
+  <span>Budget</span><span style="font-weight:600;">${new Intl.NumberFormat("en-US", { style: "currency", currency, minimumFractionDigits: 0 }).format(row.budgetAmount)}</span>
+</div>
+${
+  row.progressionType
+    ? `<div style="display:flex;justify-content:space-between;gap:24px;">
+  <span>Progression</span><span style="font-weight:600;">${row.progressionType}</span>
+</div>`
+    : ""
+}`;
+}
+
+/**
  * Build ECharts option for the Gantt chart.
  *
- * @param rows            - Transformed GanttRow array
- * @param dependencies    - Dependency links (rendered as right-angle arrows)
- * @param scheduleIndex   - costElementId → y-index map (dependency resolution)
- * @param projectStart    - Project start date (x-axis min clamp)
- * @param projectEnd      - Project end date (x-axis max clamp)
- * @param colors          - Theme palette (tokenised; carries pv/ev/forecast)
- * @param tooltipConfig   - Tooltip config from useEChartsTheme()
- * @param currency        - ISO currency code for tooltips
- * @param config          - Full chart config (mode/zoom/density/flags)
- * @param hoveredDepIndex - Dependency data index currently hovered (-1 = none).
- *                          Lifts that link to full opacity / thicker stroke.
+ * @param rows              - Transformed GanttRow array
+ * @param dependencies      - Dependency links (rendered as right-angle arrows)
+ * @param scheduleIndex     - costElementId → y-index map (dependency resolution)
+ * @param projectStart      - Project start date (x-axis min clamp)
+ * @param projectEnd        - Project end date (x-axis max clamp)
+ * @param colors            - Theme palette (tokenised; carries pv/ev/forecast)
+ * @param tooltipConfig     - Tooltip config from useEChartsTheme()
+ * @param currency          - ISO currency code for tooltips
+ * @param config            - Full chart config (mode/zoom/density/flags)
+ * @param hoveredDepIndex   - Dependency data index currently hovered (-1 = none).
+ *                            Lifts that link to full opacity / thicker stroke.
+ * @param barColorFor       - Optional override for the cost-element bar
+ *                            foreground colour. Defaults to
+ *                            `(row, c) => progressionColor(row.progressionType, c)`
+ *                            (the pre-generalisation behaviour). Alternate
+ *                            hosts (portfolio Gantt) supply an RAG-derived colour.
+ * @param tooltipFormatter  - Optional override for the bar/row tooltip body.
+ *                            Defaults to {@link defaultGanttTooltip} (the exact
+ *                            pre-extraction inline body). Alternate hosts pass
+ *                            a host-specific formatter.
  */
 export function buildGanttOptions(
   rows: GanttRow[],
@@ -82,6 +163,12 @@ export function buildGanttOptions(
   currency: string,
   config: GanttChartConfig,
   hoveredDepIndex: number = -1,
+  barColorFor?: (row: GanttRow, colors: EChartsColorPalette) => string,
+  tooltipFormatter?: (
+    row: GanttRow,
+    currency: string,
+    colors: EChartsColorPalette,
+  ) => string,
 ): EChartsOption {
   const preset = getZoomPreset(config.zoom);
   const { density, gridLeft, showDependencies, showDataZoom, showTimeHeader } =
@@ -171,58 +258,10 @@ export function buildGanttOptions(
         }
 
         const row = p.data[3] as GanttRow;
-        const start = row.startDate!;
-        const end = row.endDate!;
-        const durationDays = Math.ceil(
-          (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
-        );
-        const format = (d: Date) =>
-          d.toLocaleDateString("en-US", {
-            year: "numeric",
-            month: "short",
-            day: "numeric",
-          });
-
-        // WBE group header tooltip
-        if (row.isWbe) {
-          return `<div style="font-weight:600;margin-bottom:4px;">${row.name}</div>
-<div style="color:${colors.textSecondary};font-size:11px;margin-bottom:4px;">WBE Group</div>
-<div style="display:flex;justify-content:space-between;gap:24px;">
-  <span>Start</span><span style="font-weight:600;">${format(start)}</span>
-</div>
-<div style="display:flex;justify-content:space-between;gap:24px;">
-  <span>End</span><span style="font-weight:600;">${format(end)}</span>
-</div>
-<div style="display:flex;justify-content:space-between;gap:24px;">
-  <span>Duration</span><span style="font-weight:600;">${durationDays} days</span>
-</div>
-<div style="display:flex;justify-content:space-between;gap:24px;">
-  <span>Items</span><span style="font-weight:600;">${row.childrenCount}</span>
-</div>`;
-        }
-
-        // Cost element tooltip
-        return `<div style="font-weight:600;margin-bottom:4px;">${row.name}</div>
-<div style="color:${colors.textSecondary};font-size:11px;margin-bottom:4px;">${row.wbeCode}</div>
-<div style="display:flex;justify-content:space-between;gap:24px;">
-  <span>Start</span><span style="font-weight:600;">${format(start)}</span>
-</div>
-<div style="display:flex;justify-content:space-between;gap:24px;">
-  <span>End</span><span style="font-weight:600;">${format(end)}</span>
-</div>
-<div style="display:flex;justify-content:space-between;gap:24px;">
-  <span>Duration</span><span style="font-weight:600;">${durationDays} days</span>
-</div>
-<div style="display:flex;justify-content:space-between;gap:24px;">
-  <span>Budget</span><span style="font-weight:600;">${new Intl.NumberFormat("en-US", { style: "currency", currency, minimumFractionDigits: 0 }).format(row.budgetAmount)}</span>
-</div>
-${
-  row.progressionType
-    ? `<div style="display:flex;justify-content:space-between;gap:24px;">
-  <span>Progression</span><span style="font-weight:600;">${row.progressionType}</span>
-</div>`
-    : ""
-}`;
+        // Pluggable bar/row tooltip body. Defaults to the verbatim
+        // pre-extraction inline formatter; alternate hosts (portfolio Gantt)
+        // supply a host-specific formatter via `tooltipFormatter`.
+        return (tooltipFormatter ?? defaultGanttTooltip)(row, currency, colors);
       },
     },
     grid: [
@@ -490,7 +529,10 @@ ${
 
           // Cost element bar: dual-layer (background + progression-coloured foreground)
           const y = startCoord[1] - barHeight / 2;
-          const fgColor = progressionColor(row.progressionType, colors);
+          const fgColor = (
+            barColorFor ??
+            ((row, c) => progressionColor(row.progressionType, c))
+          )(row, colors);
           return {
             type: "group",
             children: [

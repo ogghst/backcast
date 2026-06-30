@@ -1,5 +1,5 @@
 /**
- * Phase 9 — canonical required-permission + scope mapping for ALL 25 widgets.
+ * Phase 9 — canonical required-permission + scope mapping for ALL 26 widgets.
  *
  * This is the drift-detection source of truth. Every widget's
  * `requiredPermission` + `scope` is asserted here against the CORRECTED §6
@@ -7,7 +7,7 @@
  * changes either field on any widget (or adds/removes a widget) will break a
  * focused assertion, forcing an explicit, reviewed update to this table.
  *
- * The 4 portfolio widgets are also covered by `portfolioWidgets.test.tsx`
+ * The 5 portfolio widgets are also covered by `portfolioWidgets.test.tsx`
  * (render-focused); this file is the single exhaustive mapping assertion.
  *
  * Design doc: docs/03-project-plan/iterations/2026-06-29-global-dashboard-widgets/
@@ -92,7 +92,7 @@ const EXPECTATIONS: Array<{
     requiredPermission: "cost-event-read",
   },
 
-  // ── 4 portfolio-scope widgets ───────────────────────────────────────────
+  // ── 5 portfolio-scope widgets ───────────────────────────────────────────
   { typeId: "portfolio-kpi", scope: "portfolio", requiredPermission: "portfolio-read" },
   {
     typeId: "portfolio-projects-table",
@@ -109,17 +109,18 @@ const EXPECTATIONS: Array<{
     scope: "portfolio",
     requiredPermission: "portfolio-read",
   },
+  { typeId: "portfolio-gantt", scope: "portfolio", requiredPermission: "portfolio-read" },
 ];
 
 describe("widget permission + scope mapping (Phase 9, §6 corrected)", () => {
-  it("covers exactly the 25 known widgets (21 project + 4 portfolio)", () => {
-    expect(EXPECTATIONS).toHaveLength(25);
+  it("covers exactly the 26 known widgets (21 project + 5 portfolio)", () => {
+    expect(EXPECTATIONS).toHaveLength(26);
     expect(EXPECTATIONS.filter((e) => e.scope === "project")).toHaveLength(21);
-    expect(EXPECTATIONS.filter((e) => e.scope === "portfolio")).toHaveLength(4);
+    expect(EXPECTATIONS.filter((e) => e.scope === "portfolio")).toHaveLength(5);
 
-    // Registry itself must hold exactly these 25 (catches duplicate/extra
+    // Registry itself must hold exactly these 26 (catches duplicate/extra
     // registerWidget calls introduced alongside a mapping drift).
-    expect(getAllWidgetDefinitions()).toHaveLength(25);
+    expect(getAllWidgetDefinitions()).toHaveLength(26);
   });
 
   it("has no duplicate typeIds in the expectation table", () => {
