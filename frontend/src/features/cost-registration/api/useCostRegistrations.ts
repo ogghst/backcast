@@ -59,12 +59,13 @@ interface CostRegistrationListParams {
  * @returns TanStack Query result with paginated cost registrations
  */
 export const useCostRegistrations = (params?: CostRegistrationListParams) => {
-  const { asOf } = useTimeMachineParams();
+  const { mode, branch: tmBranch, asOf } = useTimeMachineParams();
+  const branch = tmBranch || "main";
   const filterId =
     params?.cost_element_id || params?.work_package_id || params?.wbs_element_id || params?.project_id || "";
 
   return useQuery<PaginatedResponse<CostRegistrationRead>>({
-    queryKey: queryKeys.costRegistrations.list(filterId, { ...params, asOf }),
+    queryKey: queryKeys.costRegistrations.list(filterId, { ...params, asOf, branch, mode }),
     queryFn: async () => {
       const {
         cost_element_id,
@@ -96,8 +97,8 @@ export const useCostRegistrations = (params?: CostRegistrationListParams) => {
         query: {
           page,
           per_page: perPage,
-          branch: "main",
-          mode: "merged",
+          branch,
+          mode,
           cost_element_id: cost_element_id || undefined,
           wbs_element_id: wbs_element_id || undefined,
           project_id: project_id || undefined,

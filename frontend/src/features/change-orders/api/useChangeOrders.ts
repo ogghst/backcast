@@ -43,11 +43,15 @@ const getPaginationParams = (params?: ChangeOrderListParams) => {
  * Change orders are always scoped to a specific project.
  */
 export const useChangeOrders = (params: ChangeOrderListParams) => {
-  const { asOf } = useTimeMachineParams();
+  const { mode: tmMode, branch: tmBranch, asOf } = useTimeMachineParams();
+  // Explicit params.branch wins (e.g. fixed dashboard branch); fall back to TM.
+  const branch = params.branch || tmBranch || "main";
 
   return useQuery({
     queryKey: queryKeys.changeOrders.list(params.projectId, {
       ...params,
+      branch,
+      mode: tmMode,
       asOf,
     }),
     queryFn: async () => {
@@ -59,7 +63,8 @@ export const useChangeOrders = (params: ChangeOrderListParams) => {
         query: {
           project_id: params.projectId,
           ...serverParams,
-          branch: params.branch || "main",
+          branch,
+          branch_mode: tmMode,
           as_of: asOf || undefined,
         },
       }) as Promise<PaginatedResponse<ChangeOrderPublic>>;
