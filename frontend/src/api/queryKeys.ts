@@ -131,14 +131,18 @@ export const queryKeys = createQueryKeys("backcast-evs", {
     detail: (id: string, context?: unknown) =>
       ["cost-events", "detail", id, context] as const,
     history: (id: string) => ["cost-events", "history", id] as const,
-    summary: (projectId: string) =>
-      ["cost-events", "summary", projectId] as const,
+    summary: (projectId: string, context?: { asOf?: string }) =>
+      ["cost-events", "summary", projectId, context] as const,
     allocations: (id: string) =>
       ["cost-events", "allocations", id] as const,
-    coqMetrics: (projectId: string) =>
-      ["cost-events", "coqMetrics", projectId] as const,
-    coqTrend: (projectId: string, granularity?: string) =>
-      ["cost-events", "coqTrend", projectId, granularity] as const,
+    coqMetrics: (projectId: string, context?: { asOf?: string }) =>
+      ["cost-events", "coqMetrics", projectId, context] as const,
+    coqTrend: (
+      projectId: string,
+      granularity: "week" | "month",
+      context?: { asOf?: string },
+    ) =>
+      ["cost-events", "coqTrend", projectId, granularity, context] as const,
   },
 
   // Cost Event Types (was: package-types)
