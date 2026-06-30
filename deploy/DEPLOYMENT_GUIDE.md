@@ -52,6 +52,7 @@ Internet → Apache (192.168.1.21:80/443) → Traefik (192.168.1.23:8080) → Se
 - `app.backcast.duckdns.org` → 192.168.1.21
 - `api.backcast.duckdns.org` → 192.168.1.21
 - `storage.backcast.duckdns.org` → 192.168.1.21 (RustFS — presigned document downloads)
+- `www.backcast.duckdns.org` → 192.168.1.21 (Marketing/showcase website)
 
 ---
 
