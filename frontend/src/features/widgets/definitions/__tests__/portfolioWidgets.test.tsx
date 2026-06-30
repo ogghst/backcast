@@ -1,5 +1,5 @@
 /**
- * Phase 4 render tests for the 4 portfolio-scope widgets.
+ * Phase 4 render tests for the 5 portfolio-scope widgets.
  *
  * Each widget is rendered inside a portfolio-scope `DashboardContextBus` (so
  * `scope` + `portfolioFilter` flow through the real context, matching how the
@@ -186,16 +186,17 @@ describe("portfolio widgets — registry", () => {
     setPortfolioCO();
   });
 
-  it("registers exactly 25 widget definitions (21 project + 4 portfolio)", () => {
-    expect(getAllWidgetDefinitions()).toHaveLength(25);
+  it("registers exactly 26 widget definitions (21 project + 5 portfolio)", () => {
+    expect(getAllWidgetDefinitions()).toHaveLength(26);
   });
 
-  it("registers all 4 portfolio widgets with scope:'portfolio'", () => {
+  it("registers all 5 portfolio widgets with scope:'portfolio'", () => {
     const portfolioIds = [
       "portfolio-kpi",
       "portfolio-projects-table",
       "portfolio-co-pipeline",
       "portfolio-distress-list",
+      "portfolio-gantt",
     ];
     for (const id of portfolioIds) {
       const def = getWidgetDefinition(widgetTypeId(id));
@@ -204,12 +205,13 @@ describe("portfolio widgets — registry", () => {
     }
   });
 
-  it("all 4 portfolio widgets gate on portfolio-read (F-7/G14: portfolio-co-pipeline matches its data route)", () => {
+  it("all 5 portfolio widgets gate on portfolio-read (F-7/G14: portfolio-co-pipeline matches its data route)", () => {
     for (const id of [
       "portfolio-kpi",
       "portfolio-projects-table",
       "portfolio-co-pipeline",
       "portfolio-distress-list",
+      "portfolio-gantt",
     ]) {
       expect(
         getWidgetDefinition(widgetTypeId(id))?.requiredPermission,

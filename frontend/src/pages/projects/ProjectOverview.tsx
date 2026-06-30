@@ -10,8 +10,9 @@ import { WBSElementTable } from "@/components/hierarchy/WBSElementTable";
 import { WBSElementCreate, WBSElementRead, ProjectUpdate } from "@/api/generated";
 import { useProjectBudgetStatus } from "@/features/cost-registration/api/useCostRegistrations";
 import type { Version } from "@/components/common/VersionHistory";
-import { Button, Skeleton, Card, theme, Space, Grid } from "antd";
-import { PlusOutlined, EditOutlined, HistoryOutlined, DeleteOutlined } from "@ant-design/icons";
+import { Button, Skeleton, theme, Space, Grid } from "antd";
+import { PlusOutlined, EditOutlined, HistoryOutlined, DeleteOutlined, ApartmentOutlined } from "@ant-design/icons";
+import { PanelCard } from "@/components/common/PanelCard";
 import { useState } from "react";
 import { WBSElementModal } from "@/features/wbs-elements/components/WBSElementModal";
 import { DeleteProjectModal } from "@/components/projects/DeleteProjectModal";
@@ -177,7 +178,8 @@ export const ProjectOverview = () => {
           />
 
           {/* Root WBEs */}
-          <Card
+          <PanelCard
+            icon={<ApartmentOutlined />}
             title="Root WBS Elements"
             style={{ marginBottom: token.marginLG }}
             styles={{ body: { padding: `${token.paddingSM}px 0` } }}
@@ -203,7 +205,7 @@ export const ProjectOverview = () => {
               variant={resolvedMode}
               currency={project.currency}
             />
-          </Card>
+          </PanelCard>
 
           {/* Project metadata footer — standardized across entity pages */}
           <EntityMetadataCard

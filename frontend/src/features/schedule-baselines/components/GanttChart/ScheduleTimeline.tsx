@@ -59,8 +59,22 @@ const MIN_HEIGHT = 200;
 const MAX_HEIGHT = 1200;
 
 export interface ScheduleTimelineProps {
-  /** Raw Gantt data response (items + dates + dependencies). */
-  data: GanttDataResponse;
+  /**
+   * Raw Gantt data response (items + dates + dependencies). REQUIRED for the
+   * legacy transform path; OMITTED by alternate hosts (e.g. the portfolio
+   * Gantt widget) that supply pre-built {@link ScheduleTimelineProps.rows}
+   * instead. When `rows` is provided, `data` is ignored.
+   */
+  data?: GanttDataResponse;
+  /**
+   * Pre-built display rows. When provided, this component SKIPS
+   * `transformGanttData` + the collapse computation and renders these rows
+   * directly (deriving projectStart/projectEnd from the rows' min start /
+   * max end). Alternate hosts with their own row model (e.g. portfolio
+   * project spans) use this. When absent, the legacy `data` → transform path
+   * runs unchanged.
+   */
+  rows?: GanttRow[];
   /** ISO currency code for tooltips. */
   currency: string;
   /** Tokenised theme palette. */
@@ -69,12 +83,27 @@ export interface ScheduleTimelineProps {
   tooltipConfig: EChartsTooltipConfig;
   /** Full chart config (mode/zoom/density/flags). */
   config: GanttChartConfig;
-  /** Collapsed WBE ids set. */
-  collapsedWbeIds: Set<string>;
+  /** Collapsed WBE ids set (legacy path only; ignored when `rows` is set). */
+  collapsedWbeIds?: Set<string>;
   /** Live-instance ref (owned by useScheduleViewport). */
   chartRef?: React.MutableRefObject<ECharts | null>;
   /** Optional bar-click handler (defaults to no-op). */
   onBarClick?: (row: GanttRow) => void;
+  /**
+   * Optional override for the bar foreground colour (forwarded to
+   * `buildGanttOptions`). Defaults to the progression-type colour inside the
+   * builder. Alternate hosts supply an RAG-derived colour.
+   */
+  barColorFor?: (row: GanttRow, colors: EChartsColorPalette) => string;
+  /**
+   * Optional override for the bar/row tooltip body (forwarded to
+   * `buildGanttOptions`). Defaults to `defaultGanttTooltip` inside the builder.
+   */
+  tooltipFormatter?: (
+    row: GanttRow,
+    currency: string,
+    colors: EChartsColorPalette,
+  ) => string;
   /**
    * Optional explicit height; otherwise derived from row count + density.
    *
@@ -92,6 +121,7 @@ export interface ScheduleTimelineProps {
  */
 export const ScheduleTimeline: React.FC<ScheduleTimelineProps> = ({
   data,
+  rows: rowsProp,
   currency,
   colors,
   tooltipConfig,
@@ -99,29 +129,47 @@ export const ScheduleTimeline: React.FC<ScheduleTimelineProps> = ({
   collapsedWbeIds,
   chartRef,
   onBarClick,
+  barColorFor,
+  tooltipFormatter,
   height,
   loading,
 }) => {
   const { density } = config;
   const headerFooter = density.headerHeight + density.bottomPadding;
 
-  // Transform flat API data into display rows
-  const rows = useMemo(
-    () => transformGanttData(data?.items ?? [], collapsedWbeIds),
-    [data, collapsedWbeIds],
-  );
+  // Rows-mode (alternate host): use the pre-built rows directly, skipping the
+  // transform + collapse computation. Legacy data-mode: transform flat API
+  // items into display rows (unchanged path for the schedule page + mini-gantt).
+  const rows = useMemo(() => {
+    if (rowsProp) return rowsProp;
+    return transformGanttData(data?.items ?? [], collapsedWbeIds ?? new Set());
+  }, [rowsProp, data, collapsedWbeIds]);
 
-  // Schedule index for dependency-arrow coordinate resolution
+  // Schedule index for dependency-arrow coordinate resolution. Harmless in
+  // rows-mode (no deps there); kept for the shared builder signature.
   const scheduleIndex = useMemo(() => buildScheduleBaselineIndex(rows), [rows]);
 
-  const projectStart = useMemo(
-    () => (data?.project_start ? new Date(data.project_start) : null),
-    [data],
-  );
-  const projectEnd = useMemo(
-    () => (data?.project_end ? new Date(data.project_end) : null),
-    [data],
-  );
+  // projectStart/projectEnd: in rows-mode derive from the rows' min start /
+  // max end (so the x-axis clamps to the rendered spans); in data-mode read
+  // them from the response exactly as before.
+  const projectStart = useMemo(() => {
+    if (rowsProp) {
+      const starts = rowsProp
+        .map((r) => r.startDate?.getTime() ?? null)
+        .filter((t): t is number => t !== null);
+      return starts.length ? new Date(Math.min(...starts)) : null;
+    }
+    return data?.project_start ? new Date(data.project_start) : null;
+  }, [rowsProp, data]);
+  const projectEnd = useMemo(() => {
+    if (rowsProp) {
+      const ends = rowsProp
+        .map((r) => r.endDate?.getTime() ?? null)
+        .filter((t): t is number => t !== null);
+      return ends.length ? new Date(Math.max(...ends)) : null;
+    }
+    return data?.project_end ? new Date(data.project_end) : null;
+  }, [rowsProp, data]);
 
   // Hovered dependency index — tracked via onEvents mouseover/mouseout on the
   // dependency series. Lifts the hovered link to full opacity / thicker stroke
@@ -142,6 +190,8 @@ export const ScheduleTimeline: React.FC<ScheduleTimelineProps> = ({
         currency,
         config,
         hoveredDepIndex,
+        barColorFor,
+        tooltipFormatter,
       ),
     [
       rows,
@@ -154,6 +204,8 @@ export const ScheduleTimeline: React.FC<ScheduleTimelineProps> = ({
       currency,
       config,
       hoveredDepIndex,
+      barColorFor,
+      tooltipFormatter,
     ],
   );
 

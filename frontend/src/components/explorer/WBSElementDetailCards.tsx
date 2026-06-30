@@ -242,7 +242,7 @@ export const WBSElementDetailCards = ({ wbsElementId }: WBSElementDetailCardsPro
         {/* System info - collapsed */}
         <Collapse ghost>
           <Collapse.Panel header="System Information" key="system">
-            <Descriptions column={2} size="small">
+            <Descriptions column={1} size="small">
               <Descriptions.Item label="ID">{wbe.id}</Descriptions.Item>
               <Descriptions.Item label="WBE ID">{wbe.wbs_element_id}</Descriptions.Item>
               <Descriptions.Item label="Project ID">

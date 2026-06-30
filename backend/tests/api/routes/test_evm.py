@@ -92,3 +92,35 @@ async def test_evm_wbs_element_level(
     data = response.json()
     assert "bac" in data
     assert data["entity_type"] == "wbs_element"
+
+
+@pytest.mark.asyncio
+async def test_evm_project_control_date_before_first_version_returns_200(
+    client: AsyncClient,
+    db: AsyncSession,
+    actor_id: UUID,
+) -> None:
+    """F3: control_date before the project's first valid_time returns 200.
+
+    The project exists but has no version valid as of the past control_date.
+    Previously this raised ValueError -> HTTP 404 (error storm). It must now
+    return 200 with zeroed metrics and a non-empty warning.
+    """
+    h = await create_full_hierarchy(db, actor_id)
+    await db.commit()
+
+    # control_date well before the project version's valid_time lower bound.
+    response = await client.get(
+        f"{PREFIX}/project/{h['project'].project_id}/metrics"
+        "?control_date=2020-01-01T00:00:00Z"
+    )
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert data["entity_type"] == "project"
+    assert float(data["bac"]) == 0.0
+    assert float(data["ac"]) == 0.0
+    assert float(data["ev"]) == 0.0
+    assert data["cpi"] is None
+    assert data["spi"] is None
+    assert data["warning"] is not None
+    assert "2020-01-01" in data["warning"]

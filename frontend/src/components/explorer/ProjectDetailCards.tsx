@@ -303,7 +303,7 @@ export const ProjectDetailCards = ({ projectId }: ProjectDetailCardsProps) => {
         {/* System info - collapsed by default */}
         <Collapse ghost>
           <Collapse.Panel header="System Information" key="system">
-            <Descriptions column={2} size="small">
+            <Descriptions column={1} size="small">
               <Descriptions.Item label="ID">{project.id}</Descriptions.Item>
               <Descriptions.Item label="Project ID">
                 {project.project_id}

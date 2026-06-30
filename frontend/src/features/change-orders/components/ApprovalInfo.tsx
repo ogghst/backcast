@@ -217,7 +217,7 @@ export function ApprovalInfo({
               <DollarOutlined /> Financial Impact
             </Text>
             <Descriptions
-              column={2}
+              column={1}
               size="small"
               style={{ marginTop: token.marginXS }}
               items={[

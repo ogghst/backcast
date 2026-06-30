@@ -308,10 +308,36 @@ class CostEventService(TemporalService[CostEvent]):  # type: ignore[type-var,unu
         """
         quality_ids = await self._get_quality_event_type_ids()
 
-        cr_filters_current = [
-            func.upper(CostRegistration.valid_time).is_(None),
-            CostRegistration.deleted_at.is_(None),
-        ]
+        # Apply as_of time-travel when requested. CostEvent is filtered via this
+        # service's bitemporal helper (bound to CostEvent); CostRegistration is a
+        # different entity, so we reuse CostRegistrationService's helper (bound to
+        # CostRegistration) -- exactly how EVMService computes AC. When as_of is
+        # None we keep the original current-version filter. See get_summary /
+        # cr_service.get_total_for_work_package for the canonical pattern.
+        if as_of is not None:
+            from app.services.cost_registration_service import CostRegistrationService
+
+            cr_service = CostRegistrationService(self.session)
+
+            def _apply_cr(stmt: Any) -> Any:
+                return cr_service._apply_bitemporal_filter(stmt, as_of)  # noqa: SLF001
+
+            def _apply_event(stmt: Any) -> Any:
+                return self._apply_bitemporal_filter(stmt, as_of)
+
+        else:
+            cr_filters_current = [
+                func.upper(CostRegistration.valid_time).is_(None),
+                CostRegistration.deleted_at.is_(None),
+            ]
+
+            def _apply_cr(stmt: Any) -> Any:
+                return stmt.where(*cr_filters_current)
+
+            # Original behavior: as_of=None never applied a bitemporal filter to
+            # CostEvent (only CostRegistration). Keep it a no-op here.
+            def _apply_event(stmt: Any) -> Any:
+                return stmt
 
         # 1. Total COQ: sum of CR.amount where cost_event_id IS NOT NULL and event type is quality
         total_coq_stmt = (
@@ -324,9 +350,10 @@ class CostEventService(TemporalService[CostEvent]):  # type: ignore[type-var,unu
                 CostEvent.project_id == project_id,
                 CostEvent.cost_event_type_id.in_(quality_ids),
                 CostRegistration.cost_event_id.isnot(None),
-                *cr_filters_current,
             )
         )
+        total_coq_stmt = _apply_cr(total_coq_stmt)
+        total_coq_stmt = _apply_event(total_coq_stmt)
         total_coq_result = await self.session.execute(total_coq_stmt)
         total_coq = Decimal(str(total_coq_result.scalar_one()))
 
@@ -342,9 +369,10 @@ class CostEventService(TemporalService[CostEvent]):  # type: ignore[type-var,unu
                 CostEvent.cost_event_type_id.in_(quality_ids),
                 CostEvent.coq_category.in_(["internal_failure", "external_failure"]),
                 CostRegistration.cost_event_id.isnot(None),
-                *cr_filters_current,
             )
         )
+        cpq_stmt = _apply_cr(cpq_stmt)
+        cpq_stmt = _apply_event(cpq_stmt)
         cpq_result = await self.session.execute(cpq_stmt)
         cpq = Decimal(str(cpq_result.scalar_one()))
 
@@ -369,9 +397,9 @@ class CostEventService(TemporalService[CostEvent]):  # type: ignore[type-var,unu
             )
             .where(
                 WBSElement.project_id == project_id,
-                *cr_filters_current,
             )
         )
+        total_ac_stmt = _apply_cr(total_ac_stmt)
         total_ac_result = await self.session.execute(total_ac_stmt)
         total_ac = Decimal(str(total_ac_result.scalar_one()))
 

@@ -336,6 +336,12 @@ class PortfolioProjectMetrics(BaseModel):
             "history exists."
         ),
     )
+    start_date: datetime | None = Field(
+        None, description="Project planned start date (null when unset)."
+    )
+    end_date: datetime | None = Field(
+        None, description="Project planned end date (null when unset)."
+    )
 
 
 class PortfolioEVMResponse(BaseModel):

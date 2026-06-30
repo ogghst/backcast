@@ -97,7 +97,7 @@ export const WBSElementDetail: React.FC<WBSElementDetailProps> = ({ wbsElementId
       {/* WBS Element Basic Information */}
       <Card style={{ marginBottom: token.marginLG }}>
         <Title level={2}>{wbsData.name}</Title>
-        <Descriptions column={2} bordered>
+        <Descriptions column={1} bordered>
           <Descriptions.Item label="Code">{wbsData.code}</Descriptions.Item>
           <Descriptions.Item label="Level">{wbsData.level}</Descriptions.Item>
           <Descriptions.Item label="Description" span={2}>

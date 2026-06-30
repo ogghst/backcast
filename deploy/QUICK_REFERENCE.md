@@ -209,6 +209,7 @@ docker builder prune
 | Service | URL | Authentication |
 |---------|-----|----------------|
 | Frontend | <https://app.backcast.duckdns.org> | None |
+| Website | <https://www.backcast.duckdns.org> | None |
 | Backend API | <https://api.backcast.duckdns.org> | API tokens |
 | API Docs | <https://api.backcast.duckdns.org/docs> | None |
 | Adminer (DB) | <http://db.backcast.duckdns.org> | IP whitelist |
@@ -233,6 +234,7 @@ sudo nano /etc/hosts
 ```hosts
 192.168.1.23  api.backcast.duckdns.org
 192.168.1.23  app.backcast.duckdns.org
+192.168.1.23  www.backcast.duckdns.org
 192.168.1.23  db.backcast.duckdns.org
 192.168.1.23  traefik.backcast.duckdns.org
 ```

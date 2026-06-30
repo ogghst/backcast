@@ -1,8 +1,9 @@
 import React from "react";
 import { useParams, useNavigate, useOutletContext } from "react-router-dom";
 import { useState } from "react";
-import { Button, Card, Descriptions, Table, Tag, Grid } from "antd";
-import { HistoryOutlined } from "@ant-design/icons";
+import { Button, Descriptions, Table, Tag, Grid } from "antd";
+import { HistoryOutlined, InfoCircleOutlined, ProfileOutlined } from "@ant-design/icons";
+import { PanelCard } from "@/components/common/PanelCard";
 import { useWorkPackages } from "@/features/work-packages/api/useWorkPackages";
 import { useWBSElement } from "@/features/wbs-elements/api/useWBSElements";
 import { formatCurrency } from "@/utils/formatters";
@@ -62,9 +63,12 @@ export const ControlAccountOverview: React.FC = () => {
   return (
     <PageContent>
       {/* Control Account Information */}
-      <Card title="Control Account Information">
+      <PanelCard
+        icon={<InfoCircleOutlined />}
+        title="Control Account Information"
+      >
         <Descriptions
-          column={isMobile ? 1 : 2}
+          column={1}
           size="middle"
           bordered
           items={[
@@ -109,10 +113,13 @@ export const ControlAccountOverview: React.FC = () => {
             },
           ]}
         />
-      </Card>
+      </PanelCard>
 
       {/* Work Packages Table */}
-      <Card title="Work Packages">
+      <PanelCard
+        icon={<ProfileOutlined />}
+        title="Work Packages"
+      >
         <Table
           dataSource={workPackages}
           rowKey="work_package_id"
@@ -167,7 +174,7 @@ export const ControlAccountOverview: React.FC = () => {
             },
           ]}
         />
-      </Card>
+      </PanelCard>
 
       {/* Control Account metadata footer — standardized across entity pages */}
       {ca && (

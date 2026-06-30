@@ -215,7 +215,7 @@ export const useCostEventSummary = (projectId: string) => {
   const { asOf } = useTimeMachineParams();
 
   return useQuery<CostEventSummary>({
-    queryKey: queryKeys.costEvents.summary(projectId),
+    queryKey: queryKeys.costEvents.summary(projectId, { asOf }),
     queryFn: async () => {
       return await __request(OpenAPI, {
         method: "GET",
@@ -255,13 +255,18 @@ export const useCostEventAllocations = (costEventId: string) => {
 // ---------------------------------------------------------------------------
 
 export const useCOQMetrics = (projectId: string) => {
+  const { asOf } = useTimeMachineParams();
+
   return useQuery<COQMetrics>({
-    queryKey: queryKeys.costEvents.coqMetrics(projectId),
+    queryKey: queryKeys.costEvents.coqMetrics(projectId, { asOf }),
     queryFn: async () => {
       return await __request(OpenAPI, {
         method: "GET",
         url: "/api/v1/cost-events/project/{project_id}/coq-metrics",
         path: { project_id: projectId },
+        query: {
+          as_of: asOf || undefined,
+        },
         errors: { 422: "Validation Error" },
       });
     },
@@ -280,7 +285,7 @@ export const useCOQTrend = (
   const { asOf } = useTimeMachineParams();
 
   return useQuery<COQTrendResponse>({
-    queryKey: queryKeys.costEvents.coqTrend(projectId, granularity),
+    queryKey: queryKeys.costEvents.coqTrend(projectId, granularity, { asOf }),
     queryFn: async () => {
       return await __request(OpenAPI, {
         method: "GET",

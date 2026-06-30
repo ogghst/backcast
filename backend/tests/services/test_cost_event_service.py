@@ -527,6 +527,38 @@ async def test_get_coq_metrics_with_actual_costs(
 
 
 @pytest.mark.asyncio
+async def test_get_coq_metrics_as_of_filters_registrations(
+    db: AsyncSession, actor_id: UUID, service: CostEventService
+) -> None:
+    """F4: get_coq_metrics(as_of=past) must apply as_of to all three aggregates.
+
+    Previously `as_of` was accepted but ignored: total_coq/cpq/total_ac were
+    always computed from the current version. With a past as_of predating the
+    cost registration's valid_time, the registration must be excluded, so
+    total_ac decreases relative to the as_of=None (current) call.
+    """
+    data = await _setup_event_with_registration(
+        db,
+        actor_id,
+        coq_category="internal_failure",
+        registration_amount=Decimal("7000"),
+    )
+
+    # Current view: registration counted.
+    current = await service.get_coq_metrics(data["project"].project_id)
+    assert current.total_ac > Decimal("0")
+    assert current.total_coq == Decimal("7000")
+    assert current.cpq == Decimal("7000")
+
+    # Past as_of predates the registration's valid_time -> excluded.
+    past_as_of = datetime.now(UTC) - timedelta(days=10)
+    past = await service.get_coq_metrics(data["project"].project_id, as_of=past_as_of)
+    assert past.total_ac < current.total_ac
+    assert past.total_coq == Decimal("0")
+    assert past.cpq == Decimal("0")
+
+
+@pytest.mark.asyncio
 async def test_get_coq_trend_with_data(
     db: AsyncSession, actor_id: UUID, service: CostEventService
 ) -> None:

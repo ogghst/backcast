@@ -1,7 +1,8 @@
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useState, useMemo, useEffect, useRef } from "react";
-import { App, Button, Card, Space, Grid, Table, Tag, Empty, Spin, theme } from "antd";
-import { EditOutlined, DeleteOutlined, PlusOutlined, HistoryOutlined } from "@ant-design/icons";
+import { App, Button, Space, Grid, Table, Tag, Empty, Spin, theme } from "antd";
+import { EditOutlined, DeleteOutlined, PlusOutlined, HistoryOutlined, ApartmentOutlined, ClusterOutlined, ProfileOutlined } from "@ant-design/icons";
+import { PanelCard } from "@/components/common/PanelCard";
 import { useQueries, useQueryClient } from "@tanstack/react-query";
 import {
   useWBSElement,
@@ -227,7 +228,8 @@ export const WBSElementOverview = () => {
         )}
 
         {/* Child WBEs Section */}
-        <Card
+        <PanelCard
+          icon={<ApartmentOutlined />}
           title="Child WBS Elements"
           extra={
             <Space>
@@ -246,13 +248,14 @@ export const WBSElementOverview = () => {
             onRowClick={handleRowClick}
             variant={resolvedMode}
           />
-        </Card>
+        </PanelCard>
 
         {/* Cost Elements are now managed under Work Packages */}
 
         {/* Control Accounts Section */}
-        <Card
+        <PanelCard
           ref={caSectionRef}
+          icon={<ClusterOutlined />}
           title="Control Accounts"
           extra={
             <Space>
@@ -322,10 +325,11 @@ export const WBSElementOverview = () => {
               />
             );
           })()}
-        </Card>
+        </PanelCard>
 
         {/* Work Packages Section */}
-        <Card
+        <PanelCard
+          icon={<ProfileOutlined />}
           title="Work Packages"
           extra={
             <Space>
@@ -416,7 +420,7 @@ export const WBSElementOverview = () => {
               />
             );
           })()}
-        </Card>
+        </PanelCard>
 
         {/* WBS Element metadata footer — standardized across entity pages */}
         {wbe && (

@@ -180,7 +180,11 @@ export function ChangeOrderUnifiedPage(): JSX.Element {
                 children: (
                   <CollapsibleCard
                     id="approval-info"
-                    title={<span>Approval Information</span>}
+                    title={
+                      <span style={{ fontSize: token.fontSizeLG, fontWeight: token.fontWeightStrong, color: token.colorText }}>
+                        Approval Information
+                      </span>
+                    }
                     collapsed={false}
                   >
                     <ApprovalInfo

@@ -862,10 +862,20 @@ class WBSElementService(BranchableService[WBSElement]):  # type: ignore[type-var
     async def _get_descendants_merged(
         self, parent_wbe_id: UUID, branch: str
     ) -> list[UUID]:
-        """Get descendant WBS Element IDs for MERGED mode on non-main branch."""
+        """Get descendant WBS Element IDs for MERGED mode on non-main branch.
+
+        PostgreSQL forbids ORDER BY (and therefore DISTINCT ON, which requires
+        it) in the arms of a recursive CTE. We therefore carry ``branch`` and
+        ``depth`` through the recursion and perform the prefer-current-branch
+        dedup ONCE in the final outer SELECT, where DISTINCT ON ... ORDER BY is
+        legal. The recursive arms only collect candidate rows from both the
+        current branch and main, excluding a main row when that wbs_element_id
+        is soft-deleted on the current branch.
+        """
         raw_sql = text("""
             WITH RECURSIVE wbs_descendants AS (
-                SELECT DISTINCT ON (wbs_element_id) wbs_element_id, 1 as depth
+                -- anchor: direct children of the parent (both branches)
+                SELECT wbs_element_id, branch, 1 AS depth
                 FROM wbs_elements
                 WHERE parent_wbs_element_id = :parent_wbe_id
                     AND branch IN (:current_branch, 'main')
@@ -879,31 +889,32 @@ class WBSElementService(BranchableService[WBSElement]):  # type: ignore[type-var
                               AND w.deleted_at IS NOT NULL
                         )
                     )
-                ORDER BY wbs_element_id, CASE WHEN branch = :current_branch THEN 0 ELSE 1 END
 
                 UNION ALL
 
-                SELECT child.wbs_element_id, wd.depth + 1
+                -- recursive: children of each descendant (both branches)
+                SELECT child.wbs_element_id, child.branch, wd.depth + 1
                 FROM wbs_descendants wd
-                INNER JOIN LATERAL (
-                    SELECT DISTINCT ON (wbs_element_id) wbs_element_id
-                    FROM wbs_elements w
-                    WHERE w.parent_wbs_element_id = wd.wbs_element_id
-                        AND branch IN (:current_branch, 'main')
-                        AND w.deleted_at IS NULL
-                        AND upper(valid_time) IS NULL
-                        AND NOT (
-                            branch = 'main'
-                            AND wbs_element_id IN (
-                                SELECT ww.wbs_element_id FROM wbs_elements ww
-                                WHERE ww.branch = :current_branch
-                                  AND ww.deleted_at IS NOT NULL
-                            )
-                        )
-                    ORDER BY wbs_element_id, CASE WHEN branch = :current_branch THEN 0 ELSE 1 END
-                ) child ON true
+                JOIN wbs_elements child
+                  ON child.parent_wbs_element_id = wd.wbs_element_id
+                 AND child.branch IN (:current_branch, 'main')
+                 AND child.deleted_at IS NULL
+                 AND upper(child.valid_time) IS NULL
+                 AND NOT (
+                     child.branch = 'main'
+                     AND child.wbs_element_id IN (
+                         SELECT ww.wbs_element_id FROM wbs_elements ww
+                         WHERE ww.branch = :current_branch
+                           AND ww.deleted_at IS NOT NULL
+                     )
+                 )
             )
-            SELECT wbs_element_id FROM wbs_descendants ORDER BY depth ASC
+            -- Dedup prefer-current-branch ONCE here (legal in outer SELECT).
+            SELECT DISTINCT ON (wbs_element_id) wbs_element_id
+            FROM wbs_descendants
+            ORDER BY wbs_element_id,
+                     CASE WHEN branch = :current_branch THEN 0 ELSE 1 END,
+                     depth ASC
         """)
 
         result = await self.session.execute(

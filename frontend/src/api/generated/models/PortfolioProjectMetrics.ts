@@ -66,5 +66,13 @@ export type PortfolioProjectMetrics = {
      * ΔEAC forecast drift = latest EAC minus previous EAC (summed over the project's work-package forecasts). Null when no forecast history exists.
      */
     delta_eac?: (number | null);
+    /**
+     * Project start date (ISO). Null when the project has no schedule span.
+     */
+    start_date?: (string | null);
+    /**
+     * Project end date (ISO). Null when the project has no schedule span.
+     */
+    end_date?: (string | null);
 };
 
