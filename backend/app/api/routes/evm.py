@@ -260,7 +260,11 @@ async def get_evm_metrics(
 
         # Handle WBE and Project entity types (batch aggregation)
         elif entity_type in (EntityType.WBS_ELEMENT, EntityType.PROJECT):
-            # Validate entity exists before calculating metrics
+            # Validate entity exists before calculating metrics. If the entity
+            # exists in principle but has no version valid as of control_date
+            # (e.g. the project version's valid_time starts after control_date),
+            # return an empty metrics response with a warning rather than 404 --
+            # there is simply no data yet, which is not an error condition.
             if entity_type == EntityType.WBS_ELEMENT:
                 wbe = await service.wbs_service.get_as_of(
                     entity_id=entity_id,
@@ -269,7 +273,29 @@ async def get_evm_metrics(
                     branch_mode=branch_mode,
                 )
                 if wbe is None:
-                    raise ValueError(f"WBE with ID {entity_id} not found")
+                    return EVMMetricsResponse(  # type: ignore[return-value]
+                        entity_type=entity_type,
+                        entity_id=entity_id,
+                        bac=Decimal("0"),
+                        pv=Decimal("0"),
+                        ac=Decimal("0"),
+                        ev=Decimal("0"),
+                        cv=Decimal("0"),
+                        sv=Decimal("0"),
+                        cpi=None,
+                        spi=None,
+                        eac=None,
+                        vac=None,
+                        etc=None,
+                        tcpi=None,
+                        control_date=control_date,
+                        branch=branch,
+                        branch_mode=branch_mode,
+                        progress_percentage=None,
+                        warning=(
+                            f"No 'wbe' data available as of {control_date.date()}"
+                        ),
+                    )
             elif entity_type == EntityType.PROJECT:
                 project = await service.project_service.get_as_of(
                     entity_id=entity_id,
@@ -278,7 +304,29 @@ async def get_evm_metrics(
                     branch_mode=branch_mode,
                 )
                 if project is None:
-                    raise ValueError(f"Project with ID {entity_id} not found")
+                    return EVMMetricsResponse(  # type: ignore[return-value]
+                        entity_type=entity_type,
+                        entity_id=entity_id,
+                        bac=Decimal("0"),
+                        pv=Decimal("0"),
+                        ac=Decimal("0"),
+                        ev=Decimal("0"),
+                        cv=Decimal("0"),
+                        sv=Decimal("0"),
+                        cpi=None,
+                        spi=None,
+                        eac=None,
+                        vac=None,
+                        etc=None,
+                        tcpi=None,
+                        control_date=control_date,
+                        branch=branch,
+                        branch_mode=branch_mode,
+                        progress_percentage=None,
+                        warning=(
+                            f"No 'project' data available as of {control_date.date()}"
+                        ),
+                    )
 
             # Use batch calculation for aggregation
             response = await service.calculate_evm_metrics_batch(
