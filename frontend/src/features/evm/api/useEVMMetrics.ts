@@ -124,6 +124,7 @@ export function useEVMMetrics(
     queryKey: queryKeys.evm.metrics(entityType, entityId, {
       branch,
       controlDate,
+      mode: tmMode,
     }),
     queryFn: async () => {
       // For cost elements, use the existing endpoint
@@ -211,6 +212,7 @@ export function useEVMTimeSeries(
       branch,
       controlDate,
       granularity,
+      mode: tmMode,
     }),
     queryFn: async () => {
       return await __request(OpenAPI, {
@@ -274,6 +276,7 @@ export function useEVMMetricsBatch(
     queryKey: queryKeys.evm.batch(entityType, entityIds || [], {
       branch,
       controlDate,
+      mode: tmMode,
     }),
     queryFn: async () => {
       // Use the batch endpoint for all entity types
