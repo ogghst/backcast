@@ -1,6 +1,5 @@
 import { useParams } from "react-router-dom";
 import {
-  Card,
   Descriptions,
   Typography,
   theme,
@@ -14,7 +13,6 @@ import {
   Tag,
   Grid,
   Space,
-  Flex,
   Divider,
 } from "antd";
 import {
@@ -27,6 +25,8 @@ import {
   PieChartOutlined,
   HistoryOutlined,
 } from "@ant-design/icons";
+import { PanelCard } from "@/components/common/PanelCard";
+import { entityInfoDescriptionsProps } from "@/components/common/entityInfoDescriptionsProps";
 import { ViewModeToggle } from "@/components/common/ViewModeToggle";
 import { useViewMode } from "@/hooks/useViewMode";
 import { CostElementCard } from "@/features/cost-elements/components/CostElementCard";
@@ -309,14 +309,9 @@ export const WorkPackageOverview = () => {
       {/* Section 2: Schedule Baseline + Forecast side-by-side on desktop */}
       <Row gutter={[token.marginLG, token.marginLG]}>
         <Col xs={24} xl={12}>
-          <Card
-            title={
-              <Space>
-                <CalendarOutlined />
-                <span>Schedule Baseline</span>
-              </Space>
-            }
-            size="small"
+          <PanelCard
+            icon={<CalendarOutlined />}
+            title="Schedule Baseline"
             extra={
               <Space>
                 {scheduleBaseline ? (
@@ -357,7 +352,7 @@ export const WorkPackageOverview = () => {
             }
           >
             {scheduleBaseline ? (
-              <Descriptions column={1} size="small">
+              <Descriptions {...entityInfoDescriptionsProps(token)}>
                 <Descriptions.Item label="Name">
                   <Text strong>{scheduleBaseline.name}</Text>
                 </Descriptions.Item>
@@ -383,18 +378,13 @@ export const WorkPackageOverview = () => {
                 No schedule baseline defined. Add one to enable Planned Value calculations and EVM analysis.
               </Text>
             )}
-          </Card>
+          </PanelCard>
         </Col>
 
         <Col xs={24} xl={12}>
-          <Card
-            title={
-              <Space>
-                <LineChartOutlined />
-                <span>Forecast</span>
-              </Space>
-            }
-            size="small"
+          <PanelCard
+            icon={<LineChartOutlined />}
+            title="Forecast"
             extra={
               <Space>
                 {forecast ? (
@@ -435,7 +425,7 @@ export const WorkPackageOverview = () => {
             }
           >
             {forecast ? (
-              <Descriptions column={1} size="small">
+              <Descriptions {...entityInfoDescriptionsProps(token)}>
                 <Descriptions.Item label="Estimate at Complete (EAC)">
                   <Text strong>
                     {formatCurrency(Number(forecast.eac_amount || 0), currency)}
@@ -476,24 +466,22 @@ export const WorkPackageOverview = () => {
                 No forecast defined. Add one to track Estimate at Complete (EAC) and Variance at Complete (VAC).
               </Text>
             )}
-          </Card>
+          </PanelCard>
         </Col>
       </Row>
 
       {/* Section 3: Budget Summary */}
       {!budgetLoading && (
         <>
-          <Card size="small">
-            <Flex justify="space-between" align="center" style={{ marginBottom: token.marginMD }}>
-              <Space>
-                <DollarOutlined style={{ color: token.colorPrimary }} />
-                <Text strong style={{ fontSize: token.fontSizeLG }}>Budget Summary</Text>
-              </Space>
+          <PanelCard
+            icon={<DollarOutlined />}
+            title="Budget Summary"
+            extra={
               <Tag color={percentage >= 100 ? "red" : percentage >= 90 ? "orange" : "blue"}>
                 {statusText}
               </Tag>
-            </Flex>
-
+            }
+          >
             <Row gutter={[token.marginMD, token.marginMD]}>
               <Col xs={12} sm={6}>
                 <Statistic
@@ -546,7 +534,7 @@ export const WorkPackageOverview = () => {
               strokeColor={statusColor}
               status={percentage >= 100 ? "exception" : undefined}
             />
-          </Card>
+          </PanelCard>
 
           {(percentage >= 100 || (percentage >= 90 && percentage < 100)) && (
             <Alert
@@ -564,14 +552,9 @@ export const WorkPackageOverview = () => {
       )}
 
       {/* Section 4: Cost Elements (EOC) */}
-      <Card
-        title={
-          <Space>
-            <PieChartOutlined />
-            <span>Cost Elements</span>
-          </Space>
-        }
-        size="small"
+      <PanelCard
+        icon={<PieChartOutlined />}
+        title="Cost Elements"
         extra={
           <Space>
             <ViewModeToggle viewMode={ceViewMode} onCycleViewMode={ceCycleViewMode} />
@@ -616,7 +599,7 @@ export const WorkPackageOverview = () => {
             />
           );
         })()}
-      </Card>
+      </PanelCard>
 
       {/* Work Package metadata footer — standardized across entity pages */}
       <EntityMetadataCard

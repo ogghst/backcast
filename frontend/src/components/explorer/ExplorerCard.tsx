@@ -27,7 +27,7 @@ export const ExplorerCard = ({
       styles={{
         header: {
           background: token.colorBgLayout,
-          padding: `${token.paddingSM}px ${token.paddingMD}px`,
+          padding: `${token.paddingSM}px ${token.paddingLG}px`,
           borderBottom: `1px solid ${token.colorBorderSecondary}`,
           minHeight: "auto",
         },

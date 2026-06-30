@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
-import { Button, Card, Descriptions } from "antd";
-import { HistoryOutlined } from "@ant-design/icons";
+import { Button, Descriptions } from "antd";
+import { HistoryOutlined, InfoCircleOutlined } from "@ant-design/icons";
+import { PanelCard } from "@/components/common/PanelCard";
 import { useCostElement } from "@/features/cost-elements/api/useCostElements";
 import { useCostElementTypes } from "@/features/cost-elements/api/useCostElementTypes";
 import { EntityMetadataCard } from "@/components/common/EntityMetadataCard";
@@ -40,7 +41,10 @@ export const CostElementOverview = () => {
 
   return (
     <>
-      <Card title="Cost Element Details" size="small">
+      <PanelCard
+        icon={<InfoCircleOutlined />}
+        title="Cost Element Details"
+      >
         <Descriptions column={1} bordered size="small">
           <Descriptions.Item label="Type">
             {typeName}
@@ -49,7 +53,7 @@ export const CostElementOverview = () => {
             {costElement.description || "-"}
           </Descriptions.Item>
         </Descriptions>
-      </Card>
+      </PanelCard>
 
       <EntityMetadataCard
         entityId={costElement.cost_element_id}
