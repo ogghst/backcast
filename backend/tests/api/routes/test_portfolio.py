@@ -181,6 +181,49 @@ async def test_portfolio_at_risk_subset_is_spi_below_threshold(
 
 
 @pytest.mark.asyncio
+async def test_portfolio_evm_dedups_duplicate_project_ids(
+    db: AsyncSession,
+    actor_id: UUID,
+) -> None:
+    """Duplicate ``project_ids`` (RBAC returns duplicates for users with
+    multiple grants) must NOT yield duplicate ``PortfolioProjectMetrics`` rows.
+
+    Regression for the React duplicate-key warning where /evm/portfolio returned
+    1346 items vs 1276 distinct project_ids. ``calculate_portfolio_evm`` dedups
+    ``live_project_ids`` (mirroring ``_get_projects_as_of_batch`` line 1322).
+    """
+    h = await create_full_hierarchy(db, actor_id)
+    project_id = h["project"].project_id
+    await create_test_cost_registration(
+        db, actor_id, h["ce"].cost_element_id, amount=Decimal("5000")
+    )
+    await create_test_progress_entry(
+        db, actor_id, h["wp"].work_package_id, progress_percentage=Decimal("10.00")
+    )
+    await db.commit()
+
+    evm = EVMService(db)
+    # Pass the SAME project_id multiple times — RBAC duplicate-grant shape.
+    portfolio = await evm.calculate_portfolio_evm(
+        project_ids=[project_id, project_id, project_id],
+        control_date=datetime.now(tz=UTC),
+        branch="main",
+        branch_mode=BranchMode.MERGED,
+    )
+
+    project_ids_returned = [p.project_id for p in portfolio.projects]
+    assert len(project_ids_returned) == len(set(project_ids_returned)), (
+        f"duplicate project_ids in portfolio.projects: {project_ids_returned}"
+    )
+    # Exactly one row for the single live project.
+    assert len(portfolio.projects) == 1
+
+    # The at-risk subset must likewise carry no duplicates.
+    at_risk_ids = [p.project_id for p in portfolio.at_risk_projects]
+    assert len(at_risk_ids) == len(set(at_risk_ids))
+
+
+@pytest.mark.asyncio
 async def test_portfolio_evm_multi_currency_rollup(
     db: AsyncSession,
     actor_id: UUID,
@@ -517,3 +560,39 @@ async def test_portfolio_stats_route_membership_scoped(
         project_id=project_id
     )
     assert data["total_count"] >= per_project.total_count
+
+
+@pytest.mark.asyncio
+async def test_portfolio_stats_naive_as_of_does_not_500(
+    client: AsyncClient,
+    db: AsyncSession,
+    actor_id: UUID,
+) -> None:
+    """A user-picked control date arrives as an offset-NAIVE datetime query
+    param (no tz suffix); the route must coerce it to UTC and return 200, not
+    crash with "can't subtract offset-naive and offset-aware datetimes" inside
+    ``_get_aging_items`` (``as_of - row.changed_at`` where ``changed_at`` is a
+    timestamptz). Regression for the portfolio-stats 500.
+    """
+    h = await create_full_hierarchy(db, actor_id)
+    project_id = h["project"].project_id
+    await db.commit()
+
+    # Explicit naive as_of (no tz suffix) — the exact FE controlDate shape.
+    response = await client.get(
+        "/change-orders/portfolio-stats",
+        params={"as_of": "2026-06-15T00:00:00"},
+    )
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert "total_count" in data
+    assert "aging_threshold_days" in data
+
+    # Same regression against the project-scoped /stats route (same latent bug
+    # via the shared ``_get_aging_items`` subtraction path).
+    stats_response = await client.get(
+        "/change-orders/stats",
+        params={"project_id": str(project_id), "as_of": "2026-06-15T00:00:00"},
+    )
+    assert stats_response.status_code == 200, stats_response.text
+    assert "total_count" in stats_response.json()

@@ -2,7 +2,7 @@
 
 import logging
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -31,6 +31,18 @@ from app.services.impact_analysis_service import ImpactAnalysisService
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _ensure_aware_utc(dt: datetime) -> datetime:
+    """Coerce an offset-naive datetime to UTC.
+
+    FastAPI parses ``datetime`` query params as offset-naive when the client
+    omits a tz suffix, but downstream comparisons (e.g. ``_get_aging_items``)
+    subtract offset-aware ``timestamptz`` values from DB rows, which raises
+    ``TypeError: can't subtract offset-naive and offset-aware datetimes``.
+    Naive inputs are assumed to be UTC (the storage/compare zone).
+    """
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
 
 
 def get_change_order_service(
@@ -80,10 +92,12 @@ async def get_portfolio_change_order_stats(
 
     Requires ``portfolio-read`` permission.
     """
-    from datetime import UTC
-
     if as_of is None:
         as_of = datetime.now(UTC)
+    else:
+        # FastAPI parses query params naive when no tz suffix is supplied;
+        # coerce to UTC before subtracting offset-aware ``changed_at`` rows.
+        as_of = _ensure_aware_utc(as_of)
 
     # Resolve the caller's accessible project set (RBAC membership scoping).
     from app.core.rbac_unified import (
@@ -138,11 +152,11 @@ async def get_change_order_stats(
 
     Requires change-order-read permission.
     """
-    from datetime import UTC
-
-    # Default to current time if as_of is not provided
+    # Default to current time if as_of is not provided; coerce naive -> UTC.
     if as_of is None:
         as_of = datetime.now(UTC)
+    else:
+        as_of = _ensure_aware_utc(as_of)
 
     try:
         return await service.get_change_order_stats(
@@ -216,11 +230,11 @@ async def read_change_orders(
     skip = (page - 1) * per_page
 
     try:
-        # Default to current time if as_of is not provided
+        # Default to current time if as_of is not provided; coerce naive -> UTC.
         if as_of is None:
-            from datetime import UTC
-
-            as_of = datetime.now(tz=UTC)
+            as_of = datetime.now(UTC)
+        else:
+            as_of = _ensure_aware_utc(as_of)
 
         # Get change orders for the project
         change_orders, total = await service.get_change_orders(
@@ -417,11 +431,11 @@ async def read_change_order(
 
     Requires read permission.
     """
-    # Default to current time if as_of is not provided
+    # Default to current time if as_of is not provided; coerce naive -> UTC.
     if as_of is None:
-        from datetime import UTC
-
-        as_of = datetime.now(tz=UTC)
+        as_of = datetime.now(UTC)
+    else:
+        as_of = _ensure_aware_utc(as_of)
 
     if as_of:
         # Time travel query

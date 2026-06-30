@@ -1445,7 +1445,12 @@ class EVMService:
         )
 
         # Only projects that actually have a current version contribute.
-        live_project_ids = [pid for pid in project_ids if pid in projects_map]
+        # Dedup preserving order: RBAC ``accessible_project_ids`` can repeat a
+        # project for users with multiple grants, which would otherwise yield
+        # duplicate ``PortfolioProjectMetrics`` rows (mirrors line 1322).
+        live_project_ids = list(
+            dict.fromkeys(pid for pid in project_ids if pid in projects_map)
+        )
         for missing_pid in set(project_ids) - set(live_project_ids):
             logger.warning(
                 "Portfolio: project %s not found as_of %s; skipping",
