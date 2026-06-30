@@ -64,7 +64,7 @@ export const ControlAccountOverview: React.FC = () => {
       {/* Control Account Information */}
       <Card title="Control Account Information">
         <Descriptions
-          column={isMobile ? 1 : 2}
+          column={1}
           size="middle"
           bordered
           items={[

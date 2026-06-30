@@ -308,7 +308,7 @@ export const WorkPackageOverview = () => {
 
       {/* Section 2: Schedule Baseline + Forecast side-by-side on desktop */}
       <Row gutter={[token.marginLG, token.marginLG]}>
-        <Col xs={24} lg={12}>
+        <Col xs={24} xl={12}>
           <Card
             title={
               <Space>
@@ -357,7 +357,7 @@ export const WorkPackageOverview = () => {
             }
           >
             {scheduleBaseline ? (
-              <Descriptions column={{ xs: 1, sm: 2 }} size="small">
+              <Descriptions column={1} size="small">
                 <Descriptions.Item label="Name">
                   <Text strong>{scheduleBaseline.name}</Text>
                 </Descriptions.Item>
@@ -386,7 +386,7 @@ export const WorkPackageOverview = () => {
           </Card>
         </Col>
 
-        <Col xs={24} lg={12}>
+        <Col xs={24} xl={12}>
           <Card
             title={
               <Space>
@@ -435,7 +435,7 @@ export const WorkPackageOverview = () => {
             }
           >
             {forecast ? (
-              <Descriptions column={{ xs: 1, sm: 2 }} size="small">
+              <Descriptions column={1} size="small">
                 <Descriptions.Item label="Estimate at Complete (EAC)">
                   <Text strong>
                     {formatCurrency(Number(forecast.eac_amount || 0), currency)}

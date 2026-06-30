@@ -22,7 +22,7 @@ export function ChangeOrderDetailsSection({
 
   return (
     <Descriptions
-      column={2}
+      column={1}
       size="small"
       bordered
       items={[

@@ -18,7 +18,7 @@ export const entityInfoDescriptionsProps = (
   token: ReturnType<typeof theme.useToken>["token"]
 ) => ({
   size: "middle" as const,
-  column: { xs: 1, sm: 2 },
+  column: 1,
   colon: true,
   labelStyle: {
     fontWeight: 600,

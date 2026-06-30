@@ -41,7 +41,7 @@ export const CostElementOverview = () => {
   return (
     <>
       <Card title="Cost Element Details" size="small">
-        <Descriptions column={2} bordered size="small">
+        <Descriptions column={1} bordered size="small">
           <Descriptions.Item label="Type">
             {typeName}
           </Descriptions.Item>

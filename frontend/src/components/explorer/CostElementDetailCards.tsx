@@ -316,7 +316,7 @@ export const CostElementDetailCards = ({
         {/* System info - collapsed */}
         <Collapse ghost>
           <Collapse.Panel header="System Information" key="system">
-            <Descriptions column={2} size="small">
+            <Descriptions column={1} size="small">
               <Descriptions.Item label="ID">
                 {costElement.id}
               </Descriptions.Item>
