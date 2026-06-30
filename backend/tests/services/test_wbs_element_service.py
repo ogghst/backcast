@@ -1505,3 +1505,87 @@ async def test_get_wbs_elements_merged_mode(db: AsyncSession, actor_id) -> None:
     assert total >= 1
     ids = [r.wbs_element_id for r in results]
     assert wbs_main.wbs_element_id in ids
+
+
+# ---------------------------------------------------------------------------
+# _get_all_descendants with MERGED mode on non-main branch (F2 regression)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_all_descendants_merged_mode_non_main_branch(
+    db: AsyncSession, actor_id
+) -> None:
+    """F2: _get_all_descendants must not crash on a CO branch in MERGED mode.
+
+    The recursive CTE previously used DISTINCT ON ... ORDER BY in the recursive
+    arms, which PostgreSQL forbids -> syntax error at "UNION". This path only
+    runs when branch_mode == MERGED and branch != "main". It must now return the
+    descendant set (main child + branch-only grandchild) without error.
+    """
+    from app.core.branching.commands import CreateBranchCommand
+    from app.core.versioning.commands import CreateVersionCommand
+    from app.core.versioning.enums import BranchMode
+
+    project = await create_test_project(db, actor_id)
+    parent = await create_test_wbs_element(
+        db, actor_id, project.project_id, code="F2.0", name="F2 Parent"
+    )
+    # Child that exists on main.
+    child_main = await create_test_wbs_element(
+        db,
+        actor_id,
+        project.project_id,
+        code="F2.1",
+        name="F2 Child on main",
+        parent_wbs_element_id=parent.wbs_element_id,
+        level=2,
+    )
+    await db.commit()
+
+    branch_name = "BR-F2-CO-001"
+
+    # Branch parent + child to the CO branch.
+    await CreateBranchCommand(
+        entity_class=WBSElement,
+        root_id=parent.wbs_element_id,
+        actor_id=actor_id,
+        new_branch=branch_name,
+        from_branch="main",
+    ).execute(db)
+    await CreateBranchCommand(
+        entity_class=WBSElement,
+        root_id=child_main.wbs_element_id,
+        actor_id=actor_id,
+        new_branch=branch_name,
+        from_branch="main",
+    ).execute(db)
+
+    # Add a grandchild that exists ONLY on the CO branch.
+    grandchild_branch_id = uuid4()
+    await CreateVersionCommand(
+        entity_class=WBSElement,
+        root_id=grandchild_branch_id,
+        actor_id=actor_id,
+        branch=branch_name,
+        project_id=project.project_id,
+        code="F2.1.1",
+        name="F2 Grandchild on CO branch",
+        parent_wbs_element_id=child_main.wbs_element_id,
+        level=3,
+    ).execute(db)
+    await db.commit()
+
+    service = WBSElementService(db)
+    # This call previously raised a SQL syntax error (500 on the EVM endpoint).
+    descendants = await service._get_all_descendants(  # noqa: SLF001
+        parent.wbs_element_id,
+        branch=branch_name,
+        branch_mode=BranchMode.MERGED,
+    )
+
+    desc_ids = {d.wbs_element_id for d in descendants}
+    # MERGED mode must surface both the child (main fallback) and the
+    # branch-only grandchild.
+    assert child_main.wbs_element_id in desc_ids
+    assert grandchild_branch_id in desc_ids
