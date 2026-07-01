@@ -998,6 +998,18 @@ def set_unified_rbac_service(service: UnifiedRBACService) -> None:
     _unified_rbac_service = service
 
 
+def reset_unified_rbac_service() -> None:
+    """Reset the global UnifiedRBACService singleton (for test isolation).
+
+    Drops the cached instance so the next ``get_unified_rbac_service()`` call
+    constructs a fresh service with empty caches. Used by the test suite's
+    autouse fixture to stop permission/assignment cache state from leaking
+    between tests (TD-115).
+    """
+    global _unified_rbac_service
+    _unified_rbac_service = None
+
+
 # ---------------------------------------------------------------------------
 # UnifiedChecker - FastAPI dependency (defined in auth.py to avoid circular import)
 # ---------------------------------------------------------------------------

@@ -5,11 +5,12 @@ RBAC is bypassed via dependency override + monkey-patching to allow all
 permission checks.  Test data is created via factory functions in factories.py.
 """
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Generator
 from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
+import pytest
 import pytest_asyncio
 from fastapi import Depends
 from httpx import ASGITransport, AsyncClient
@@ -83,6 +84,21 @@ async def _dispose_engine_pool() -> AsyncGenerator[None, None]:
     """
     yield
     await engine.dispose()
+
+
+@pytest.fixture(autouse=True)
+def _reset_rbac_singleton() -> Generator[None, None, None]:
+    """Drop the UnifiedRBACService singleton after each test (TD-115).
+
+    The singleton caches permissions and role assignments in memory; without a
+    reset, state from one test leaks into the next. Dropping the instance in
+    teardown forces the next ``get_unified_rbac_service()`` to build a fresh,
+    cache-empty service.
+    """
+    yield
+    from app.core.rbac_unified import reset_unified_rbac_service
+
+    reset_unified_rbac_service()
 
 
 @pytest_asyncio.fixture

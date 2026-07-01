@@ -717,6 +717,8 @@ class _BriefingSupervisorState(AgentState[Any]):
     replan_context: str
 
 
+_NO_BRIEFING_SENTINEL = "No briefing available yet."
+
 def _create_get_briefing_tool() -> BaseTool:
     """Create a tool that reads the current briefing from graph state."""
 
@@ -733,8 +735,10 @@ def _create_get_briefing_tool() -> BaseTool:
     ) -> str:
         briefing_data = state.get("briefing_data", {})
         if not briefing_data:
-            return "No briefing available yet."
+            return _NO_BRIEFING_SENTINEL
         doc = BriefingDocument.from_state(briefing_data)
+        if doc.is_recovered:
+            return _NO_BRIEFING_SENTINEL
         return doc.to_markdown()
 
     return get_briefing

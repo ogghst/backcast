@@ -1,7 +1,7 @@
 # Technical Debt Archive
 
-**Last Updated:** 2026-05-19
-**Total Archived Items:** 57
+**Last Updated:** 2026-07-01
+**Total Archived Items:** 59
 
 ---
 
@@ -10,6 +10,20 @@ This file contains all completed, closed, or resolved technical debt items. For 
 ---
 
 ## Archived Items
+
+#### [TD-115] RBAC Singleton State Leaks Between Test Classes
+
+- **Source:** Test suite run (2026-05-24) — cited test `test_rbac_unified.py::TestSingleton::...` was a phantom citation (does not exist in `main`); latent isolation risk confirmed by multiple test files manually invalidating the singleton caches.
+- **Description:** `get_unified_rbac_service()` held a process-wide singleton with mutable `_permissions_cache`/`_assignment_cache` and no reset path, so permission/assignment state could leak between tests.
+- **Status:** ✅ Resolved (2026-07-01)
+- **Resolution:** Added `reset_unified_rbac_service()` (drops the singleton so the next access builds a fresh, cache-empty instance) and an autouse `_reset_rbac_singleton` fixture in `tests/conftest.py` that runs it after every test. Verified the full backend suite introduces no new failures. Added `tests/core/test_rbac_singleton_reset.py` (3 tests).
+
+#### [TD-113] BriefingDocument.from_state Recovers from Invalid Data Instead of Failing
+
+- **Source:** Test suite run (2026-05-24) — cited test `test_briefing_room_orchestrator.py::...` was a phantom citation (the planned test T-004 was never written); behavior verified directly against the live tool.
+- **Description:** `BriefingDocument.from_state` swallowed validation errors and returned a synthetic `(recovered)` briefing; the `get_briefing` agent tool only guarded the empty-state case, so corrupt state handed the agent fabricated briefing markdown.
+- **Status:** ✅ Resolved (2026-07-01)
+- **Resolution:** Added `is_recovered: bool = False` field to `BriefingDocument`, set it `True` in the `from_state` fallback branch, and added an `if doc.is_recovered` guard to the `get_briefing` tool so corrupt state returns the `"No briefing available yet."` sentinel. Chose the flag approach (TD option b) over raising (option a) because 15 call sites depend on `from_state` never raising and the sibling `PlanDocument.from_state` treats the same recovery as by-design. Added `tests/ai/test_briefing_recovery.py` (6 tests).
 
 #### [TD-104] Currency Hardcoded to EUR
 

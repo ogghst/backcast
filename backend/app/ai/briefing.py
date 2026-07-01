@@ -44,14 +44,19 @@ class BriefingDocument(BaseModel):
     supervisor_analysis: str | None = None
     task_history: list[TaskAssignment] = []
     plan: list[dict[str, Any]] | None = None
+    is_recovered: bool = False
 
     @classmethod
     def from_state(cls, briefing_data: dict[str, Any]) -> BriefingDocument:
-        """Reconstruct from state dict with consistent fallback."""
+        """Reconstruct from state dict with consistent fallback.
+
+        Sets ``is_recovered=True`` when ``briefing_data`` fails validation so
+        callers can distinguish a genuine briefing from a synthetic fallback.
+        """
         try:
             return cls.model_validate(briefing_data)
         except Exception:
-            return cls(original_request="(recovered)")
+            return cls(original_request="(recovered)", is_recovered=True)
 
     def add_task_assignment(self, assignment: TaskAssignment) -> None:
         self.task_history.append(assignment)

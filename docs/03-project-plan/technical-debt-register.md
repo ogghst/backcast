@@ -1,8 +1,8 @@
 # Technical Debt Register
 
-**Last Updated:** 2026-06-18
-**Total Open Items:** 9
-**Total Estimated Effort:** ~9 days
+**Last Updated:** 2026-07-01
+**Total Open Items:** 7
+**Total Estimated Effort:** ~8 days
 
 ---
 
@@ -236,13 +236,13 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 ---
 
-### [TD-113] BriefingDocument.from_state Recovers from Invalid Data Instead of Failing
+### [TD-113] ~~BriefingDocument.from_state Recovers from Invalid Data Instead of Failing~~
 
 - **Source:** Test suite run (2026-05-24) — `test_briefing_room_orchestrator.py::TestCreateGetBriefingTool::test_returns_default_when_briefing_data_invalid`
 - **Description:** `BriefingDocument.from_state({"garbage": True})` returns a "recovered" briefing document instead of raising or returning a sentinel. The test expects `"No briefing available yet."` but gets `"# Briefing Document\n## Request\n(recovered)"`. The recovery logic is too lenient — arbitrary dict input produces a synthetic briefing rather than a clear error/default.
 - **Impact:** Test failure masks potential briefing corruption; AI agents may operate on fabricated briefing data when state is corrupted
 - **Estimated Effort:** 4 hours
-- **Status:** Open
+- **Status:** ✅ Resolved (2026-07-01) — Added `is_recovered` flag to `BriefingDocument.from_state`; the `get_briefing` agent tool now returns the "No briefing available yet." sentinel for corrupt state instead of a fabricated "(recovered)" briefing. Added `tests/ai/test_briefing_recovery.py`. See archive.
 - **Owner:** Backend Developer
 - **Priority:** P2 (Medium)
 - **Suggested Approach:** Either (a) make `from_state` raise `ValidationError` on structurally invalid input and catch it at the call site to return the sentinel, or (b) add a `is_recovered` flag and have the get_briefing tool return the default message when the briefing is recovered rather than genuine.
@@ -255,13 +255,13 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 ---
 
-### [TD-115] RBAC Singleton State Leaks Between Test Classes
+### [TD-115] ~~RBAC Singleton State Leaks Between Test Classes~~
 
 - **Source:** Test suite run (2026-05-24) — `test_rbac_unified.py::TestSingleton::test_get_unified_rbac_service_creates_singleton`
 - **Description:** *(Re-verified 2026-06-13 — latent, not an active failure.)* The `get_unified_rbac_service()` singleton in `app/core/rbac_unified.py` holds mutable caches (`_permissions_cache`, `_assignment_cache`) with no reset method, and no autouse fixture clears them between tests. However, the originally-cited failing test (`test_rbac_unified.py::TestSingleton::...`) does not exist in `main`, and the full backend suite (776 tests) shows **0 RBAC singleton failures**. Reclassified as preventive hardening, not a broken test.
 - **Impact:** Latent test-isolation risk if future tests mutate the singleton cache; no current breakage
 - **Estimated Effort:** 2 hours
-- **Status:** Open (preventive)
+- **Status:** ✅ Resolved (2026-07-01) — Added `reset_unified_rbac_service()` and an autouse `_reset_rbac_singleton` fixture in `tests/conftest.py` that drops the UnifiedRBACService singleton between tests, forcing a fresh cache-empty instance each run. Added `tests/core/test_rbac_singleton_reset.py`. See archive.
 - **Owner:** Backend Developer
 - **Priority:** P3 (Medium)
 - **Suggested Approach:** Add a `reset()` or `_clear_cache()` method to `UnifiedRBACService` and call it in a `@pytest.fixture(autouse=True)` or `setUp` in affected test classes. Alternatively, patch `_instance = None` in the module between tests.
@@ -310,8 +310,8 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 | Priority | Count | Total Effort |
 |----------|-------|--------------|
 | High (P0-P1) | 3 | ~5 days |
-| Medium (P2-P3) | 6 | ~4 days |
-| **Total** | **9** | **~9 days** |
+| Medium (P2-P3) | 4 | ~3 days |
+| **Total** | **7** | **~8 days** |
 
 ---
 
