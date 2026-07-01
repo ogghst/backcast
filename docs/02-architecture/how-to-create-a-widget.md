@@ -1,6 +1,6 @@
 # How to Create a New Widget
 
-**Last updated:** 2026-04-08
+**Last updated:** 2026-07-01
 
 A step-by-step guide for adding a new widget to the project dashboard. Covers choosing types, categories, size constraints, config interfaces, data patterns, and registration.
 
@@ -57,6 +57,8 @@ Categories control how widgets are grouped in the Widget Palette. Pick one:
 | `diagnostic` | Variance analysis, root-cause views | VarianceChart, EVMEfficiencyGauges, ChangeOrderAnalytics |
 | `breakdown` | Structured drilldowns, hierarchies | WBETree, MiniGantt |
 | `action` | Action-oriented lists, editable tables | CostRegistrations, ProgressTracker, ChangeOrdersList |
+| `schedule` | Timeline / Gantt views (project + portfolio spans) | MiniGanttWidget, PortfolioGanttWidget |
+| `settings` | Configuration widgets for project-specific settings | BudgetSettingsWidget |
 
 **How to decide:**
 
@@ -65,6 +67,8 @@ Categories control how widgets are grouped in the Widget Palette. Pick one:
 - Does it help diagnose problems (variances, underperformance)? -> **diagnostic**
 - Does it show a tree, hierarchy, or structure? -> **breakdown**
 - Does it show a list the user can act on? -> **action**
+- Does it render a timeline or Gantt-style span? -> **schedule**
+- Is it a settings/configuration surface? -> **settings**
 
 ---
 
@@ -356,8 +360,22 @@ registerWidget<MyWidgetConfig>({
   defaultConfig: {             // from Step 4
     showDetails: true,
   },
+  // ── Scope + permission gating (see "Scope & permission gating" below) ──
+  // scope: "project",              // "project" | "portfolio" | "any". UNSET defaults to "project"
+  //                                 //   -> the widget will NOT appear on the portfolio palette.
+  // requiredPermission: "project-read",  // single Permission, or Permission[] (user must hold ALL).
+  //                                 //   Omit for any-authenticated-user baseline.
+  // requiresProjectContext: false, // true if the widget needs a project context to function.
 });
 ```
+
+**Scope & permission gating** (`types.ts` `WidgetDefinition`, `widgetPermissions.ts`):
+
+- **`scope?: WidgetScope`** — `"project" | "portfolio" | "any"`. The palette filters widgets by dashboard scope via `isWidgetInScope`. A widget with **no `scope` set defaults to `"project"`**, so legacy widgets that omit `scope` stay project-only and are **hidden from the portfolio dashboard palette**. To appear on **both** dashboards, set `scope: "any"` explicitly; portfolio-only widgets set `scope: "portfolio"`.
+- **`requiredPermission?: Permission | Permission[]`** — existing domain read-permission(s) the widget's data needs. When set, the palette hides the widget from users lacking the perm (`isWidgetPermitted`) and the grid renders a locked placeholder. The array form requires the user to hold **all** listed permissions. **Omit for any-authenticated-user baseline.** A missing `requiredPermission` makes a widget visible to all authenticated users, not gated ones.
+- **`requiresProjectContext?: boolean`** — true if the widget needs a project context to function.
+
+A missing or wrong `scope`/`requiredPermission` is the most common reason a newly-registered widget is **invisible to gated users or absent from the portfolio palette**.
 
 **Key rules:**
 - Always wrap content in `<WidgetShell>` -- it provides the frame, loading/error states, and edit-mode chrome
@@ -445,10 +463,17 @@ import "./QuickStatsBarWidget";
 // ... existing imports ...
 import "./MyWidget";              // <-- add this line
 
+// Portfolio-scope widgets (global-dashboard-widgets Phase 4).
+// Group portfolio widgets in this separate, clearly-marked import section
+// at the end of the file, below the project-scope imports.
+import "./PortfolioKpiWidget";
+
 export function registerAllWidgets() {
   // Widgets are registered via module-level side effects on import.
 }
 ```
+
+**Convention:** `registerAll.ts` keeps a clearly-marked **"Portfolio-scope widgets"** import section separate from the project-scope imports. Add portfolio/dashboard-cross-cutting widgets there (with the `// Portfolio-scope widgets` comment header) so the two scopes stay visually distinct.
 
 ---
 
@@ -777,6 +802,8 @@ Before submitting your widget, verify:
 - [ ] Phase 6 props (`onFullscreen`, `widgetType`, `dashboardName`) are destructured and forwarded to `WidgetShell`
 - [ ] Empty state is handled (no entity selected, no data)
 - [ ] All styling uses `theme.useToken()` -- no hardcoded values
-- [ ] Widget file is imported in `registerAll.ts`
+- [ ] Widget file is imported in `registerAll.ts` (project widgets at top; portfolio widgets in the "Portfolio-scope widgets" section)
 - [ ] Config form (if any) is exported from `config-forms/index.ts`
 - [ ] Backend template updated if the widget should appear in defaults
+- [ ] Widget's `scope` is set if it should appear on the portfolio dashboard (unset `scope` defaults to `"project"` and hides it from the portfolio palette)
+- [ ] `requiredPermission` is set when the widget's data needs a domain read-perm; a missing `scope`/`requiredPermission` makes a widget invisible to gated users or absent from the portfolio palette

@@ -206,4 +206,4 @@ All API errors follow this structure:
 ## Related Documentation
 
 - [API Conventions](./cross-cutting/api-conventions.md) - General API patterns
-- [API Endpoints Reference](./api-endpoints.md) - Endpoint documentation
+- Live OpenAPI reference: `/docs` (Swagger UI) · `/openapi.json` (raw spec)

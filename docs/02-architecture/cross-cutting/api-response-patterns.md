@@ -14,7 +14,7 @@
 >
 > **For protocol-level conventions** (HTTP methods, context parameters, authentication), see [API Conventions](./api-conventions.md).
 >
-> **For a complete endpoint catalog**, see [API Endpoints Reference](../api-endpoints.md) or the live OpenAPI docs at `/docs`.
+> **For a complete endpoint catalog**, see the live OpenAPI docs at `/docs` (Swagger UI) or `/openapi.json` (raw spec).
 
 ---
 

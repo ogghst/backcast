@@ -1,6 +1,6 @@
 # Dashboard Developer Guide
 
-**Last updated:** 2026-04-11
+**Last updated:** 2026-07-01
 
 A comprehensive reference for developers working on the Backcast widget dashboard. Covers backend domain model, API, frontend architecture, runtime behavior, and implementation patterns.
 
@@ -22,41 +22,42 @@ A comprehensive reference for developers working on the Backcast widget dashboar
 
 ### Part II: Frontend Architecture
 
-- [8. Architecture Overview](#8-architecture-overview)
-- [9. Type System](#9-type-system)
-- [10. Widget Registry](#10-widget-registry)
-- [11. Component Hierarchy](#11-component-hierarchy)
-- [12. State Management](#12-state-management)
-- [13. Dashboard Context Bus](#13-dashboard-context-bus)
-- [14. Widget Definitions Catalog](#14-widget-definitions-catalog)
+- [8. Global / Portfolio Dashboard](#8-global--portfolio-dashboard)
+- [9. Architecture Overview](#9-architecture-overview)
+- [10. Type System](#10-type-system)
+- [11. Widget Registry](#11-widget-registry)
+- [12. Component Hierarchy](#12-component-hierarchy)
+- [13. State Management](#13-state-management)
+- [14. Dashboard Context Bus](#14-dashboard-context-bus)
+- [15. Widget Definitions Catalog](#15-widget-definitions-catalog)
 
 ### Part III: Runtime Behavior
 
-- [15. Dashboard Modes](#15-dashboard-modes)
-- [16. Widget Interaction States](#16-widget-interaction-states)
-- [17. Widget Shell](#17-widget-shell)
-- [18. Dashboard Toolbar](#18-dashboard-toolbar)
-- [19. Data Flow](#19-data-flow)
-- [20. CSS Architecture](#20-css-architecture)
+- [16. Dashboard Modes](#16-dashboard-modes)
+- [17. Widget Interaction States](#17-widget-interaction-states)
+- [18. Widget Shell](#18-widget-shell)
+- [19. Dashboard Toolbar](#19-dashboard-toolbar)
+- [20. Data Flow](#20-data-flow)
+- [21. CSS Architecture](#21-css-architecture)
 
 ### Part IV: Advanced Features
 
-- [21. Key Implementation Details](#21-key-implementation-details)
-  - [21.1 WidgetInteractionContext](#211-widgetinteractioncontext)
-  - [21.2 baseLayouts vs layouts Memo Split](#212-baselayouts-vs-layouts-memo-split)
-  - [21.3 Undo/Redo](#213-undoredo)
-  - [21.4 Template System](#214-template-system)
-  - [21.5 Widget Error Boundaries](#215-widget-error-boundaries)
-- [22. Phase 6 Features](#22-phase-6-features)
-  - [22.1 Widget Fullscreen Mode](#221-widget-fullscreen-mode)
-  - [22.2 Widget Export](#222-widget-export)
-  - [22.3 Motion & Animation](#223-motion--animation)
-  - [22.4 Auto-Refresh](#224-auto-refresh)
-  - [22.5 Responsive Mobile Layout](#225-responsive-mobile-layout)
+- [22. Key Implementation Details](#22-key-implementation-details)
+  - [22.1 WidgetInteractionContext](#221-widgetinteractioncontext)
+  - [22.2 baseLayouts vs layouts Memo Split](#212-baselayouts-vs-layouts-memo-split)
+  - [22.3 Undo/Redo](#213-undoredo)
+  - [22.4 Template System](#214-template-system)
+  - [22.5 Widget Error Boundaries](#215-widget-error-boundaries)
+- [23. Phase 6 Features](#23-phase-6-features)
+  - [23.1 Widget Fullscreen Mode](#231-widget-fullscreen-mode)
+  - [23.2 Widget Export](#232-widget-export)
+  - [23.3 Motion & Animation](#233-motion--animation)
+  - [23.4 Auto-Refresh](#234-auto-refresh)
+  - [23.5 Responsive Mobile Layout](#235-responsive-mobile-layout)
 
 ### Part V: Reference
 
-- [23. File Quick Reference](#23-file-quick-reference)
+- [24. File Quick Reference](#24-file-quick-reference)
 
 ---
 
@@ -78,6 +79,8 @@ class DashboardLayout(SimpleEntityBase):
     is_template: bool                 # Read-only template flag (indexed)
     is_default: bool                  # User's default for this scope
     widgets: list[dict] (JSONB)       # Widget instances array
+    role: str | None                  # Template-only: target role (NULL = generic fallback)
+    scope: str | None                 # Template-only: "project" | "portfolio" (NULL on user layouts)
     created_at: datetime(tz)          # Audit timestamp
     updated_at: datetime(tz)          # Audit timestamp
 ```
@@ -88,6 +91,7 @@ class DashboardLayout(SimpleEntityBase):
 - `is_template=True` layouts are system-owned, read-only starting configurations
 - `is_default=True` is scoped per `(user_id, project_id)` pair -- only one default per scope
 - `widgets` stores the complete widget arrangement as a JSONB array
+- `role` and `scope` are **template-only** tagging columns. `scope` discriminates project-content templates (`"project"`) from portfolio templates (`"portfolio"`); `role` selects which role a portfolio template defaults to (NULL = generic fallback). Both are NULL on user layouts (those are distinguished by `project_id`, not `scope`)
 
 ### 2. Widget JSON Schema
 
@@ -133,6 +137,8 @@ erDiagram
         boolean is_template "default false, indexed"
         boolean is_default "default false"
         jsonb widgets "NOT NULL, default []"
+        varchar_64 role "nullable, indexed (templates only)"
+        varchar_16 scope "nullable, indexed (templates only)"
         timestamptz created_at "default now()"
         timestamptz updated_at "default now()"
     }
@@ -157,7 +163,11 @@ erDiagram
 - `ix_dashboard_layouts_user_id` on `user_id`
 - `ix_dashboard_layouts_project_id` on `project_id`
 - `ix_dashboard_layouts_is_template` on `is_template`
-- Partial unique index: one `is_default=True` per `(user_id, project_id)` scope
+- `ix_dashboard_layouts_role` on `role`
+- `ix_dashboard_layouts_scope` on `scope`
+- **G8 structural fix — two NULL-safe split partial unique indexes** so a concurrent first-visit clone cannot leave two `is_default=True` non-template layouts in the same scope. PostgreSQL treats `NULL != NULL` in unique indexes, so a single `(user_id, project_id)` index would NOT prevent duplicate GLOBAL defaults (`project_id IS NULL`). Two partial indexes are required:
+  - `uq_dashboard_layouts_default_global` on `user_id`, `WHERE is_template = false AND is_default = true AND project_id IS NULL` (global scope, keyed on `user_id` alone)
+  - `uq_dashboard_layouts_default_project` on `(user_id, project_id)`, `WHERE is_template = false AND is_default = true AND project_id IS NOT NULL` (per-user-per-project scope)
 
 **Migration:** `backend/alembic/versions/20260405_add_dashboard_layouts.py`
 
@@ -166,10 +176,10 @@ erDiagram
 **File:** `backend/app/models/schemas/dashboard_layout.py`
 
 ```
-DashboardLayoutCreate        # POST body: name, description?, project_id?, is_template, is_default, widgets
+DashboardLayoutCreate        # POST body: name, description?, project_id?, is_template, is_default, scope?, widgets
 DashboardLayoutUpdate        # PUT body: all fields optional
 DashboardLayoutRead          # Response: full entity with id, timestamps
-CloneTemplateRequest         # POST body: project_id? for scoping the clone
+CloneTemplateRequest         # POST body: project_id?, name?, is_default (first-visit clone marker)
 ```
 
 ```python
@@ -182,6 +192,10 @@ class DashboardLayoutRead(BaseModel):
     is_template: bool
     is_default: bool
     widgets: list[dict[str, object]]
+    # role/scope are seeder-only template attributes; exposed read-only so the
+    # FE can resolve a user's role-tagged default template. Never on Create/Update.
+    role: str | None = None
+    scope: str | None = None
     created_at: datetime
     updated_at: datetime
 ```
@@ -226,15 +240,16 @@ Base path: `/api/v1/dashboard-layouts`
 
 | Method | Path | Operation ID | Description |
 |--------|------|-------------|-------------|
-| `GET` | `/` | `list_dashboard_layouts` | List user's layouts, filterable by `?project_id=` |
-| `GET` | `/templates` | `list_dashboard_layout_templates` | List all template layouts (readable by all users) |
+| `GET` | `/` | `list_dashboard_layouts` | List user's layouts, filterable by `?project_id=`. Uses `strict_scope=True` server-side: a project_id returns only that project's layouts; no project_id returns only global layouts (so a user's global personal layouts no longer pollute every project list — G5 fix). |
+| `GET` | `/templates` | `list_dashboard_layout_templates` | List template layouts, optionally filtered by `?scope=project` or `?scope=portfolio`. Filter is on the `scope` column (not `project_id` — all templates are stored `project_id=NULL`); any other value or omitted returns all templates. |
 | `GET` | `/{layout_id}` | `get_dashboard_layout` | Get single layout (ownership check for non-templates) |
 | `POST` | `/` | `create_dashboard_layout` | Create new layout |
 | `PUT` | `/{layout_id}` | `update_dashboard_layout` | Update layout (ownership required) |
+| `PUT` | `/templates/{layout_id}` | `update_dashboard_layout_template` | Update a template (admin only, `dashboard-template-update` RBAC perm) |
 | `DELETE` | `/{layout_id}` | `delete_dashboard_layout` | Delete layout (ownership required) |
-| `POST` | `/{layout_id}/clone` | `clone_dashboard_layout_template` | Clone a template for current user |
+| `POST` | `/{layout_id}/clone` | `clone_dashboard_layout_template` | Clone a template for current user (supports `is_default=true` for first-visit clone) |
 
-**Authentication:** All endpoints require `get_current_active_user` dependency.
+**Authentication:** All endpoints are gated by an any-of read guard requiring `project-read` OR `portfolio-read` (so both project-scoped and portfolio-scoped users can use the same routes). Template updates additionally require `dashboard-template-update`.
 
 **Authorization:**
 - Users can only read/write their own layouts
@@ -245,19 +260,45 @@ Base path: `/api/v1/dashboard-layouts`
 
 On application startup, `seed_dashboard_templates()` is called. It uses the admin user (`admin@backcast.org`) as the template owner.
 
-**Three predefined templates:**
+**Seven predefined templates** (4 project-scope, 3 portfolio-scope):
 
-| Template | Widgets | Purpose |
-|----------|---------|---------|
-| **Project Overview** | 8 widgets | Standard dashboard: header, KPIs, budget, variance, WBE tree, cost registrations, health |
-| **EVM Analysis** | 7 widgets | EVM-focused: summary, efficiency gauges, trend chart, variance, forecast, health |
-| **Cost Controller** | 6 widgets | Financial tracking: budget, costs, change orders, analytics, forecast |
+| Template | Scope | Role | Widgets | Purpose |
+|----------|-------|------|---------|---------|
+| **Project Overview** | project | -- | 8 | Standard dashboard: header, KPIs, budget, variance, WBE tree, cost registrations, health |
+| **EVM Analysis** | project | -- | 7 | EVM-focused: summary, efficiency gauges, trend chart, variance, forecast, health |
+| **Cost Controller** | project | -- | 6 | Financial tracking: budget, costs, change orders, analytics, forecast |
+| **COQ Analysis** | project | -- | 5 | Cost of Quality: summary, trend, 4-category breakdown, work packages |
+| **Portfolio Overview** | portfolio | `NULL` (generic fallback) | 4 | Cross-project: KPIs, CO pipeline, projects table, distress list |
+| **Cost Controlling** | portfolio | `cost-controller` | 5 | Cost-slanted portfolio view (CPI distress + CO pipeline) |
+| **PMO Schedule** | portfolio | `pmo-director` | 4 | Schedule-slanted portfolio view (SPI distress + projects table) |
+
+The `scope`/`role` tags drive which template a portfolio user's first visit clones (see §8 Global / Portfolio Dashboard). Portfolio templates resolve by exact `role` match first, then fall back to the `role IS NULL` generic template for admin/manager/any unmatched `portfolio-read` role.
 
 ---
 
 ## Part II: Frontend Architecture
 
-### 8. Architecture Overview
+### 8. Global / Portfolio Dashboard
+
+**File:** `frontend/src/features/widgets/pages/GlobalDashboardPage.tsx`
+
+A second dashboard host exists alongside the project-scoped `DashboardPage`. It renders the same widget-grid stack but scoped cross-project.
+
+**Route:** `/portfolio` (in `frontend/src/routes/index.tsx`), gated by `<Can permission="portfolio-read">`. This is the only route to a portfolio dashboard; the legacy fixed `PortfolioPage` was retired. The `FilterBar` + portfolio filter hooks/stores remain under `frontend/src/features/portfolio/` (imported by the host, deliberately not relocated).
+
+**Global-scope sentinel:** The host calls `useDashboardPersistence(undefined, undefined, role)`. The first argument (`projectId`) is the **`undefined` sentinel** — never `""` (empty string). This matters in two places:
+- **G6 cache-key split:** TanStack Query keys use `["dashboard-layouts","list",undefined]`, which is distinct from any project-scoped key. An empty string would collide.
+- **G7 wire format:** `saveDashboard` sends `project_id: null` (JSON null), not `""`, which 422s against the `project_id: UUID | None` schema.
+
+**Context bus:** `DashboardContextBus` is mounted with `scope="portfolio"` and a `portfolioFilter` (controlDate/status/rag read from `usePortfolioFilterStore`). Portfolio widgets read `ctx.portfolioFilter` to scope their queries.
+
+**First-visit behavior:** When the global page loads with no saved global layout for the user, `useDashboardPersistence` clones the user's **role-tagged portfolio template** — resolved by exact `role` match, then the `role IS NULL` generic fallback, then the first portfolio template. The clone is created with `project_id: null` and `is_default: true` so a re-fire cannot leave two defaults (enforced server-side by the G8 split partial unique indexes).
+
+The role comes from `useAuthStore((s) => s.user?.role)`. If the role has no matching template (e.g. admin/manager), the generic "Portfolio Overview" is used.
+
+**Note:** The beforeunload + useBlocker navigation guard block in `GlobalDashboardPage.tsx` is duplicated verbatim from `DashboardPage.tsx` (it is scope-agnostic, keying on `isDirty`/`isEditing`). A shared `<DashboardHost>` extraction is deferred.
+
+### 9. Architecture Overview
 
 ```mermaid
 graph TD
@@ -285,7 +326,7 @@ graph TD
 
     subgraph "Widget Layer"
         I[WidgetShell]
-        J["Widget Components (15+)"]
+        J["Widget Components (26)"]
     end
 
     subgraph "State"
@@ -295,7 +336,7 @@ graph TD
 
     subgraph "Registry"
         M[WidgetRegistry]
-        N["registerAll.ts (15 imports)"]
+        N["registerAll.ts (26 imports)"]
     end
 
     A --> B
@@ -314,7 +355,7 @@ graph TD
     L <--> K
 ```
 
-### 9. Type System
+### 10. Type System
 
 **File:** `frontend/src/features/widgets/types.ts`
 
@@ -331,6 +372,15 @@ classDiagram
         diagnostic
         breakdown
         action
+        schedule
+        settings
+    }
+
+    class WidgetScope {
+        <<enumeration>>
+        project
+        portfolio
+        any
     }
 
     class WidgetSizeConstraints {
@@ -367,6 +417,9 @@ classDiagram
         component: FC~WidgetComponentProps~
         defaultConfig: TConfig
         configFormComponent?: FC~ConfigFormProps~
+        requiresProjectContext?: boolean
+        scope?: WidgetScope
+        requiredPermission?: Permission | Permission[]
     }
 
     class WidgetInstance {
@@ -399,9 +452,13 @@ classDiagram
     Dashboard --> WidgetInstance
 ```
 
+**Scope + permission gating (D2):**
+- `scope` controls which dashboard palette offers the widget. **An unset `scope` defaults to `"project"`** (legacy widgets stay project-only, hidden from the portfolio palette) — set `"any"` explicitly to appear on both dashboards. Portfolio widgets set `"portfolio"`.
+- `requiredPermission` reuses existing domain read-permissions (e.g. `project-read`, `cost-registration-read`, `portfolio-read`). The palette hides a widget from users lacking the perm and the grid renders a locked placeholder. Array form requires ALL perms (gated via `hasAllPermissions`). Omit for any-authenticated-user baseline.
+
 **Branded type pattern:** `WidgetTypeId` is a branded string type created via `widgetTypeId("my-widget")`. This prevents accidental string substitution at compile time.
 
-### 10. Widget Registry
+### 11. Widget Registry
 
 **File:** `frontend/src/features/widgets/registry.ts`
 
@@ -414,9 +471,15 @@ A global `Map<WidgetTypeId, WidgetDefinition>` with three operations:
 | `getWidgetsByCategory` | `(category) => Definition[]` | Filter by category |
 | `getAllWidgetDefinitions` | `() => Definition[]` | Get all definitions |
 
-**Registration pattern:** Each widget definition file calls `registerWidget()` at module level as a side effect. `registerAll.ts` imports all definition files, and `registerAllWidgets()` is called once in `DashboardPage`.
+**Registration pattern:** Each widget definition file calls `registerWidget()` at module level as a side effect. `registerAll.ts` imports all definition files, and `registerAllWidgets()` is called once in both `DashboardPage` and `GlobalDashboardPage`.
 
-### 11. Component Hierarchy
+**Palette + grid gating:** A registered widget is not necessarily shown everywhere. Two independent filters (`utils/widgetPermissions.ts`) decide visibility:
+- **Scope filter** (`isWidgetInScope`): the palette is passed the dashboard's `scope` ("project" or "portfolio") and only offers matching widgets. Unset `scope` is treated as `"project"`, so legacy widgets stay on the project palette and are hidden from the portfolio palette. Set `"any"` to appear on both.
+- **Permission filter** (`isWidgetPermitted`): if `requiredPermission` is set, the palette hides the widget from users lacking the perm (single perm via `hasPermission`; array form requires all via `hasAllPermissions`). The grid additionally renders a locked placeholder for already-placed-but-unpermitted widgets.
+
+A widget can therefore be intentionally hidden from a given dashboard scope or user role without being un-registered.
+
+### 12. Component Hierarchy
 
 ```mermaid
 graph TD
@@ -472,7 +535,7 @@ graph TD
 | `useWidgetVisibility` | `hooks/useWidgetVisibility.ts` | IntersectionObserver hook for widget viewport visibility |
 | `useResponsiveLayout` | `hooks/useResponsiveLayout.ts` | Responsive grid configuration per breakpoint |
 
-### 12. State Management
+### 13. State Management
 
 **File:** `frontend/src/stores/useDashboardCompositionStore.ts`
 
@@ -545,13 +608,15 @@ stateDiagram-v2
 | `undo()` | Pop undo stack, restore previous dashboard state |
 | `redo()` | Pop redo stack, restore undone dashboard state |
 
-### 13. Dashboard Context Bus
+### 14. Dashboard Context Bus
 
 **File:** `frontend/src/features/widgets/context/DashboardContextBus.tsx`
 
-React Context providing cross-widget shared state. Composes the existing `TimeMachineContext` with entity-level selection.
+React Context providing cross-widget shared state. Composes the existing `TimeMachineContext` with entity-level selection, the dashboard `scope`, and (portfolio only) the portfolio filter.
 
 ```typescript
+type DashboardScope = "project" | "portfolio";
+
 interface DashboardContextValue {
   // TimeMachine (delegated from TimeMachineContext)
   asOf: string | undefined;
@@ -560,14 +625,23 @@ interface DashboardContextValue {
   isHistorical: boolean;
   invalidateQueries: () => void;
 
-  // Entity selection (widget-driven)
+  // Dashboard scope — drives whether widgets are project- or portfolio-oriented.
+  scope: DashboardScope;
+
+  // Entity selection (widget-driven, project scope)
   projectId: string;
   wbeId: string | undefined;
   costElementId: string | undefined;
   setWbeId: (id: string | undefined) => void;
   setCostElementId: (id: string | undefined) => void;
+
+  // Portfolio filter (controlDate/status/rag); present only on portfolio scope.
+  // The GlobalDashboardPage host reads these from usePortfolioFilterStore.
+  portfolioFilter?: PortfolioFilterValue;
 }
 ```
+
+The `<DashboardContextBus>` props take `scope` (defaults to `"project"`) and optional `portfolioFilter`. The portfolio host mounts it as `<DashboardContextBus scope="portfolio" portfolioFilter={filter}>`. When `scope === "project"`, `projectId` is required; for portfolio scope it is omitted.
 
 **Usage pattern:**
 - Context-providing widgets (e.g., WBE Tree) call `setWbeId()` when user selects a node
@@ -576,27 +650,40 @@ interface DashboardContextValue {
 
 **Consumer hook:** `useDashboardContext()` in `context/useDashboardContext.ts`
 
-### 14. Widget Definitions Catalog
+### 15. Widget Definitions Catalog
 
-**15 registered widget types** across 5 categories:
+**26 registered widget types** across 7 categories. The original project-scoped widgets (15) remain; additions since are: 4 COQ widgets, 5 portfolio widgets, plus `budget-settings` and `cost-history`:
 
-| Type ID | Category | Default Size | Config Form | Description |
-|---------|----------|-------------|-------------|-------------|
-| `project-header` | summary | 4x1 | -- | Project name, status, dates |
-| `quick-stats-bar` | summary | 4x1 | -- | Entity count KPIs |
-| `evm-summary` | summary | 4x2 | EVMSummaryConfigForm | Core EVM metrics (CPI, SPI, etc.) |
-| `budget-status` | summary | 4x2 | BudgetStatusConfigForm | Budget bar/pie chart |
-| `health-summary` | summary | 4x2 | -- | Health indicators with thresholds |
-| `evm-trend-chart` | trend | 6x3 | -- | EVM metrics over time |
-| `forecast` | trend | 4x2 | ForecastConfigForm | EAC, ETC, VAC projections |
-| `variance-chart` | diagnostic | 4x2 | VarianceChartConfigForm | Cost/schedule variance |
-| `evm-efficiency-gauges` | diagnostic | 4x2 | -- | CPI/SPI gauge dials |
-| `change-order-analytics` | diagnostic | 4x3 | -- | Change order distribution charts |
-| `wbe-tree` | breakdown | 4x3 | WBETreeConfigForm | WBE hierarchy tree |
-| `mini-gantt` | breakdown | 6x3 | -- | Compact Gantt timeline |
-| `cost-registrations` | action | 4x3 | CostRegistrationsConfigForm | Cost entry table |
-| `progress-tracker` | action | 4x3 | ProgressTrackerConfigForm | Progress entry table |
-| `change-orders-list` | action | 4x3 | -- | Change order queue table |
+| Type ID | Category | Scope | Default Size | Description |
+|---------|----------|-------|-------------|-------------|
+| `project-header` | summary | project | 4x1 | Project name, status, dates |
+| `quick-stats-bar` | summary | project | 4x1 | Entity count KPIs |
+| `evm-summary` | summary | project | 4x2 | Core EVM metrics (CPI, SPI, etc.) |
+| `budget-status` | summary | project | 4x2 | Budget bar/pie chart |
+| `health-summary` | summary | project | 4x2 | Health indicators with thresholds |
+| `budget-settings` | settings | project | 4x2 | Project budget settings editor |
+| `evm-trend-chart` | trend | project | 6x3 | EVM metrics over time |
+| `forecast` | trend | project | 4x2 | EAC, ETC, VAC projections |
+| `cost-history` | trend | project | 6x3 | Cost progression over time |
+| `variance-chart` | diagnostic | project | 4x2 | Cost/schedule variance |
+| `evm-efficiency-gauges` | diagnostic | project | 4x2 | CPI/SPI gauge dials |
+| `change-order-analytics` | diagnostic | project | 4x3 | Change order distribution charts |
+| `coq-summary` | summary | project | 12x2 | Cost of Quality QPI summary |
+| `coq-trend-chart` | trend | project | 6x3 | COQ trend over time |
+| `coq-category-breakdown` | breakdown | project | 6x3 | 4-category COQ breakdown |
+| `coq-work-packages` | action | project | 12x3 | COQ by work package |
+| `wbe-tree` | breakdown | project | 4x3 | WBE hierarchy tree |
+| `mini-gantt` | breakdown | project | 6x3 | Compact Gantt timeline |
+| `cost-registrations` | action | project | 4x3 | Cost entry table |
+| `progress-tracker` | action | project | 4x3 | Progress entry table |
+| `change-orders-list` | action | project | 4x3 | Change order queue table |
+| `portfolio-kpi` | summary | portfolio | 12x3 | Cross-project KPI strip (CPI/SPI/VAC/TCPI) |
+| `portfolio-co-pipeline` | action | portfolio | 12x3 | Portfolio change-order pipeline (aging) |
+| `portfolio-projects-table` | breakdown | portfolio | 12x6 | Portfolio projects table (sortable) |
+| `portfolio-distress-list` | breakdown | portfolio | 6x5 | Distressed projects (cost/schedule mode) |
+| `portfolio-gantt` | schedule | portfolio | 12x6 | Portfolio schedule Gantt |
+
+**Scope semantics:** legacy project widgets that omit `scope` default to `"project"` (hidden from the portfolio palette). Portfolio widgets set `scope: "portfolio"`. Set `"any"` explicitly to appear on both dashboards. See §11 for the palette filter logic.
 
 **Creating a new widget definition:**
 
@@ -644,7 +731,7 @@ Forms use Ant Design components. The `WidgetConfigDrawer` reads the selected wid
 
 ## Part III: Runtime Behavior
 
-### 15. Dashboard Modes
+### 16. Dashboard Modes
 
 The dashboard operates in two mutually exclusive modes. The mode determines which toolbar buttons appear, what chrome each widget displays, and whether drag/resize are available.
 
@@ -736,7 +823,7 @@ Edit Mode
 - "Done" (`DashboardToolbar.tsx:81-85`): `onSave()` then `confirmChanges()`. The `onSave` callback is the persistence hook's `save()` function. `confirmChanges()` clears the snapshot, sets `isEditing=false`, clears undo/redo stacks.
 - "Cancel" (`DashboardToolbar.tsx:286-301`): Wrapped in `<Popconfirm>` asking "Discard unsaved changes?". On confirm, calls `discardChanges()`, which restores from `_lastSavedSnapshot`, sets `isEditing=false`, clears stacks.
 
-### 16. Widget Interaction States
+### 17. Widget Interaction States
 
 #### 16.1 Interaction Model Overview
 
@@ -856,7 +943,7 @@ Injected `<style>` targets `.react-grid-item` directly (not descendants), using 
 .react-grid-item:not(.widget-resize-active) .react-resizable-handle { display: none !important; }
 ```
 
-### 17. Widget Shell
+### 18. Widget Shell
 
 `WidgetShell` (`WidgetShell.tsx`) is the universal wrapper for every widget instance on the dashboard. It provides chrome (title, buttons), loading/error states, and mode-specific behavior.
 
@@ -920,7 +1007,7 @@ The content area (`WidgetShell.tsx:521-561`) fills the remaining space below the
 
 The area has `overflow: auto` and `display: flex; flexDirection: column` so widget content can use flex layout to fill the space.
 
-### 18. Dashboard Toolbar
+### 19. Dashboard Toolbar
 
 `DashboardToolbar` (`DashboardToolbar.tsx`) sits above the grid and provides all dashboard-level actions. Its button set changes completely between view and edit mode.
 
@@ -949,7 +1036,7 @@ The area has `overflow: auto` and `display: flex; flexDirection: column` so widg
 
 **Left side:** Editable dashboard name (active -- `editable={{ onChange: handleNameChange }}`).
 
-### 19. Data Flow
+### 20. Data Flow
 
 #### 19.1 Zustand Composition Store
 
@@ -1068,7 +1155,7 @@ Some action sets isDirty=true (e.g., widget config change via context bus)
 
 Note: Auto-save is explicitly suppressed during edit mode. The persistence hook checks `useDashboardCompositionStore.getState().isEditing` and returns early if true. This ensures the transactional semantics of edit mode are preserved.
 
-### 20. CSS Architecture
+### 21. CSS Architecture
 
 #### 20.1 RGL Class Merging
 
@@ -1152,9 +1239,9 @@ This provides a visual cue that the dashboard is in edit mode.
 
 ## Part IV: Advanced Features
 
-### 21. Key Implementation Details
+### 22. Key Implementation Details
 
-#### 21.1 WidgetInteractionContext
+#### 22.1 WidgetInteractionContext
 
 **File:** `frontend/src/features/widgets/components/WidgetInteractionContext.tsx`
 
@@ -1187,7 +1274,7 @@ setInteraction: (instanceId, mode) => {
 
 This means clicking Move on widget-A, then Move on widget-B, clears widget-A and activates widget-B in a single state update.
 
-#### 21.2 baseLayouts vs layouts Memo Split
+#### 22.2 baseLayouts vs layouts Memo Split
 
 `DashboardGrid` computes layouts in two stages to prevent RGL from resetting internal positions when interaction flags change, while still reacting to position updates after drag/resize.
 
@@ -1215,7 +1302,7 @@ RGL fires `onLayoutChange` after drag/resize completions and when it internally 
 **Responsive breakpoint layout constraints:**
 The `sm`/`xs` breakpoint layouts clamp widget widths to at least `minW` (not a hardcoded `w: 1`). This prevents `react-resizable` from computing `minConstraints` that exceed the widget's actual width, which would make the resize handle non-functional. Layout items where `w < minW` cause `react-resizable`'s `runConstraints` to immediately clamp the drag delta to the constraint floor, blocking horizontal resize.
 
-#### 21.3 Undo/Redo
+#### 22.3 Undo/Redo
 
 **Store implementation:** `useDashboardCompositionStore.ts:105-113, 349-369`
 
@@ -1242,7 +1329,7 @@ The `sm`/`xs` breakpoint layouts clamp widget widths to at least `minW` (not a h
 
 **Toolbar integration:** Undo/Redo buttons in `DashboardToolbar` are disabled when their respective stacks are empty. They use `undoStack.length === 0` and `redoStack.length === 0` directly (note: these are the `_undoStack` and `_redoStack` private fields exposed for UI binding).
 
-#### 21.4 Template System
+#### 22.4 Template System
 
 **Template vs user layout distinction:**
 - Templates have `is_template=true` in the backend and are system-owned
@@ -1265,7 +1352,7 @@ This means the next save will POST (create new) instead of PUT (update existing)
 - Uses the dedicated `PUT /dashboard-layouts/templates/{id}` endpoint
 - This endpoint is restricted to admin users via RBAC
 
-#### 21.5 Widget Error Boundaries
+#### 22.5 Widget Error Boundaries
 
 Two levels of error protection:
 
@@ -1280,9 +1367,9 @@ Uses `react-error-boundary`'s `<ErrorBoundary>` around the content area. If widg
 - Displays a minimal error message with a "Retry" link
 - The widget shell chrome (action bar, trigger icon) remains intact
 
-### 22. Phase 6 Features
+### 23. Phase 6 Features
 
-#### 22.1 Widget Fullscreen Mode
+#### 23.1 Widget Fullscreen Mode
 
 A fullscreen modal overlay for viewing a single widget at full viewport size.
 
@@ -1303,7 +1390,7 @@ A fullscreen modal overlay for viewing a single widget at full viewport size.
 - `features/widgets/components/WidgetFullscreenModal.tsx` — Modal component
 - `features/widgets/components/WidgetShell.tsx` — Expand button in toolbar
 
-#### 22.2 Widget Export
+#### 23.2 Widget Export
 
 Export widget data as PNG, CSV, or JSON via a dropdown menu in the widget toolbar.
 
@@ -1324,7 +1411,7 @@ Export widget data as PNG, CSV, or JSON via a dropdown menu in the widget toolba
 - `features/widgets/utils/exportUtils.ts` — Pure export functions
 - `features/widgets/components/WidgetExportMenu.tsx` — Dropdown component
 
-#### 22.3 Motion & Animation
+#### 23.3 Motion & Animation
 
 CSS-based entrance animations for widgets, with staggered delays.
 
@@ -1339,7 +1426,7 @@ CSS-based entrance animations for widgets, with staggered delays.
 **Files:**
 - `features/widgets/utils/animations.ts` — CSS keyframe injection
 
-#### 22.4 Auto-Refresh
+#### 23.4 Auto-Refresh
 
 Per-widget configurable data refresh using TanStack Query's `refetchInterval`, paused when the widget is off-screen.
 
@@ -1364,7 +1451,7 @@ Per-widget configurable data refresh using TanStack Query's `refetchInterval`, p
 - `features/widgets/hooks/useWidgetAutoRefresh.ts` — Refresh orchestration
 - `features/widgets/definitions/shared/useWidgetEVMData.ts` — Updated with `refetchInterval` option
 
-#### 22.5 Responsive Mobile Layout
+#### 23.5 Responsive Mobile Layout
 
 Adaptive layout for desktop, tablet, and mobile viewports.
 
@@ -1386,7 +1473,7 @@ Adaptive layout for desktop, tablet, and mobile viewports.
 
 ## Part V: Reference
 
-### 23. File Quick Reference
+### 24. File Quick Reference
 
 #### Backend Files
 
@@ -1428,11 +1515,12 @@ Adaptive layout for desktop, tablet, and mobile viewports.
 
 | File | Purpose |
 |------|---------|
-| `frontend/src/features/widgets/types.ts` | Type definitions (WidgetTypeId, WidgetInstance, Dashboard, etc.) |
+| `frontend/src/features/widgets/types.ts` | Type definitions (WidgetTypeId, WidgetInstance, WidgetScope, Dashboard, etc.) |
 | `frontend/src/features/widgets/registry.ts` | Global widget registry (register, lookup, filter) |
 | `frontend/src/features/widgets/definitions/registerAll.ts` | Barrel import triggering all widget registrations |
-| `frontend/src/features/widgets/definitions/*.tsx` | 15 widget definition files |
-| `frontend/src/features/widgets/components/config-forms/*.tsx` | 7 config form components |
+| `frontend/src/features/widgets/definitions/*.tsx` | 26 widget definition files |
+| `frontend/src/features/widgets/utils/widgetPermissions.ts` | Scope + permission gate helpers (`isWidgetInScope`, `isWidgetPermitted`) |
+| `frontend/src/features/widgets/components/config-forms/*.tsx` | Config form components |
 
 #### Frontend Hooks
 
@@ -1449,6 +1537,7 @@ Adaptive layout for desktop, tablet, and mobile viewports.
 |------|---------|
 | `frontend/src/features/widgets/utils/animations.ts` | CSS mount animation injection |
 | `frontend/src/features/widgets/utils/exportUtils.ts` | PNG/CSV/JSON export utilities |
-| `frontend/src/features/widgets/context/DashboardContextBus.tsx` | Cross-widget context |
-| `frontend/src/features/widgets/pages/DashboardPage.tsx` | Route page component |
+| `frontend/src/features/widgets/context/DashboardContextBus.tsx` | Cross-widget context (scope + portfolioFilter + TimeMachine) |
+| `frontend/src/features/widgets/pages/DashboardPage.tsx` | Project-scoped route page host |
+| `frontend/src/features/widgets/pages/GlobalDashboardPage.tsx` | Portfolio (`/portfolio`) route page host |
 | `frontend/src/features/widgets/pages/DashboardErrorBoundary.tsx` | Error boundary |

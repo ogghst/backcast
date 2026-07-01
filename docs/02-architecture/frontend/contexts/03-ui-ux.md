@@ -1,6 +1,6 @@
 # Context: UI Design & Experience
 
-**Last Updated:** 2026-04-14
+**Last Updated:** 2026-07-01
 
 ## 1. Overview
 
@@ -11,7 +11,7 @@ This context handles the visual presentation, user interaction, and aesthetics o
 - **Component Library**: Ant Design 6 (Top-tier enterprise UI)
 - **AI Chat Components**: Ant Design X (Enterprise AI interface components)
 - **Styling**: CSS-in-JS (Ant Design Token System)
-- **Forms**: Ant Design Form + Zod (Schema Validation)
+- **Forms**: Ant Design Form (Zod is available as a dependency but is not currently wired into forms)
 - **Notifications**: Sonner
 - **Drag & Drop**: dnd-kit
 - **Dates**: dayjs
@@ -29,28 +29,26 @@ We rely on **Ant Design's** design language but customized via `ConfigProvider`.
 
 - **Base Components**: Directly use Ant Design components (`Button`, `Table`) for 90% of cases.
 - **feature-components**: Build complex, domain-specific organisms (e.g., `ProjectKanbanBoard`) in their respective feature folders.
-- **Shared Components**: Generic compositions (e.g., `DataTable` wrapper) go in `src/components`.
+- **Shared Components**: Generic compositions live in `src/components/common` (e.g., the canonical table wrapper `StandardTable`, and the canonical titled content-panel `PanelCard` — see §3.8).
 
 ### 3.3 Interactive Patterns
 
 - **Feedback**:
   - Use `Sonner` for persistent, important notifications (Success/Error).
   - Use Ant `message` for ephemeral feedback ("Copied to clipboard").
-- **Drag and Drop**: Use `dnd-kit` for Kanban boards and ordering. It is accessible and performant.
-- **Validation**:
-  - **Zod schemas** define the valid shape of data.
-  - Zod resolver connects generic schemas to Ant Design forms.
+- **Drag and Drop**: Use `dnd-kit` (`@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities`) for Kanban boards and ordering. It is accessible and performant. (Note: `react-dnd` is not used.)
+- **Validation**: Ant Design Form's built-in validation rules are used throughout. Zod is installed as a dependency but is not currently used for form validation.
 
 ### 3.4 Key Libraries
 
 - **dayjs**: Lightweight immutable date library (replaces Moment.js).
 - **echarts**: For data visualization (EVM graphs).
 - **@ant-design/x**: For AI chat interface supporting natural language queries, AI-assisted data operations, multimodal input/output, Markdown and Mermaid rendering
-- **react-dnd**: For drag and drop functionality
+- **@dnd-kit/core**, **@dnd-kit/sortable**, **@dnd-kit/utilities**: For drag and drop functionality (replaces `react-dnd`, which is not used)
 - **zustand/middleware/immer**: For immutable state updates
 - **@tanstack/react-virtual**: For virtualized lists and tables
 - **react-error-boundary**: For error handling
-- **auth/core**: For authentication
+- **Authentication**: Custom JWT-based auth implemented locally via the `useAuth` hook (`src/hooks/useAuth.ts`) and `useAuthStore` Zustand store (`src/stores/useAuthStore.ts`). No external auth library (e.g. `auth/core`) is used.
 - **Vitest + Testing Library**: For unit and integration testing
 
 ### 3.5 State Management
@@ -60,13 +58,13 @@ We rely on **Ant Design's** design language but customized via `ConfigProvider`.
 
 ### 3.6 Data Tables
 
-Data tables are implemented using Ant Design's `Table` component with a custom wrapper `DataTable` in `src/components`. they must implement filtering, sorting, and pagination. Each table layout shall be stored and retrieved in `localStorage` and in backend via user preferences.
+Data tables are implemented using Ant Design's `Table` component wrapped by the shared `StandardTable` component in `src/components/common/StandardTable.tsx`. They must implement filtering, sorting, and pagination. Each table layout shall be stored and retrieved in `localStorage` and in backend via user preferences.
 
 ### 3.7 AI Chatbot Interface
 
 The AI chatbot interface uses **Ant Design X** (`@ant-design/x`) for a seamless integration with the existing Ant Design design system.
 
-**Component**: `src/features/ai-chat/`
+**Component**: `src/features/ai/chat/`
 
 **Capabilities:**
 
@@ -79,6 +77,15 @@ The AI chatbot interface uses **Ant Design X** (`@ant-design/x`) for a seamless 
 
 **Integration:**
 
-- WebSocket connection for real-time streaming (managed via `useWebSocket` hook)
-- Zustand store for session state (`useAIChatStore`)
+- WebSocket connection for real-time streaming, managed by the `useStreamingChat` hook (`src/features/ai/chat/api/useStreamingChat.ts`)
+- Session state and history via TanStack Query hooks `useChatSessions`, `useChatSessionsPaginated`, and `useChatMessages` (`src/features/ai/chat/api/`)
 - Ant Design tokens for consistent theming with the rest of the application
+
+### 3.8 Page Chrome & Content Panels
+
+The application has two canonical page-chrome primitives that standardize the look of entity and project pages. Standard entity/project pages must use them rather than hand-building a breadcrumb + title header; dashboards are intentionally chromeless.
+
+- **`PageShell`** (`src/components/layout/PageShell.tsx`): General page-chrome primitive that composes the standard `EntityBreadcrumb` + `PageHeader` (title + actions) stack, then the body. Callers wrap their content in `<PageWrapper><PageShell breadcrumb={...} title={...} actions={...}>...</PageShell></PageWrapper>`.
+- **`ProjectPage`** (`src/features/projects/components/ProjectPage.tsx`): Project-scoped variant that pairs `PageShell` with project-specific chrome (scope, navigation, project header).
+
+For titled content sections within a page, the canonical wrapper is **`PanelCard`** (`src/components/common/PanelCard.tsx`): an antd `Card` (size="small") with a standardized title style (`fontSizeLG` + `fontWeightStrong`) and an optional leading icon rendered in `colorPrimary`. It forwards the underlying `ref`, `styles`, and `className`, so it doubles as an attachable scroll anchor. Prefer `PanelCard` over a raw `Card` whenever a section needs a titled header.

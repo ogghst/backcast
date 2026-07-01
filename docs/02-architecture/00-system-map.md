@@ -1,6 +1,6 @@
 # System Map: Backcast 
 
-**Last Updated:** 2026-05-30
+**Last Updated:** 2026-07-01
 **Technology:** Python 3.12, FastAPI, React 18, PostgreSQL, AsyncIO
 
 ## High-Level Architecture
@@ -10,7 +10,9 @@ Backcast  is a full-stack application for project financial management.
 - **Frontend**: React SPA (Single Page Application) for user interaction.
 - **Backend**: FastAPI implementation of Entity Versioning Control System (EVCS).
 
-**Frontend (SPA)** → **API Layer** → **Service Layer** → **Repository Layer** → **Database**
+**Frontend (SPA)** → **API Layer** → **Service Layer** → **Database**
+
+> No repository pattern. Services access the database directly via an injected `AsyncSession` (`backend/app/db/session.py`), issuing SQLAlchemy 2.0 queries inline.
 
 ## Core Technology Choices
 
@@ -41,7 +43,14 @@ The system is partitioned into the following bounded contexts. See [01-bounded-c
 5.  Cost Element & Financial Tracking
 6.  Change Order & Branching
 7.  EVM Calculations & Reporting
-8.  AI/ML Integration
+8.  AI/ML Integration (chat, specialists, execution)
+9.  Dashboard & Widget Layouts (composable dashboards, templates)
+10. Custom Fields (per-entity JSONB field definitions)
+11. Agent Scheduling (cron-triggered background agent runs)
+12. Unified Notifications (pub/sub dispatcher + in-app/Telegram channels)
+13. Global Search (FilterParser-backed cross-entity search)
+14. Documents (folder tree, processing, attachments)
+15. MCP Servers (external tool integration)
 
 ## Versioning Architecture (EVCS Core)
 
@@ -65,14 +74,22 @@ The system is partitioned into the following bounded contexts. See [01-bounded-c
 ```
 .
 ├── backend/
-│   ├── app/           # FastAPI application
+│   ├── app/
+│   │   ├── api/routes/   # FastAPI routers (one per context)
+│   │   ├── services/     # Business logic; each holds an AsyncSession
+│   │   ├── models/       # SQLAlchemy ORM models
+│   │   │   ├── domain/        # Domain entities
+│   │   │   └── custom_fields/ # OO custom-field type system
+│   │   ├── core/         # EVCS framework: base/, versioning/,
+│   │   │                 # branching/, simple/, notifications/, rbac, filtering
+│   │   └── ai/           # LLM graph, specialists, execution, telemetry, MCP
 │   ├── tests/         # Pytest suite
 │   └── alembic/       # Database migrations
 │
 └── frontend/
     ├── src/
-    │   ├── api/       # API clients
-    │   ├── features/  # Domain features
+    │   ├── api/       # API clients (generated + hand-written)
+    │   ├── features/  # Feature-based modules (projects, dashboard, ai, ...)
     │   └── layouts/   # UI Layouts
     └── vite.config.ts
 ```
@@ -84,6 +101,9 @@ The system is partitioned into the following bounded contexts. See [01-bounded-c
 - **Security:** JWT access tokens, Argon2 hashing.
 - **Performance:** <200ms API response target.
 - **Seed Data:** Deterministic UUIDv5-based seeding with ID-based relationships.
+- **Observability:** OpenTelemetry tracing in `backend/app/ai/telemetry.py`.
+- **Notifications:** Unified pub/sub via `NotificationDispatcher` (`backend/app/core/notifications/dispatcher.py`) fanning out to in-app (WS) and Telegram channels.
+- **Search:** Cross-entity global search backed by `FilterParser` (`backend/app/core/filtering.py`).
 
 ## Key Design Decisions
 

@@ -22,7 +22,7 @@ features/evm/
 │   ├── EVMTimeSeriesChart.tsx      # Dual time-series charts
 │   └── EVMAnalyzerModal.tsx        # Comprehensive analysis modal
 ├── api/
-│   ├── hooks.ts                    # Custom hooks for EVM data fetching
+│   ├── useEVMMetrics.ts            # Custom hooks for EVM data fetching
 │   └── client.ts                   # EVM API client
 ├── types.ts                        # TypeScript types and interfaces
 └── index.ts                        # Feature exports
@@ -187,12 +187,12 @@ Organized summary view displaying all EVM metrics grouped by category with an "A
 
 ```tsx
 import { EVMSummaryView } from '@/features/evm/components';
-import { useEVMMetrics } from '@/features/evm/api/hooks';
+import { useEVMMetrics } from '@/features/evm/api/useEVMMetrics';
 
 function CostElementPage({ costElementId }: { costElementId: string }) {
   const { data: evmMetrics, isLoading } = useEVMMetrics(
-    costElementId,
-    EntityType.COST_ELEMENT
+    EntityType.COST_ELEMENT,
+    costElementId
   );
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -271,7 +271,7 @@ Displays Forecast vs. Actual cost over time:
 
 ```tsx
 import { EVMTimeSeriesChart } from '@/features/evm/components';
-import { useEVMTimeSeries } from '@/features/evm/api/hooks';
+import { useEVMTimeSeries } from '@/features/evm/api/useEVMMetrics';
 import { useState } from 'react';
 
 function EVMAnalysis({ entityId, entityType }: { entityId: string; entityType: EntityType }) {
@@ -280,8 +280,8 @@ function EVMAnalysis({ entityId, entityType }: { entityId: string; entityType: E
   );
 
   const { data: timeSeries, isLoading } = useEVMTimeSeries(
-    entityId,
     entityType,
+    entityId,
     granularity
   );
 
@@ -341,7 +341,7 @@ Comprehensive modal component displaying all EVM metrics with enhanced visualiza
 
 ```tsx
 import { EVMAnalyzerModal } from '@/features/evm/components';
-import { useEVMMetrics, useEVMTimeSeries } from '@/features/evm/api/hooks';
+import { useEVMMetrics, useEVMTimeSeries } from '@/features/evm/api/useEVMMetrics';
 import { useState } from 'react';
 
 function CostElementDetail({ costElementId }: { costElementId: string }) {
@@ -351,13 +351,13 @@ function CostElementDetail({ costElementId }: { costElementId: string }) {
   );
 
   const { data: evmMetrics, isLoading: metricsLoading } = useEVMMetrics(
-    costElementId,
-    EntityType.COST_ELEMENT
+    EntityType.COST_ELEMENT,
+    costElementId
   );
 
   const { data: timeSeries, isLoading: timeSeriesLoading } = useEVMTimeSeries(
-    costElementId,
     EntityType.COST_ELEMENT,
+    costElementId,
     granularity
   );
 
@@ -399,21 +399,24 @@ Fetches EVM metrics for a single entity.
 
 ```typescript
 function useEVMMetrics(
+  entityType: EntityType,
   entityId: string,
-  entityType: EntityType
+  params?: UseEVMMetricsParams
 ): UseQueryResult<EVMMetricsResponse, Error>
 ```
+
+`UseEVMMetricsParams` is an optional object: `{ branch?: string; controlDate?: string; queryOptions?: UseQueryOptions<EVMMetricsResponse> }`. When omitted, `branch`/`controlDate` fall back to the `TimeMachineContext`.
 
 **Usage:**
 
 ```tsx
-import { useEVMMetrics } from '@/features/evm/api/hooks';
+import { useEVMMetrics } from '@/features/evm/api/useEVMMetrics';
 import { EntityType } from '@/features/evm/types';
 
 function MyComponent({ costElementId }: { costElementId: string }) {
   const { data, isLoading, error } = useEVMMetrics(
-    costElementId,
-    EntityType.COST_ELEMENT
+    EntityType.COST_ELEMENT,
+    costElementId
   );
 
   if (isLoading) return <Spin />;
@@ -428,7 +431,7 @@ function MyComponent({ costElementId }: { costElementId: string }) {
 
 - Integrates with TimeMachineContext (branch, control_date)
 - Disabled when `entityId` is empty
-- 5-minute stale time, 10-minute cache time
+- No explicit `staleTime`/`gcTime` set (uses TanStack Query defaults); callers can override via `params.queryOptions`
 - Automatic refetch on TimeMachineContext changes
 
 ---
@@ -441,24 +444,27 @@ Fetches time-series data for EVM charts.
 
 ```typescript
 function useEVMTimeSeries(
-  entityId: string,
   entityType: EntityType,
-  granularity: EVMTimeSeriesGranularity = EVMTimeSeriesGranularity.WEEK
+  entityId: string,
+  granularity: EVMTimeSeriesGranularity,
+  params?: EVMTimeSeriesParams
 ): UseQueryResult<EVMTimeSeriesResponse, Error>
 ```
+
+`granularity` is **required** (no default). `EVMTimeSeriesParams` extends the same `{ branch?, controlDate?, queryOptions? }` shape and additionally carries the `granularity` value.
 
 **Usage:**
 
 ```tsx
-import { useEVMTimeSeries } from '@/features/evm/api/hooks';
+import { useEVMTimeSeries } from '@/features/evm/api/useEVMMetrics';
 import { EntityType, EVMTimeSeriesGranularity } from '@/features/evm/types';
 
 function MyComponent({ costElementId }: { costElementId: string }) {
   const [granularity, setGranularity] = useState(EVMTimeSeriesGranularity.WEEK);
 
   const { data, isLoading } = useEVMTimeSeries(
-    costElementId,
     EntityType.COST_ELEMENT,
+    costElementId,
     granularity
   );
 
@@ -482,7 +488,7 @@ function MyComponent({ costElementId }: { costElementId: string }) {
 
 - Integrates with TimeMachineContext
 - Cache key includes granularity (auto-refetch on change)
-- 5-minute stale time, 10-minute cache time
+- No explicit `staleTime`/`gcTime` set (uses TanStack Query defaults); callers can override via `params.queryOptions`
 
 ---
 
@@ -494,21 +500,24 @@ Fetches aggregated EVM metrics for multiple entities.
 
 ```typescript
 function useEVMMetricsBatch(
-  entityIds: string[],
-  entityType: EntityType
-): UseQueryResult<EVMMetricsResponse, Error>
+  entityType: EntityType,
+  entityIds: string[] | undefined,
+  params?: EVMMetricsBatchParams
+): UseQueryResult<EVMMetricsBatchResponse, Error>
 ```
+
+> **Note — response shape divergence.** The frontend hook is typed against a *local* `EVMMetricsBatchResponse` (`{ entity_type, metrics[], aggregated }`) defined inline in `useEVMMetrics.ts`, but the backend `POST /api/v1/evm/{entity_type}/batch` route returns a **single aggregated `EVMMetricsResponse`** (see `backend/app/api/routes/evm.py`, `response_model=EVMMetricsResponse`). The hook's declared return type does not currently match the actual API contract.
 
 **Usage:**
 
 ```tsx
-import { useEVMMetricsBatch } from '@/features/evm/api/hooks';
+import { useEVMMetricsBatch } from '@/features/evm/api/useEVMMetrics';
 import { EntityType } from '@/features/evm/types';
 
 function ProjectDashboard({ projectIds }: { projectIds: string[] }) {
   const { data, isLoading } = useEVMMetricsBatch(
-    projectIds,
-    EntityType.PROJECT
+    EntityType.PROJECT,
+    projectIds
   );
 
   if (isLoading) return <Spin />;
@@ -535,10 +544,13 @@ Enum representing supported entity types.
 ```typescript
 enum EntityType {
   COST_ELEMENT = "cost_element",
-  WBE = "wbe",
+  WBS_ELEMENT = "wbs_element",
+  WORK_PACKAGE = "work_package",
   PROJECT = "project",
 }
 ```
+
+> The literal `"wbe"` does **not** exist — the intermediate level is `wbs_element`. The backend `EntityType` (`backend/app/models/schemas/evm.py`) additionally defines `CONTROL_ACCOUNT = "control_account"`, which is not currently exported by the frontend enum.
 
 ### EVMMetricsResponse
 
@@ -559,6 +571,7 @@ interface EVMMetricsResponse {
   eac: number | null;
   vac: number | null;
   etc: number | null;
+  tcpi: number | null;  // To-Complete Performance Index (BAC / EAC); defaults to 1.0 when EAC is missing/zero
   control_date: string;
   branch: string;
   branch_mode: BranchMode;
@@ -643,7 +656,7 @@ function App() {
 
 // MyEVMComponent automatically uses TimeMachineContext settings
 function MyEVMComponent() {
-  const { data } = useEVMMetrics(entityId, EntityType.COST_ELEMENT);
+  const { data } = useEVMMetrics(EntityType.COST_ELEMENT, entityId);
   // Query includes: asOf, branch, mode from context
 }
 ```
@@ -669,13 +682,13 @@ Always design components to work with all entity types:
 ```tsx
 // ✅ GOOD: Generic component
 function EVMCard({ entityId, entityType }: { entityId: string; entityType: EntityType }) {
-  const { data } = useEVMMetrics(entityId, entityType);
+  const { data } = useEVMMetrics(entityType, entityId);
   return <MetricCard value={data?.cpi} label="CPI" />;
 }
 
 // ❌ BAD: Tightly coupled to cost elements
 function CostElementEVMCard({ costElementId }: { costElementId: string }) {
-  const { data } = useEVMMetrics(costElementId, EntityType.COST_ELEMENT);
+  const { data } = useEVMMetrics(EntityType.COST_ELEMENT, costElementId);
   return <MetricCard value={data?.cpi} label="CPI" />;
 }
 ```
@@ -686,7 +699,7 @@ Always handle loading and error states:
 
 ```tsx
 function MyEVMComponent({ entityId, entityType }: Props) {
-  const { data, isLoading, error } = useEVMMetrics(entityId, entityType);
+  const { data, isLoading, error } = useEVMMetrics(entityType, entityId);
 
   if (isLoading) return <Spin />;
   if (error) return <Alert message={error.message} type="error" />;
@@ -719,7 +732,7 @@ function EVMPage({ entityId, entityType }: Props) {
   // Page-level granularity state
   const [granularity, setGranularity] = useState(EVMTimeSeriesGranularity.WEEK);
 
-  const { data: timeSeries } = useEVMTimeSeries(entityId, entityType, granularity);
+  const { data: timeSeries } = useEVMTimeSeries(entityType, entityId, granularity);
 
   return (
     <>
@@ -840,8 +853,7 @@ test('EVM Analyzer modal opens and displays charts', async ({ page }) => {
 
 ### Query Optimization
 
-- **Stale time**: 5 minutes (balances freshness vs. API calls)
-- **Cache time**: 10 minutes (retains data in background)
+- **Stale/cache time**: Hooks set no explicit `staleTime`/`gcTime` — they rely on TanStack Query defaults. Callers may override per-query via the `params.queryOptions` argument.
 - **Disabled queries**: Queries disabled when inputs are invalid
 
 ### Rendering Performance
@@ -878,6 +890,14 @@ All components follow WCAG 2.1 AA standards:
 ---
 
 ## Changelog
+
+### 2026-07-01
+- Corrected hook module path: `api/hooks.ts` → `api/useEVMMetrics.ts` (all import examples).
+- Fixed all hook signatures and call sites to type-first order: `useEVMMetrics(entityType, entityId, params?)`, `useEVMTimeSeries(entityType, entityId, granularity, params?)`, `useEVMMetricsBatch(entityType, entityIds, params?)`. Documented the optional `params` objects and that `granularity` is required (no default).
+- Updated `EntityType` enum: replaced nonexistent `WBE = "wbe"` with `WBS_ELEMENT`, `WORK_PACKAGE`; noted backend also defines `CONTROL_ACCOUNT`.
+- Added `tcpi` field to the documented `EVMMetricsResponse` shape.
+- Flagged the `useEVMMetricsBatch` response-shape divergence: the hook is typed against a local `EVMMetricsBatchResponse` (`{entity_type, metrics[], aggregated}`), but the backend `POST /evm/{entity_type}/batch` returns a single aggregated `EVMMetricsResponse`.
+- Removed unverified staleTime/gcTime claims (the hooks set none — callers override via `params.queryOptions`).
 
 ### 2026-01-22
 - Initial release of EVM component library

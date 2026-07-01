@@ -1,6 +1,6 @@
 # Context: State Management & Data
 
-**Last Updated:** 2026-04-14
+**Last Updated:** 2026-07-01
 
 ## 1. Overview
 
@@ -31,7 +31,7 @@ We strictly enforce a centralized Query Key factory to ensure cache consistency 
 - **Naming**: Keys follow a kebab-case hierarchical structure (e.g., `['cost-elements', 'detail', id]`).
 - **Context Isolation**: For branchable or temporal entities, the Query Key **MUST** include context parameters to prevent stale data when switching contexts.
   - **Wrong**: `['cost-elements', 'detail', id]` (Cached shared across branches)
-  - **Correct**: `['cost-elements', 'detail', id, { branch: 'main', asOf: '2024-01-01' }]`
+  - **Correct**: `['cost-elements', 'detail', id, { branch: 'main', asOf: '2024-01-01', mode: 'merged' }]`
 
 #### 3.1.2 Invalidation Strategy
 
@@ -43,12 +43,12 @@ Mutations must trigger invalidation not just for the modified entity but for **a
 
 **Dependent Invalidation Patterns:**
 
-| Primary Entity     | Dependent Entities                                     | Rationale                                           |
-| ------------------ | ------------------------------------------------------ | --------------------------------------------------- |
-| Cost Elements      | `forecasts.all`, `forecast_comparison`                 | Cost element changes affect EVM calculations        |
-| Cost Registrations | `forecasts.all`, `forecast_comparison`, `budgetStatus` | Actual costs affect EVM metrics and budget tracking |
-| Schedule Baselines | `forecasts.all`, `forecast_comparison`                 | Planned Value changes affect EVM calculations       |
-| Change Orders      | `projects.*.branches`, `projects`                      | Branch creation/updates affect project branch lists |
+| Primary Entity     | Dependent Entities                                                                 | Rationale                                                                      |
+| ------------------ | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Cost Elements      | `forecasts.all`, `forecast_comparison`                                             | Cost element changes affect EVM calculations                                   |
+| Cost Registrations | `forecasts.all`, `forecast_comparison`, `costRegistrations.budgetStatus`           | Actual costs affect EVM metrics and budget tracking (see `useCostRegistrations.ts:345-358`) |
+| Schedule Baselines | `forecasts.all`, `forecast_comparison`                                             | Planned Value changes affect EVM calculations                                  |
+| Change Orders      | `changeOrders.listsInProject`, `projects.branches(projectId)`, `projects.all`      | CO create/update/delete change branch lists (`useChangeOrders.ts:123-137, 383-388, 461-466`) |
 
 **Implementation Example:**
 
@@ -69,7 +69,28 @@ onSuccess: (...args) => {
 };
 ```
 
-#### 3.1.3 Optimistic Updates
+#### 3.1.3 As-of / Branch / Branch-Mode Reactivity
+
+The EVM, change-order, cost-registration, and cost-event hooks **auto-inject** the Time
+Machine context (`branch`, `asOf`, `mode`) into **both** the query key and the API params
+via `useTimeMachineParams()`. This is what makes the Time Machine "time-travel" reactive:
+changing the as-of date or branch in the UI refetches immediately with no manual wiring.
+
+Canonical examples:
+
+- **EVM** (`frontend/src/features/evm/api/useEVMMetrics.ts:118-143`): pulls
+  `{ mode, branch, asOf }`, builds the key as
+  `queryKeys.evm.metrics(entityType, entityId, { branch, controlDate: asOf, mode })`,
+  and sends `{ control_date, branch, branch_mode }` to the API. Note the key-level field is
+  `controlDate` (mapped from `asOf`).
+- **Change Orders** (`frontend/src/features/change-orders/api/useChangeOrders.ts:46-68`):
+  pulls `{ mode, branch, asOf }`, embeds `{ branch, mode, asOf }` in the list key and sends
+  `{ branch, branch_mode, as_of }` to the API.
+
+This pattern is the rule, not the exception: any hook touching versioned/temporal data
+should consume `useTimeMachineParams()` and thread both key and params through it.
+
+#### 3.1.4 Optimistic Updates
 
 Optimistic updates are **required** for high-frequency user actions (e.g., renaming, status changes).
 
@@ -163,8 +184,8 @@ We provide two distinct factories for generating CRUD hooks, enforcing separatio
 
 **Used for**: Entities that support Time Machine (branches, history, time-travel).
 
-- **Entities**: Projects, WBEs, Cost Elements, Forecasts, Change Orders.
-- **Path**: `src/hooks/useVersionedCrud.ts`
+- **Entities**: Projects, WBS Elements, Work Packages (the PMI **budget-holder**), Cost Elements (EOC line items under a Work Package), Change Orders. Forecasts and Schedule Baselines are versioned too, but they are derived/calculated data, not budget holders.
+- **Path**: `src/hooks/useVersionedCrud.ts` (see `queryKeys.ts:93-122` for the WorkPackage-vs-CostElement split).
 
 This factory automatically injects `TimeMachineContext` ({ `branch`, `asOf`, `mode` }) into all query keys and API calls.
 
@@ -244,17 +265,39 @@ export const { useList: useUsers } = createResourceHooks("users", {
 The factory matches the domain structure of the application.
 
 ```typescript
-// src/api/queryKeys.ts
+// src/api/queryKeys.ts (signatures — see file for the full factory)
 export const queryKeys = createQueryKeys("backcast-evs", {
-  // Versioned Entity with Context
+  // Versioned Entity with Context: detail() takes a context object for isolation
   costElements: {
-    all: null as QueryKey,
-    // Context is REQUIRED for details to ensure isolation
-    detail: (id: string, context?: any) =>
+    all: ["cost-elements"] as const,
+    detail: (id: string, context?: unknown) =>
       ["cost-elements", "detail", id, context] as const,
-    // Dependent metrics
-    evmMetrics: (id: string, context?: any) =>
-      ["cost-elements", "evm", id, context] as const,
+    // ... list, lists, details, breadcrumb
+  },
+
+  // EVM keys are NOT nested under costElements — they live under `evm`
+  // and are keyed by (entityType, entityId) so any entity can be queried.
+  evm: {
+    all: ["evm"] as const,
+    metrics: (entityType: string, entityId: string, context?: unknown) =>
+      ["evm", "metrics", entityType, entityId, context] as const,
+    timeSeries: (entityType: string, entityId: string, context?: unknown) =>
+      ["evm", "timeseries", entityType, entityId, context] as const,
+    batch: (entityType: string, entityIds: string[], context?: unknown) =>
+      ["evm", "batch", entityType, entityIds, context] as const,
+  },
+
+  // Cross-project EVM roll-up; carries { controlDate, branch, branchMode }
+  portfolio: {
+    evm: (params?: { controlDate?: string | null; branch?: string; branchMode?: string }) =>
+      ["portfolio", "evm", params] as const,
+  },
+
+  // Widget dashboard templates / user layouts
+  dashboardLayouts: {
+    all: ["dashboard-layouts"] as const,
+    templates: (scope?: "project" | "portfolio") =>
+      ["dashboard-layouts", "templates", scope] as const,
   },
 
   // Simple Entity
@@ -263,6 +306,11 @@ export const queryKeys = createQueryKeys("backcast-evs", {
   },
 });
 ```
+
+> **Note:** The EVM `context` object uses the key **`controlDate`** (not `asOf`) at the
+> query-key level — the EVM hook maps Time Machine `asOf` → `controlDate` before building
+> the key (`frontend/src/features/evm/api/useEVMMetrics.ts:118-128`). The `portfolio.evm`
+> params likewise use `controlDate` / `branchMode` (`queryKeys.ts:399-408`).
 
 ### 5.2 Context Isolation for Versioned Entities
 
@@ -301,11 +349,12 @@ useQuery({
 
 When mutating data, you must consider the "ripple effect" of changes.
 
-| Mutation                | Direct Invalidation        | Dependent Invalidation                                     |
-| ----------------------- | -------------------------- | ---------------------------------------------------------- |
-| **Create Cost Element** | `costElements.all`         | `forecasts.all` (New element needs forecast)               |
-| **Update Schedule**     | `scheduleBaselines.detail` | `forecasts.all` (PV changes affect SV/SPI)                 |
-| **Register Cost**       | `costRegistrations.all`    | `budgetStatus`, `forecasts.all` (AC changes affect CV/CPI) |
+| Mutation                | Direct Invalidation        | Dependent Invalidation                                       |
+| ----------------------- | -------------------------- | ------------------------------------------------------------ |
+| **Create Cost Element** | `costElements.all`         | `forecasts.all` (New element needs forecast)                 |
+| **Update Schedule**     | `scheduleBaselines.detail` | `forecasts.all` (PV changes affect SV/SPI)                   |
+| **Register Cost**       | `costRegistrations.all`    | `costRegistrations.budgetStatus`, `forecasts.all` (AC changes affect CV/CPI) |
+| **Change Order (CRUD)** | `changeOrders.all`         | `changeOrders.listsInProject(projectId)`, `projects.branches(projectId)`, `projects.all` |
 
 These invalidations should be configured in the `createVersionedResourceHooks` options or manually in `onSuccess` handlers.
 

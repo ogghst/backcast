@@ -10,7 +10,7 @@ The supervisor also has **direct tool access** (e.g. `ask_user`, temporal contex
 > - [Agent System: Common Concepts](./agent-common-concepts.md) -- shared infrastructure, tools, middleware, event bus
 > - [`backend/app/ai/supervisor_orchestrator_DEV_GUIDE.md`](../../../backend/app/ai/supervisor_orchestrator_DEV_GUIDE.md) -- code-adjacent developer reference with line-level detail and improvement notes
 >
-> **Last Updated:** 2026-06-14
+> **Last Updated:** 2026-07-01
 
 ---
 
@@ -198,7 +198,7 @@ So the supervisor has **three tool categories**:
 1. **`get_briefing`** -- reads the current compiled findings from `briefing_data`.
 2. **`request_replan`** -- routes back to the planner to revise remaining steps (see [Section 6](#6-handoff-and-replan-tools)).
 3. **`handoff_to_{specialist}`** -- one per successfully-compiled specialist, routes to the specialist wrapper via `Command(goto=specialist)`.
-4. **Optional direct tools** -- from `delegation_config.direct_tools` (DB-configurable, no hardcoded defaults). `ask_user` is granted to every main agent via migration `2db3a62769df_grant_ask_user_to_all_assistant_configs.py`.
+4. **Optional direct tools** -- from `delegation_config.direct_tools` (DB-configurable, no hardcoded defaults). `ask_user` is granted to every main agent via migration `2db3a62769df_grant_ask_user_to_all_assistant_configs.py`. `ask_user` carries a hard per-execution cap, `AI_MAX_ASK_USER_PER_EXECUTION` (default 8, in `tools/ask_user.py`), enforced INSIDE the tool before it publishes an event or marks the execution awaiting-user. A capped call returns a synthetic `{"answer": "Clarification limit reached...", "capped": True}` so the model proceeds with gathered information instead of asking again (39 asks were observed in a single runaway session before this bound).
 
 ### System Prompt Assembly
 
@@ -218,6 +218,14 @@ The real `_BASE_SUPERVISOR_PROMPT` (summarized -- see the file for the exact tex
 - "Only respond if you need to ask the user a clarification question" (the user reads the briefing directly).
 
 > Note: the older "BRIEFING_ROOM_SUPERVISOR_PROMPT" with a `call get_briefing first` instruction and a hardcoded 7-specialist list no longer exists. The specialist catalog is always built dynamically, and the briefing is injected rather than fetched at turn start.
+
+### RESOLVED FACTS Grounding (anti-confabulation)
+
+Weaker reasoning models would confabulate in the final answer: report entities the specialists never created, re-disambiguate identities already resolved, or claim work was missing/impossible after it had been performed. The supervisor's anti-confabulation grounding is a single **RESOLVED FACTS** block built from completed plan steps and surfaced both in the prompt and in the plan-completion nudge.
+
+- **System prompt** (`_BASE_SUPERVISOR_PROMPT`): instructs the supervisor to give a CONCISE GROUNDED summary citing the RESOLVED FACTS the specialists established, to never re-derive or re-disambiguate identities the specialists already resolved, and to validate specialist results by FORMAT/completeness only (never re-derive the domain answer).
+- **Completion nudge** (`_build_completion_nudge`): when all plan steps are done, the wrapper injects a `SystemMessage` whose `## RESOLVED FACTS` block is assembled from each completed step's `delegation_notes` (created-entity code/name + resolved project) first, falling back to `result_summary`. Each entry is truncated to `_COMPLETION_NUDGE_SUMMARY_LIMIT` (800 chars). The nudge explicitly forbids re-searching, re-disambiguation, or questioning an identity the specialists already resolved. `delegation_notes` is sourced from the specialist's `SpecialistOutput.delegation_notes` and stored on the `PlanStep` via `PlanDocument.mark_step_completed(..., delegation_notes=...)` (`plan.py`).
+- **Failure nudge** (`_build_failure_nudge`): mirrors the completion shape for the failure path -- it always forces the supervisor to inform the user of the failure (state the error, report partial progress from the `Completed before the failure` block) rather than answer with a stale "awaiting results".
 
 ---
 
@@ -284,7 +292,19 @@ Specialist compilation is shared logic in `ai/subagent_compiler.py` (NOT `ai/sub
 4. Compiles via `langchain_create_agent()` with `name=agent_name`, the specialist's `system_prompt` (passed as-is), `response_format=schema` (defaults to `SpecialistOutput`), and a fresh `build_backcast_middleware()` stack (TemporalContextMiddleware + BackcastSecurityMiddleware; plus SequentialToolCallsMiddleware when enabled).
 5. When `AI_SEQUENTIAL_TOOL_CALLS` is true, replaces the tools node's `afunc` at the instance level with `SequentialToolNode._afunc` (belt-and-suspenders beyond the class-level monkey-patch).
 
-Specialists do NOT receive `ContextGuardMiddleware` (they get fresh short messages each time) or `PlanAwareToolMiddleware` (they don't delegate).
+Specialists get their OWN `ContextGuardMiddleware` (mounted in `compile_subagents` with `preserve_head=2`, so the system prompt AND the assignment `HumanMessage` survive the trim), calibrated SEPARATELY from the supervisor's because a specialist hits the provider's latency knee far below the supervisor's 120k threshold. They do NOT receive `PlanAwareToolMiddleware` (they don't delegate).
+
+### Specialist Context / Tool Caps (latency fix)
+
+A specialist does a focused 2-4 tool calls/step, but inheriting the supervisor's flat tool-iteration default (25) and 120k context threshold let its ReAct loop accumulate tool CALL+RESULT mass that drove provider latency super-linearly into the 120s active-time timeout. Three specialist-specific bounds (defined in `core/config.py`, re-exported from `app/ai/config.py`) cap this:
+
+| Setting | Default | Effect |
+|---------|---------|--------|
+| `AI_SPECIALIST_MAX_TOOL_ITERATIONS` | 8 | Hard cap on tool calls WITHIN a single specialist invocation (lower than the supervisor's budget, which inherits the graph recursion limit). Applied as `max_tool_iterations` in the isolated `ainvoke` payload. |
+| `AI_SPECIALIST_CONTEXT_TOKEN_LIMIT` | 24000 | Specialist-specific `ContextGuard` threshold (vs the supervisor's 120k). Trimming kicks in at ~80% (~19k). Mounted in `compile_subagents`. |
+| `AI_SPECIALIST_CONTEXT_KEEP_RECENT` | 4 | Recent tool CALL/RESULT pairs kept verbatim by the specialist `ContextGuard` (older results summarized); lower than the supervisor's 8. |
+
+The supervisor's own budget (`max_tool_iterations` 25, `AI_CONTEXT_TOKEN_LIMIT` 120k, `AI_CONTEXT_KEEP_RECENT` 8) is unaffected.
 
 ### Specialist Loading (DB-first with fallback)
 
@@ -375,7 +395,7 @@ If no specialists compile successfully (e.g. all filtered out by RBAC), `_build_
    If a multi-step plan is active (requires_planning AND steps exist):
        plan_max = min(len(plan.steps) + 1, _MAX_PLAN_STEPS + 1)
        if plan_max > max_iterations: max_iterations = plan_max
-   if iterations >= max_iterations -> END
+   if iterations >= max_iterations -> "bounded_terminate"
 
 2. Parse last message:
    - No messages -> END
@@ -383,7 +403,7 @@ If no specialists compile successfully (e.g. all filtered out by RBAC), `_build_
      for each tool_call:
        a) "request_replan":
             replan_count = state.replan_count
-            if replan_count >= max_replan_count -> END
+            if replan_count >= max_replan_count -> "bounded_terminate"
             else -> "planner"
        b) "handoff_to_{slug}":
             resolve slug -> specialist name via slug_map
@@ -391,6 +411,18 @@ If no specialists compile successfully (e.g. all filtered out by RBAC), `_build_
             elif spec_name in specialist_set -> spec_name
    - Otherwise -> END
 ```
+
+The two `bounded_terminate` targets are the **bounded-termination node** (`_bounded_terminate_node`), NOT a silent END. When either the iteration cap or the replan cap fires, the router routes to `bounded_terminate`, which builds a grounded, user-facing notice from plan state via `_build_bounded_termination_notice()` and then returns `Command(goto=END)`. `agent_service` persists the notice (read from `state["termination_notice"]`) as the final assistant message. The notice is built from plan **state** -- never an extra supervisor LLM turn (the supervisor may be the thing misbehaving) -- and renders Completed / Failed / Not-started sections so the user always sees what happened when a run is force-bounded.
+
+### Termination Guarantee (END branch)
+
+Termination does not depend on a premature-completion guard. The router's final `return END` (the "Otherwise -> END" / "no messages -> END" paths) is what fires when the supervisor emits an `AIMessage` **without** `tool_calls` -- i.e. the model has produced its final answer. The earlier F1 premature-completion guard was **removed** because it fought the model's correct "done" answer against a stale plan (a completed-step shadow kept re-dispatching). Termination is now guaranteed by three independent bounds:
+
+1. The explicit `END` branch on any `AIMessage` without `tool_calls`.
+2. The iteration cap (`supervisor_iterations` vs `max_supervisor_iterations`) and replan cap (`replan_count` vs `max_replan_count`), both routing to `bounded_terminate` instead of a silent END.
+3. The `_bounded_terminate_node`, which converts a silent force-END into a grounded notice + `Command(goto=END)`.
+
+A specialist-side loop is separately bounded by the per-(specialist, step) re-dispatch cap (`_MAX_DISPATCHES_PER_SPECIALIST = 1`) in the wrapper node.
 
 ### Conditional Re-dispatch (the key behavior)
 
@@ -413,16 +445,19 @@ When a multi-step plan is active, `max_iterations` is raised to `min(len(plan.st
 
 ## 10. Iteration Safety
 
-Three independent guards bound execution:
+Independent guards bound execution:
 
 | Guard | Mechanism | Default | Effect |
 |-------|-----------|---------|--------|
-| Tool-call limit (intra-agent) | `max_tool_iterations` per agent | 25 | Prevents infinite tool loops within one agent. |
+| Tool-call limit (intra-agent) | `max_tool_iterations` per agent | 25 (supervisor); **8** for specialists (`AI_SPECIALIST_MAX_TOOL_ITERATIONS`) | Prevents infinite tool loops within one agent. |
 | Supervisor cycle limit (inter-agent) | `supervisor_iterations` (`operator.add`) vs `max_supervisor_iterations` | 5 (raised to `min(steps+1, _MAX_PLAN_STEPS+1)` when a plan is active) | Caps supervisor<->specialist round trips. |
 | Re-dispatch guard | `completed_specialists` set (`operator.or_`) | empty | Blocks re-dispatch to a completed specialist IN NON-PLAN MODE; plan mode allows re-dispatch. |
-| Replan cap | `replan_count` (explicit increment, not a reducer) vs `max_replan_count` | 2 | Caps planner revisions; forces END when exceeded. |
+| Per-(specialist, step) re-dispatch cap | `specialist_dispatch_counts` vs `_MAX_DISPATCHES_PER_SPECIALIST` | 1 | Blocks a Swarm-style re-dispatch loop on the same step in plan mode; routes to supervisor with a replan nudge. |
+| Replan cap | `replan_count` (explicit increment, not a reducer) vs `max_replan_count` | 2 | Caps planner revisions; routes to `bounded_terminate` when exceeded. |
+| Final-answer END branch | Router `return END` on `AIMessage` without `tool_calls` | -- | The supervisor's "done" answer terminates the graph (no premature-completion guard). |
+| ask_user cap | `AI_MAX_ASK_USER_PER_EXECUTION` | 8 | Hard cap on user-facing clarifications per execution; capped calls return a synthetic answer. |
 
-The router checks the iteration cap BEFORE inspecting tool calls, so a multi-step plan that would exceed the cap is terminated cleanly.
+The router checks the iteration cap BEFORE inspecting tool calls, so a multi-step plan that would exceed the cap is terminated cleanly (via `bounded_terminate`, which emits a grounded notice rather than a silent END).
 
 ---
 

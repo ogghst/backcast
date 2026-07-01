@@ -22,25 +22,36 @@ This guide explains **how EVM is implemented** in Backcast , including data sour
 Each EVM metric is calculated from specific domain entities:
 
 ```python
-# BAC: From CostElement.budget_amount
-bac = cost_element.budget_amount
+# BAC: From WorkPackage.budget_amount (the Work Package is the PMI budget holder)
+bac = work_package.budget_amount
 
 # PV: From ScheduleBaseline + ProgressionStrategy
 pv = bac × (progress_percentage from baseline progression)
 
-# AC: From CostRegistration (sum of amounts)
-ac = sum(cost_registration.amount for cost_element)
+# AC: From CostRegistration (sum of amounts), routed CostElement → WorkPackage
+ac = sum(cost_registration.amount for cost_element in work_package.cost_elements)
 
 # EV: From ProgressEntry.progress_percentage
 ev = bac × progress_percentage / 100
 ```
 
+> **Budget holder.** The Work Package (`WorkPackage.budget_amount`) owns the
+> BAC; the Cost Element is a line item *under* the Work Package, not the budget
+> holder. AC flows from `CostRegistration` rows through their parent
+> `CostElement` up to the owning Work Package. EVM is therefore computed at the
+> Work-Package level — see `GET /api/v1/work-packages/{id}/evm` below.
+
 ### Calculation Flow
 
 ```text
 ┌─────────────────┐
-│ CostElement     │ ──► BAC (Budget at Completion)
-│ - budget_amount │
+│ WorkPackage     │ ──► BAC (Budget at Completion)
+│ - budget_amount │      (PMI budget holder)
+└─────────────────┘
+         ▲
+         │ parent
+┌─────────────────┐
+│ CostElement     │ ──► line item under WorkPackage
 └─────────────────┘
          │
          ▼
@@ -60,7 +71,7 @@ ev = bac × progress_percentage / 100
          ▼
 ┌─────────────────┐
 │ CostRegistration│ ──► AC (Actual Cost)
-│ - amount        │      AC = Σ(amount)
+│ - amount        │      AC = Σ(amount), CostElement → WorkPackage
 └─────────────────┘
 ```
 
@@ -70,17 +81,29 @@ ev = bac × progress_percentage / 100
 
 ### Get EVM Metrics
 
-**Endpoint:** `GET /api/v1/cost-elements/{cost_element_id}/evm`
+**Endpoint (generic):** `GET /api/v1/evm/{entity_type}/{entity_id}/metrics`
+
+**Endpoint (Work-Package shorthand):** `GET /api/v1/work-packages/{work_package_id}/evm`
+
+> **Removed.** The old `GET /api/v1/cost-elements/{cost_element_id}/evm` route no
+> longer exists — cost elements now expose EVM through the generic
+> `GET /api/v1/evm/cost_element/{entity_id}/metrics` route (which resolves the
+> parent Work Package server-side) or the Work-Package route above. Supported
+> `entity_type` values: `cost_element`, `wbs_element`, `project` (plus
+> `work_package` on the generic route). A portfolio roll-up is available at
+> `GET /api/v1/evm/portfolio`, and a batch aggregation at `POST /api/v1/evm/batch`.
 
 **Query Parameters:**
 
 - `control_date` (optional): Control date for time-travel query (ISO 8601)
 - `branch` (optional): Branch name (default: "main")
+- `branch_mode` (optional): `ISOLATED` or `MERGED` (default `MERGED`; merged falls
+  back to parent branches)
 
 **Request Example:**
 
 ```bash
-curl -X GET "http://localhost:8020/api/v1/cost-elements/{cost_element_id}/evm?control_date=2026-01-15T00:00:00Z&branch=main" \
+curl -X GET "http://localhost:8020/api/v1/evm/cost_element/{cost_element_id}/metrics?control_date=2026-01-15T00:00:00Z&branch=main" \
   -H "Authorization: Bearer {token}"
 ```
 
@@ -96,7 +119,7 @@ curl -X GET "http://localhost:8020/api/v1/cost-elements/{cost_element_id}/evm?co
   "sv": "-5000.00",
   "cpi": 0.67,
   "spi": 0.80,
-  "cost_element_id": "123e4567-e89b-12d3-a456-426614174000",
+  "work_package_id": "123e4567-e89b-12d3-a456-426614174000",
   "control_date": "2026-01-15T00:00:00Z",
   "progress_percentage": 20.0,
   "warning": null
@@ -114,6 +137,15 @@ curl -X GET "http://localhost:8020/api/v1/cost-elements/{cost_element_id}/evm?co
 - **Cost efficiency: 67%** (CPI = 0.67, spending $1.00 for every $0.67 of value)
 - **Schedule efficiency: 80%** (SPI = 0.80, completing work at 80% of planned rate)
 
+### As-of (Time-Travel) Semantics
+
+Actuals-as-of for both EVM and Cost-of-Quality (COQ) metrics are computed against
+the bitemporal **`valid_time`** range of the source rows (applied via
+`_apply_bitemporal_filter`), **not** `registration_date`. `registration_date` is
+only used to **order** the cumulative time series (which bucket a cost/progress
+point falls into). COQ metrics now honor `as_of` through the same bitemporal
+filter — previously it was ignored.
+
 ---
 
 ## Time-Travel Queries
@@ -126,10 +158,10 @@ Query EVM metrics as of a past date to see project performance at that point:
 
 ```bash
 # Get EVM metrics as of January 15, 2026
-GET /api/v1/cost-elements/{id}/evm?control_date=2026-01-15T00:00:00Z
+GET /api/v1/evm/cost_element/{id}/metrics?control_date=2026-01-15T00:00:00Z
 
 # Get EVM metrics as of December 31, 2025
-GET /api/v1/cost-elements/{id}/evm?control_date=2025-12-31T23:59:59Z
+GET /api/v1/evm/cost_element/{id}/metrics?control_date=2025-12-31T23:59:59Z
 ```
 
 **Use Cases:**
@@ -145,10 +177,10 @@ Compare EVM metrics across change order branches:
 
 ```bash
 # Get EVM for main branch
-GET /api/v1/cost-elements/{id}/evm?branch=main
+GET /api/v1/evm/cost_element/{id}/metrics?branch=main
 
 # Get EVM for change order branch
-GET /api/v1/cost-elements/{id}/evm?branch=BR-001-feature-addition
+GET /api/v1/evm/cost_element/{id}/metrics?branch=BR-001-feature-addition
 ```
 
 **Use Cases:**
@@ -342,7 +374,7 @@ If no progress entry exists for a cost element, the EVM API returns:
   "sv": "-25000.00",
   "cpi": 0.0,
   "spi": 0.0,
-  "cost_element_id": "uuid",
+  "work_package_id": "uuid",
   "control_date": "2026-01-15T00:00:00Z",
   "progress_percentage": null,
   "warning": "No progress reported for this cost element"
@@ -368,10 +400,15 @@ This prevents math errors and indicates insufficient data for the metric.
 
 ### No Schedule Baseline
 
-If no schedule baseline exists for the cost element:
+If no schedule baseline exists for the work package:
 
 - PV = 0 (no planned value)
 - SPI = None (cannot calculate schedule performance)
+
+For the **time-series** path, when no baseline exists the series now falls back
+to the earliest AC/EV date range present in the data (i.e. the span of the first
+to last generated points), rather than emitting an empty range. This lets S-curves
+render from actuals alone even before a baseline is created.
 
 **Recommendation:** Create a schedule baseline to enable PV and SPI calculations.
 
@@ -400,9 +437,9 @@ Use time-travel queries for retrospective analysis:
 
 ```bash
 # Compare EVM metrics month-over-month
-GET /api/v1/cost-elements/{id}/evm?control_date=2026-01-01T00:00:00Z
-GET /api/v1/cost-elements/{id}/evm?control_date=2026-02-01T00:00:00Z
-GET /api/v1/cost-elements/{id}/evm?control_date=2026-03-01T00:00:00Z
+GET /api/v1/evm/cost_element/{id}/metrics?control_date=2026-01-01T00:00:00Z
+GET /api/v1/evm/cost_element/{id}/metrics?control_date=2026-02-01T00:00:00Z
+GET /api/v1/evm/cost_element/{id}/metrics?control_date=2026-03-01T00:00:00Z
 ```
 
 ### 3. Branch Comparisons
@@ -411,10 +448,10 @@ Compare EVM metrics across change order branches:
 
 ```bash
 # Main branch baseline
-GET /api/v1/cost-elements/{id}/evm?branch=main
+GET /api/v1/evm/cost_element/{id}/metrics?branch=main
 
 # Change order branch
-GET /api/v1/cost-elements/{id}/evm?branch=BR-001-feature-addition
+GET /api/v1/evm/cost_element/{id}/metrics?branch=BR-001-feature-addition
 ```
 
 ### 4. Cost Trend Analysis

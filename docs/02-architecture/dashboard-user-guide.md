@@ -1,8 +1,8 @@
 # Dashboard & Widgets — User Guide
 
-**Last updated:** 2026-04-08
+**Last updated:** 2026-07-01
 
-A step-by-step introductory guide to the Backcast project dashboard and its widget system. Walks through login, navigation, and every feature available on the dashboard page.
+A step-by-step introductory guide to the Backcast dashboards and their widget system. Walks through login, navigation, and every feature available on the **project dashboard** and the **portfolio (global) dashboard**.
 
 ---
 
@@ -47,6 +47,10 @@ A step-by-step introductory guide to the Backcast project dashboard and its widg
 
 ## 2. Opening a Dashboard
 
+Backcast has two kinds of dashboard, each at its own URL.
+
+### 2a. Project dashboard
+
 Each project has its own customizable dashboard. To access it:
 
 1. From the home page or sidebar, navigate to **Projects** (`/projects`).
@@ -56,6 +60,17 @@ Each project has its own customizable dashboard. To access it:
 The URL pattern is: `/projects/:projectId/dashboard`
 
 > **First time?** If no custom dashboard exists for you on this project, the system loads the default **Project Overview** template — a pre-configured layout with 8 widgets covering project KPIs, budget, variance, and more.
+
+### 2b. Portfolio (global) dashboard
+
+A cross-project portfolio dashboard rolls up EVM, change-order, and schedule data across every project you can see.
+
+1. From the sidebar, click **Portfolio** (or navigate directly to `/portfolio`).
+2. The page is gated by the **portfolio-read** permission. Users without it are redirected to the home page.
+
+The URL pattern is: `/portfolio`
+
+> **First time?** Your first visit clones a role-tagged portfolio template — **Portfolio Overview** (generic), **Cost Controlling** (`cost-controller`), or **PMO Schedule** (`pmo-director`). Admins and managers get the generic template. See [§14. Dashboard Templates](#14-dashboard-templates).
 
 ---
 
@@ -95,35 +110,65 @@ The dashboard page presents your project data as a collection of widgets on a re
 
 ## 4. The Widget Catalog
 
-Backcast ships with **15 widget types** organized into 5 categories:
+Backcast ships with **26 widget types**. They divide into **project widgets** (21, shown on a project dashboard) and **portfolio widgets** (5, shown on the global portfolio dashboard). A few belong to categories the original guide did not name (`schedule`, `settings`); the full category set is now **summary, trend, diagnostic, breakdown, action, schedule, settings**.
+
+### Project widgets (21)
 
 | Category | Widgets | Purpose |
 |----------|---------|---------|
-| **Summary** | Project Header, Quick Stats Bar, EVM Summary, Budget Status, Health Summary | At-a-glance KPIs and single-value metrics |
-| **Trend** | EVM Trend Chart, Forecast | Time-series analysis and forward-looking projections |
-| **Diagnostic** | Variance Chart, EVM Efficiency Gauges, Change Order Analytics | Variance analysis and root-cause identification |
-| **Breakdown** | WBE Tree, Mini Gantt | Hierarchical drilldowns and timeline views |
-| **Action** | Cost Registrations, Progress Tracker, Change Orders List | Interactive data tables you can act on |
+| **Summary** | Project Header, Quick Stats Bar, EVM Summary, COQ Summary | At-a-glance KPIs and single-value metrics |
+| **Trend** | Budget Status, EVM Trend Chart, COQ Trend Chart, Cost History | Time-series analysis and forward-looking projections |
+| **Diagnostic** | Health Summary, Variance Chart, EVM Efficiency Gauges, Change Order Analytics | Variance analysis and root-cause identification |
+| **Breakdown** | WBE Tree, Mini Gantt, COQ Category Breakdown | Hierarchical drilldowns and timeline views |
+| **Action** | Cost Registrations, Progress Tracker, Change Orders List, Forecast, COQ Work Packages | Interactive data tables you can act on |
+| **Settings** | Budget Settings | Admin controls (budget thresholds, override) |
+
+### Portfolio widgets (5)
+
+| Category | Widgets | Purpose |
+|----------|---------|---------|
+| **Summary** | Portfolio KPIs, Change-Order Pipeline | Portfolio-wide roll-up KPIs and pipeline metrics |
+| **Breakdown** | Portfolio Projects | Per-project breakdown table (CPI/SPI/VAC/RAG) |
+| **Diagnostic** | At-Risk Projects | Ranked distress list (schedule or cost mode) |
+| **Schedule** | Portfolio Timeline | Gantt of all projects' start→end spans, colored by schedule RAG |
 
 ### What each widget shows
+
+**Project widgets**
 
 | Widget | Description |
 |--------|-------------|
 | **Project Header** | Project name, status badge, start/end dates. A compact identity bar. |
 | **Quick Stats Bar** | Counts of WBEs, cost elements, cost registrations, and change orders. |
 | **EVM Summary** | Core Earned Value metrics: BAC, AC, EV, EAC, CPI, SPI, CV, SV, TCPI, VAC. |
+| **COQ Summary** | Cost of Quality summary with 4-category breakdown and key metrics. |
 | **Budget Status** | Bar or pie chart comparing Budget at Completion (BAC), Actual Cost (AC), Earned Value (EV), and Estimate at Completion (EAC). |
-| **Health Summary** | Color-coded health indicators based on CPI/SPI performance thresholds. |
 | **EVM Trend Chart** | Line chart tracking EVM metrics over time — useful for spotting trends. |
-| **Forecast** | Projections: Estimate at Completion (EAC), Estimate to Complete (ETC), Variance at Completion (VAC). |
+| **COQ Trend Chart** | Stacked area chart showing planned vs actual COQ categories over time. |
+| **Cost History** | Planned Value vs Earned Value trend over time. |
+| **Health Summary** | Color-coded health indicators based on CPI/SPI performance thresholds. |
 | **Variance Chart** | Cost Variance (CV) and Schedule Variance (SV) visualization. |
 | **EVM Efficiency Gauges** | Dual dial gauges for CPI and SPI — quick visual check of project health. |
 | **Change Order Analytics** | Distribution charts for change orders by status, type, and impact. |
 | **WBE Tree** | Interactive Work Breakdown Element hierarchy. Click a node to scope other widgets. |
 | **Mini Gantt** | Compact Gantt timeline of project work packages and milestones. |
+| **COQ Category Breakdown** | Donut chart showing planned COQ by category (budgeted costs). |
 | **Cost Registrations** | Table of cost entries with filtering, sorting, and pagination. |
 | **Progress Tracker** | Table of progress reporting entries with status indicators. |
 | **Change Orders List** | Queue of change orders with status, priority, and quick actions. |
+| **Forecast** | Projections: Estimate at Completion (EAC), Estimate to Complete (ETC), Variance at Completion (VAC). |
+| **COQ Work Packages** | List of quality impact work packages with category and cost. |
+| **Budget Settings** | Configure budget warning thresholds and admin override for a project. |
+
+**Portfolio widgets**
+
+| Widget | Description |
+|--------|-------------|
+| **Portfolio KPIs** | Portfolio-wide EVM roll-up KPI tiles (CPI, SPI, VAC, TCPI) with an optional at-risk / cost-distress count. |
+| **Change-Order Pipeline** | Portfolio-wide change-order pipeline KPIs: open count, pending value, approved value, total cost exposure, and aging count. |
+| **Portfolio Projects** | Per-project portfolio breakdown table (Project, Status, CPI, SPI, VAC, Contract Value, RAG) with client-side status + RAG filtering. |
+| **At-Risk Projects** | Ranked portfolio distress list — At-Risk (SPI<0.9) in schedule mode or Cost-Distress (CPI<0.9) in cost mode, paginated 10/page. |
+| **Portfolio Timeline** | Gantt of all projects' start→end spans, coloured by schedule RAG (SPI). |
 
 ---
 
@@ -145,13 +190,17 @@ To add, remove, move, or resize widgets, you must enter **edit mode**:
 2. A **Widget Palette** modal opens, showing all available widgets grouped by category.
 3. Browse or scan the categories:
    - **Summary** — KPIs and metrics cards
-   - **Trend** — time-series and forecasts
-   - **Diagnostic** — variance analysis tools
-   - **Breakdown** — hierarchies and timelines
-   - **Action** — data tables
+   - **Trends & Charts** — time-series and forecasts
+   - **Diagnostics** — variance analysis tools
+   - **Breakdowns** — hierarchies and timelines
+   - **Actions** — data tables
+   - **Schedule** — timeline / Gantt views (portfolio dashboard)
+   - **Settings** — admin controls (project dashboard)
 4. Click on a widget card to add it to your dashboard.
 5. The widget appears on the grid with its default size and an auto-computed position (first available row).
 6. Repeat to add more widgets.
+
+> **Palette is scope- and role-gated.** The palette only shows widgets that match the **dashboard scope** (project widgets on a project dashboard, portfolio widgets on the portfolio dashboard) **and** that your role has permission to use (each widget declares a `requiredPermission`). If a widget is missing, see [§22. Troubleshooting](#22-troubleshooting).
 
 ---
 
@@ -243,6 +292,8 @@ Widgets on the dashboard are not isolated — they communicate through a **conte
 
 To reset to project-level view, click the project root node in the WBE Tree.
 
+> **Portfolio dashboard has no entity context.** The cross-widget context bus works on the **project** dashboard, where widgets share the selected project/WBE/Cost Element. The **portfolio dashboard** has no project or WBE selected — it is driven by a **portfolio filter** (control date, status, RAG) set via the **Filter Bar** at the top of the page and surfaced to widgets through the `scope="portfolio"` context bus. There is no WBE Tree on the portfolio dashboard.
+
 ---
 
 ## 13. Time Travel and Branches
@@ -258,19 +309,32 @@ All widgets on the dashboard react to Time Machine changes automatically. For ex
 
 ## 14. Dashboard Templates
 
-The system ships with **3 predefined templates**:
+The system ships with **7 predefined templates** — 4 project-scoped and 3 portfolio-scoped:
+
+### Project templates (4)
 
 | Template | Widgets | Best For |
 |----------|---------|----------|
 | **Project Overview** | 8 widgets (header, KPIs, budget, variance, tree, costs, health) | General project monitoring — the default starting point |
-| **EVM Analysis** | 7 widgets (summary, gauges, trend, variance, forecast, health) | Deep Earned Value analysis and performance tracking |
-| **Cost Controller** | 6 widgets (budget, costs, change orders, analytics, forecast) | Financial tracking and cost management focus |
+| **EVM Analysis** | 7 widgets (header, summary, gauges, trend, variance, forecast, health) | Deep Earned Value analysis and performance tracking |
+| **Cost Controller** | 6 widgets (header, budget, costs, change orders, analytics, forecast) | Financial tracking and cost management focus |
+| **COQ Analysis** | 5 widgets (COQ summary, COQ trend, category breakdown, efficiency gauges, COQ work packages) | Cost of Quality monitoring with 4-category breakdown and QPI |
+
+### Portfolio templates (3)
+
+| Template | Role | Widgets | Best For |
+|----------|------|---------|----------|
+| **Portfolio Overview** | *(generic — any portfolio-read role)* | 4 widgets (portfolio KPIs, change-order pipeline, projects table, at-risk list) | General cross-project monitoring — the default for admins/managers |
+| **Cost Controlling** | `cost-controller` | 5 widgets (cost KPIs, cost-distress list, projects sorted by CPI, change-order pipeline, schedule-distress list) | Cost-distress focus for cost controllers |
+| **PMO Schedule** | `pmo-director` | 4 widgets (schedule KPIs, at-risk list, projects sorted by SPI, change-order pipeline) | Schedule-distress focus for the PMO |
 
 **To use a template:**
 1. Enter edit mode (click **Customize**).
 2. Use the **template selector dropdown** in the toolbar to choose a template.
 3. The template's widget layout replaces your current layout.
 4. Click **Done** to save, or **Cancel** to revert.
+
+> **First-visit auto-clone (portfolio).** On your first visit to `/portfolio` with no saved layout, the system clones the template matching your role: exact role match first (`cost-controller` → Cost Controlling, `pmo-director` → PMO Schedule), otherwise the generic Portfolio Overview.
 
 > Templates are read-only starting configurations. When you apply a template, you get your own copy that you can freely customize.
 
@@ -433,6 +497,7 @@ The dashboard adapts its layout and controls for smaller screens.
 | Problem | Solution |
 |---------|----------|
 | Dashboard is empty / no widgets | You may not have a saved layout. Click **Customize** and add widgets, or select a template from the dropdown. |
+| A widget is missing from the palette | The palette is gated by **dashboard scope** (project vs portfolio) **and** by your **role**. Each widget declares a `requiredPermission`; if your role lacks it, or you're on the wrong dashboard scope, the widget is hidden — not broken. For example, **Budget Settings** requires `project-budget-settings-read` and only appears on a project dashboard; portfolio widgets only appear on `/portfolio`. |
 | Widget shows "Select an entity" | The widget is scoped to a WBE/Cost Element level but nothing is selected. Add a **WBE Tree** widget and click a node. |
 | Widget shows loading forever | Check your network connection. Click the **refresh** icon (hover over widget) to retry. |
 | Widget shows an error | Click the **retry** button inside the widget. If the error persists, check that the backend server is running. |
@@ -451,7 +516,8 @@ The dashboard adapts its layout and controls for smaller screens.
 
 | Action | How |
 |--------|-----|
-| Open dashboard | Project page → **Dashboard** tab |
+| Open project dashboard | Project page → **Dashboard** tab (or `/projects/:projectId/dashboard`) |
+| Open portfolio dashboard | Sidebar → **Portfolio** (or `/portfolio`; requires `portfolio-read`) |
 | Enter edit mode | Click **Customize** |
 | Add a widget | Edit mode → **+ Add Widget** → pick from palette |
 | Move a widget | Edit mode → click **Move** → drag to position |

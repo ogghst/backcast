@@ -1,6 +1,6 @@
 # EVM Time-Travel Semantics
 
-**Last Updated:** 2026-04-14
+**Last Updated:** 2026-07-01
 **Related Iteration:** [2026-01-22-evm-analyzer-master-detail-ui](../../03-project-plan/iterations/2026-01-22-evm-analyzer-master-detail-ui/)
 
 ---
@@ -28,11 +28,11 @@ The EVM system supports **Valid Time Travel** queries, allowing you to retrieve 
 - Have `valid_time` (TSTZRANGE) and `transaction_time` (TSTZRANGE)
 - Support time-travel queries via `get_as_of(id, control_date)` methods
 
-**Non-Versioned Entities (Global Facts):**
+**Non-Versioned Entities (also bitemporally time-traveled):**
 
 - Cost Registrations, Progress Entries, Forecasts
-- No `valid_time` (not versioned)
-- Always fetched as of current time (global facts)
+- Not EVCS-versioned (no `branch`, no version rows), but they do carry a `valid_time` range
+- **Time-traveled via `valid_time`**: AC and EV honor `control_date` through `_apply_bitemporal_filter` on these tables (see `cost_registration_service.get_total_for_work_package(..., as_of)` and `progress_entry_service.get_latest_progress(..., as_of)`). They are *not* branched (shared across change-order branches), but they *are* point-in-time filtered.
 
 ---
 
@@ -42,8 +42,8 @@ The EVM system supports **Valid Time Travel** queries, allowing you to retrieve 
 
 When you specify a `control_date` in an EVM query:
 
-1. **Versioned entities** are fetched as they were at `control_date` (Valid Time Travel)
-2. **Global facts** are fetched as of current time (not time-traveled)
+1. **Versioned entities** (BAC, PV) are fetched as they were at `control_date` (Valid Time Travel)
+2. **AC / EV** are computed point-in-time as of `control_date`: Actual Cost sums `CostRegistration` rows whose `valid_time` contains `control_date` (`_apply_bitemporal_filter`), and Earned Value uses the latest `ProgressEntry` valid as of `control_date`. These tables are not branched, but they *are* bitemporally filtered.
 3. EVM metrics are calculated from the combination of both
 
 ### Example Scenario
@@ -61,8 +61,8 @@ Timeline:
 ```json
 {
   "bac": "100000.00",  // BAC as of Jan 15 (before increase)
-  "ac": "30000.00",    // AC as of NOW (global fact, not time-traveled)
-  "ev": "50000.00",    // EV = BAC × 50% (using progress from Jan 15)
+  "ac": "30000.00",    // AC as of Jan 15 (cost registrations valid at control_date)
+  "ev": "50000.00",    // EV = BAC × 50% (progress valid as of Jan 15)
   "control_date": "2026-01-15T00:00:00Z"
 }
 ```
@@ -72,8 +72,8 @@ Timeline:
 ```json
 {
   "bac": "120000.00",  // BAC as of Feb 15 (after increase)
-  "ac": "30000.00",    // AC as of NOW (same global fact)
-  "ev": "60000.00",    // EV = BAC × 50% (using progress from Feb 15)
+  "ac": "30000.00",    // AC as of Feb 15 (cost registrations valid at control_date)
+  "ev": "60000.00",    // EV = BAC × 50% (progress valid as of Feb 15)
   "control_date": "2026-02-15T00:00:00Z"
 }
 ```
@@ -91,7 +91,7 @@ Timeline:
 **Behavior:**
 
 - **Versioned entities**: Fetched as they were at `control_date`
-- **Global facts**: Fetched as of current time (not affected by `control_date`)
+- **AC / EV**: Computed from `CostRegistration` / `ProgressEntry` rows whose `valid_time` contains `control_date` (bitemporally filtered, not branched)
 
 **Example:**
 
@@ -111,8 +111,8 @@ GET /api/v1/evm/cost_element/{id}/metrics
 
 **Behavior:**
 
-- Fetches entities from the specified branch
-- Cost registrations and progress entries are **global facts** (not branched)
+- Fetches versioned entities from the specified branch
+- Cost registrations and progress entries are **not branched** (shared across branches) but are still bitemporally filtered by `control_date`
 
 **Example:**
 
@@ -128,26 +128,28 @@ GET /api/v1/evm/cost_element/{id}/metrics?branch=BR-001-feature-addition
 
 **Description:** Branch isolation mode
 
-**Values:**
+**Values** (see `BranchMode` enum in `backend/app/core/versioning/enums.py`):
 
-- `"merge"` (default): Fall back to parent branches if entity not in current branch
-- `"strict"` or `"isolated"`: Only query current branch, no fallback
+- `"merged"` (default): Fall back to the main branch if the entity is not in the current branch
+- `"isolated"`: Only query the current branch, no fallback
 
 **Behavior:**
 
 | Mode | Entity Found in Branch | Entity Not Found in Branch |
 |------|------------------------|----------------------------|
-| `merge` | Return entity | Search parent branches |
-| `strict` | Return entity | Return 404 Not Found |
+| `merged` | Return entity | Fall back to main branch |
+| `isolated` | Return entity | Return 404 Not Found |
+
+> **Note:** The frontend (`TimeMachineContext`) sends the value as `tmMode`; the EVM API accepts `branch_mode`. The enum string values are lowercase `merged` / `isolated`.
 
 **Example:**
 
 ```bash
-# Merge mode: Fall back to parent if not in branch
-GET /api/v1/evm/cost_element/{id}/metrics?branch=BR-001&branch_mode=merge
+# Merged mode: Fall back to main if not in branch
+GET /api/v1/evm/cost_element/{id}/metrics?branch=BR-001&branch_mode=merged
 
-# Strict mode: Only current branch
-GET /api/v1/evm/cost_element/{id}/metrics?branch=BR-001&branch_mode=strict
+# Isolated mode: Only current branch
+GET /api/v1/evm/cost_element/{id}/metrics?branch=BR-001&branch_mode=isolated
 ```
 
 ---
@@ -325,50 +327,38 @@ async def calculate_evm_metrics(
         branch_mode=branch_mode,
     )
 
-    # Fetch global facts (no time-travel)
-    cost_registrations = await cr_service.get_by_cost_element(
-        cost_element_id,
+    # Fetch actuals with bitemporal valid_time filtering (AC, EV)
+    ac = await cr_service.get_total_for_work_package(
+        work_package_id, as_of=control_date,   # _apply_bitemporal_filter on CostRegistration.valid_time
     )
 
-    progress_entry = await pe_service.get_latest_by_cost_element(
-        cost_element_id,
+    progress_entry = await pe_service.get_latest_progress(
+        work_package_id, as_of=control_date,   # _apply_bitemporal_filter on ProgressEntry.valid_time
     )
 
     # Calculate EVM metrics
     ...
 ```
 
-### Repository Layer
+### Service / Query Layer (how time-travel is actually implemented)
 
-Repository `get_as_of()` methods implement Valid Time Travel:
+There is no hand-written repository `get_as_of` with raw `valid_time`/`transaction_time`
+clauses. Valid Time Travel is centralized in the EVCS service base classes:
 
-```python
-async def get_as_of(
-    self,
-    entity_id: UUID,
-    as_of: datetime,
-    branch: str,
-    branch_mode: BranchMode,
-) -> CostElement | None:
-    """Get entity as it was at as_of date (Valid Time Travel)."""
-    stmt = (
-        select(CostElement)
-        .where(
-            CostElement.id == entity_id,
-            CostElement.branch == branch,
-            CostElement.valid_time.contains(as_of),  # Valid Time Travel
-            CostElement.transaction_time.contains(as_of),  # Transaction Time Travel
-            CostElement.deleted_at.is_(None),
-        )
-    )
+- **`TemporalService._apply_bitemporal_filter(stmt, as_of)`**
+  (`backend/app/core/versioning/service.py`) — appends the canonical WHERE clauses:
+  `valid_time @> as_of`, `lower(valid_time) <= as_of`, and the temporal-soft-delete check
+  (`deleted_at IS NULL OR deleted_at > as_of`). **Filtering is on `valid_time` only.**
+- **`BranchableService`** (subclass, `backend/app/core/branching/service.py`) layers
+  `_apply_branch_mode_filter` on top for `ISOLATED` vs `MERGED` resolution.
+- **`get_as_of(entity_id, as_of, branch, branch_mode)`** on these services is the public
+  entry point used by `evm_service` and the EVM route.
 
-    if branch_mode == BranchMode.MERGE:
-        # Add parent branch fallback logic
-        ...
-
-    result = await session.execute(stmt)
-    return result.scalar_one_or_none()
-```
+> ⚠️ `transaction_time` is **not** used to filter query results — it exists for audit /
+> late-correction tracking only (see the docstring in `_apply_bitemporal_filter`). The
+> legacy "System Time Travel" / `transaction_time.contains(...)` pattern shown in older
+> docs is deprecated and must not be used for EVM queries. For the canonical reference see
+> [temporal-query-reference](./cross-cutting/temporal-query-reference.md).
 
 ---
 
@@ -378,47 +368,57 @@ async def get_as_of(
 
 If `control_date` is in the future:
 
-- Versioned entities: Fetched as of future date (may not exist yet)
-- Global facts: Fetched as of current time (actual data)
-- **Result**: EVM metrics may use "future" BAC with "current" AC/EV
+- Versioned entities: Fetched as of the future date (may not exist yet → zeroed metrics)
+- AC / EV: Computed only from cost registrations / progress valid at that future date (typically empty, since future actuals haven't been recorded)
+- **Result**: EVM metrics for a future date usually reflect the future plan with zero AC/EV
 
 **Recommendation**: Use `min(control_date, now())` for realistic queries
 
 ### 2. Pre-Creation Control Dates
 
-If `control_date` is before entity creation:
+If `control_date` is before the entity version's `valid_time` lower bound (e.g. a
+WBS element or Project queried before its baseline starts):
 
-- Versioned entities: Return `None` (entity didn't exist)
-- **Result**: 404 Not Found response
+- The versioned entity resolves to `None` (no version valid at `control_date`).
+- For **WBS / Project** the EVM route returns an **empty, zeroed `EVMMetricsResponse`
+  with a `warning`** (e.g. `"No 'wbe' data available as of {date}"`) rather than 404 —
+  see `backend/app/api/routes/evm.py`.
+- A **404** is reserved for genuinely missing or unsupported entities (entity not found
+  by id, or an entity type the route doesn't support).
 
-**Recommendation**: Validate `control_date` is within entity's lifetime
+**Recommendation**: Treat a zeroed response with a `warning` as "no data yet", not an error.
 
-### 3. Global Facts with Time-Travel
+### 3. AC / EV ARE Point-In-Time (bitemporal `valid_time`)
 
-Cost registrations and progress entries are **not versioned**:
+Cost registrations and progress entries are **not EVCS-versioned** (no branch rows), but
+they **are** bitemporally filtered by `control_date` on their own `valid_time`:
 
-- Always fetched as of current time
-- Not affected by `control_date` parameter
-- **Rationale**: These are "global facts" that cannot be time-traveled
+- `AC` = sum of `CostRegistration` rows whose `valid_time @> control_date`
+  (`cost_registration_service.get_total_for_work_package(..., as_of=...)` →
+  `_apply_bitemporal_filter`)
+- `EV` uses the latest `ProgressEntry` whose `valid_time @> control_date`
+  (`progress_entry_service.get_latest_progress(..., as_of=...)`)
 
 **Example**:
 
 ```
 - Jan 1, 2026: Cost element created (BAC = €100,000)
-- Feb 1, 2026: Cost registration of €10,000
+- Feb 1, 2026: Cost registration of €10,000 (valid_time starts Feb 1)
 - Mar 1, 2026: Budget increased to €120,000
 
 Query with control_date = Jan 15, 2026:
 - BAC = €100,000 (as of Jan 15, before increase)
-- AC = €10,000 (current cost registration, NOT time-traveled)
+- AC  = €0       (the €10,000 registration is NOT yet valid on Jan 15)
 ```
 
 ### 4. Branch Isolation
 
-Change order branches can modify versioned entities but not global facts:
+Change order branches can modify versioned entities; cost registrations and progress
+entries are **not branched** (they are shared across branches):
 
-- **Versioned in branch**: Cost element, schedule baseline
-- **Global facts**: Cost registrations, progress entries (same across branches)
+- **Versioned / branched**: Cost element, schedule baseline (BAC, PV)
+- **Not branched (shared)**: Cost registrations, progress entries — but still
+  point-in-time filtered by `control_date` on their `valid_time`
 
 **Example**:
 
@@ -437,11 +437,11 @@ Cost registrations are SHARED across branches:
 
 ### Query Performance
 
-Time-travel queries use PostgreSQL `TSTZRANGE` contains operator:
+Time-travel queries use the PostgreSQL `TSTZRANGE` contains operator on `valid_time`
+(`transaction_time` is **not** used for filtering — only `valid_time`):
 
 ```sql
 WHERE valid_time @> :control_date
-  AND transaction_time @> :control_date
 ```
 
 **Performance**: <50ms for single entity queries (with indexes)
@@ -451,8 +451,8 @@ WHERE valid_time @> :control_date
 The following indexes optimize time-travel queries:
 
 - `ix_cost_elements_valid_time` - Speeds up Valid Time Travel
-- `ix_cost_elements_transaction_time` - Speeds up Transaction Time Travel
 - `ix_schedule_baselines_valid_time` - Speeds up baseline time-travel
+- (GIST/expression indexes on `valid_time` for the versioned and actuals tables — see migrations for the canonical list)
 
 ### Caching
 
@@ -538,11 +538,13 @@ const { data, error, isLoading } = useEVMMetrics(entityId, entityType);
 if (isLoading) return <Spin />;
 if (error) {
   if (error.response?.status === 404) {
-    return <Empty description="Entity did not exist at control date" />;
+    return <Empty description="Entity not found or unsupported type" />;
   }
   return <Alert message={error.message} type="error" />;
 }
 if (!data) return <Empty />;
+// Note: a zeroed response with `data.warning` means "no version valid as of
+// control_date" (pre-baseline) — not an error. Surface `data.warning` to the user.
 ```
 
 ---
@@ -557,6 +559,22 @@ if (!data) return <Empty />;
 ---
 
 ## Changelog
+
+### 2026-07-01
+
+- **Corrected (critical):** AC and EV **are** time-traveled. `CostRegistration` and
+  `ProgressEntry` are bitemporally filtered by `control_date` on their `valid_time`
+  (`_apply_bitemporal_filter`); they are not branched, but they are no longer described as
+  "global facts fetched as of current time".
+- Removed the deprecated `transaction_time @> :control_date` filter from the backend
+  sample, the SQL example, and the index list — EVM filters on `valid_time` only.
+- Replaced the fictional repository `get_as_of` pseudocode with a pointer to the real
+  implementation: `TemporalService._apply_bitemporal_filter` / `BranchableService`
+  (`backend/app/core/versioning/service.py`, `backend/app/core/branching/service.py`).
+- Aligned `branch_mode` literals to the `BranchMode` enum (`merged` / `isolated`) and
+  noted the FE sends `tmMode` → API `branch_mode`.
+- Corrected the pre-creation 404 claim: WBS/Project pre-baseline now return an empty
+  zeroed `EVMMetricsResponse` with a `warning`; 404 is for missing/unsupported entities.
 
 ### 2026-01-22
 

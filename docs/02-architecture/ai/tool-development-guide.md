@@ -501,7 +501,8 @@ without `frozen=True`** — it is mutable. It carries:
   (`async_scoped_session` keyed on the current asyncio task). The original
   WebSocket-level session is stored separately as `_root_session`.
 - `user_id`, `user_role`, `execution_mode`
-- **Project scope** (locked for the session): `project_id`, `branch_id`
+- **Project scope**: `project_id` (set from the URL by default, switchable
+  mid-session via the RBAC-gated `set_project_context` tool — see below), `branch_id`
 - **Temporal scope** (LLM-mutable): `as_of`, `branch_name`, `branch_mode`
 - `project_service` — a `ProjectService(self.session)` accessor property
 - `_permission_cache` (LRU), `_event_bus`, `_stop_event`
@@ -510,13 +511,19 @@ It is injected via `Annotated[ToolContext, InjectedToolArg]`, which excludes it
 from the tool schema so the LLM cannot see or manipulate scope directly.
 
 > [!IMPORTANT]
-> **Critical asymmetry.** **Project scope is locked** for the session (set from
-> the URL; no tool changes `context.project_id`). **Temporal scope is
-> LLM-mutable** via `set_temporal_context`, which mutates `context.as_of`,
-> `context.branch_name`, and `context.branch_mode` in place and publishes a
-> `temporal_context_change` event. The old "ToolContext is immutable / temporal
-> context is read-only" thesis is **false** — `ToolContext` is a plain mutable
-> dataclass, and the LLM *can* shift the temporal view through a tool.
+> **Mutable scope, but RBAC-gated.** **Project scope** is set from the URL by
+> default, but it **can be switched mid-session** by the LLM via the
+> RBAC-gated `set_project_context` tool (`backend/app/ai/tools/context_tools.py`),
+> which mutates `context.project_id` in place and **persists** the new scope to
+> the `AIConversationSession.project_id` row so it survives across turns. The
+> switch is rejected unless the user already has access to the target project
+> (verified via `get_accessible_projects`), so it grants no access the user did
+> not already have. **Temporal scope is LLM-mutable** via
+> `set_temporal_context`, which mutates `context.as_of`, `context.branch_name`,
+> and `context.branch_mode` in place and publishes a `temporal_context_change`
+> event. The old "ToolContext is immutable / temporal context is read-only"
+> thesis is **false** — `ToolContext` is a plain mutable dataclass, and the LLM
+> *can* shift both the project scope and the temporal view through tools.
 
 ### Project context
 
@@ -530,10 +537,25 @@ from the tool schema so the LLM cannot see or manipulate scope directly.
 - **`get_project_context`** (`backend/app/ai/tools/context_tools.py`) is the
   read-only tool the LLM uses to inspect project scope (name, code, user roles).
   It never mutates `project_id`.
-- **Security argument**: because `project_id` rides on the injected
-  `ToolContext` (not in the tool signature), and tools auto-scope after RBAC,
-  prompt-injection cannot move the LLM to another project's data. The LLM may
-  ask; the tool layer enforces.
+- **`set_project_context`** (`backend/app/ai/tools/context_tools.py`,
+  ~lines 190-270) is the **mutable** project-scope tool. Given a `project_id`
+  (e.g. from `list_projects`), it (1) RBAC-checks the target via
+  `unified_service.get_accessible_projects(user_id)` — rejected if the user
+  cannot already access it, (2) confirms the project exists, then (3) mutates
+  the shared `ToolContext` in place (resetting `branch_name`/`branch_mode` to
+  `main`/`merged`) and **persists** the new `project_id` to the
+  `AIConversationSession` row (via `_apply_session_project_switch`, ~lines
+  273-335) so the scope survives to the next turn, and publishes a
+  `project_context_change` event. All subsequent tool calls in the session see
+  the new project scope. It grants no access the user did not already have via
+  `list_projects` / `get_project`.
+- **Security argument**: `project_id` rides on the injected `ToolContext`, and
+  every project-scoped tool auto-scopes after an RBAC access check
+  (`get_accessible_projects`). The only tool that moves `context.project_id`,
+  `set_project_context`, re-runs that same access check before switching, so a
+  prompt-injection attempt cannot land the LLM in a project the user cannot
+  already see — it can only switch between projects the user already has access
+  to. The LLM may ask; the tool layer enforces.
 
 ### Temporal context
 
@@ -644,6 +666,11 @@ When adding or migrating a tool:
 - [ ] Do **not** put `user_id` / `project_id` in the tool signature.
 - [ ] Declare exact `permissions=`; rely on the middleware to enforce.
 - [ ] Add the tool to `create_project_tools()` in `backend/app/ai/tools/__init__.py`.
+- [ ] If the tool mutates `context.project_id` (like `set_project_context`):
+      re-run an RBAC access check (`get_accessible_projects`) on the target
+      before switching, and persist the new scope to the `AIConversationSession`
+      row (see `_apply_session_project_switch` in `context_tools.py`) so it
+      survives across turns.
 
 ---
 
@@ -776,11 +803,16 @@ session. Do not bypass it by stashing a session reference in module state.
 all of them before each tool call (`backend/app/ai/middleware/backcast_security.py`).
 It also gates tools by `risk_level` vs `execution_mode`.
 
-### 2. Project scope is locked, temporal scope is tool-mutable
+### 2. Project scope is RBAC-gated, temporal scope is tool-mutable
 
-Project scope (`context.project_id`) is set from the URL and cannot be changed
-by any tool — this is the prompt-injection resistance for project isolation.
-Temporal scope is intentionally LLM-mutable via `set_temporal_context`
+Project scope (`context.project_id`) is set from the URL by default, but it
+**can be switched mid-session** by the RBAC-gated `set_project_context` tool
+(`backend/app/ai/tools/context_tools.py`). The switch re-runs
+`get_accessible_projects` and is rejected unless the user already has access to
+the target project, so it grants no new access — prompt-injection cannot move
+the LLM into a project the user could not already see. The new scope is
+persisted to the `AIConversationSession` row and survives across turns.
+Temporal scope is independently LLM-mutable via `set_temporal_context`
 (validated, and it only changes the *viewing* context).
 
 ### 3. Never trust LLM-supplied identity

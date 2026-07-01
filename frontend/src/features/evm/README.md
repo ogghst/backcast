@@ -392,7 +392,7 @@ function useEVMMetricsBatch(
   entityType: EntityType,
   entityIds: string[] | undefined,
   params?: EVMMetricsBatchParams
-): UseQueryResult<EVMMetricsBatchResponse>
+): UseQueryResult<EVMMetricsResponse>
 ```
 
 #### Parameters
@@ -400,7 +400,7 @@ function useEVMMetricsBatch(
 ```typescript
 interface EVMMetricsBatchParams extends EVMQueryParams {
   queryOptions?: Omit<
-    UseQueryOptions<EVMMetricsBatchResponse>,
+    UseQueryOptions<EVMMetricsResponse>,
     "queryKey" | "queryFn"
   >;
 }
@@ -574,7 +574,7 @@ function EVMWithTimeTravel({ costElementId }: { costElementId: string }) {
   const { data } = useEVMMetrics("cost_element", costElementId);
 
   // Query automatically uses TimeMachineContext values:
-  // GET /api/v1/cost-elements/{id}/evm?control_date=2024-01-15&branch=feature/change-order-1&branch_mode=isolized
+  // GET /api/v1/evm/cost_element/{id}/metrics?control_date=2024-01-15&branch=feature/change-order-1&branch_mode=isolated
 
   return <EVMSummaryView metrics={data} />;
 }
@@ -749,9 +749,14 @@ function CustomMetricDisplay({ metrics }: { metrics: EVMMetricsResponse }) {
 
 | Entity Type | Metrics Endpoint | Time-Series Endpoint | Batch Endpoint |
 |-------------|------------------|----------------------|----------------|
-| cost_element | `/api/v1/cost-elements/{id}/evm` | `/api/v1/cost-elements/{id}/evm/timeseries` | `/api/v1/evm/cost_element/batch` |
-| wbe | `/api/v1/evm/wbe/{id}/metrics` | `/api/v1/evm/wbe/{id}/timeseries` | `/api/v1/evm/wbe/batch` |
-| project | `/api/v1/evm/project/{id}/metrics` | `/api/v1/evm/project/{id}/timeseries` | `/api/v1/evm/project/batch` |
+| cost_element | `/api/v1/evm/cost_element/{id}/metrics` | `/api/v1/evm/cost_element/{id}/timeseries` | `/api/v1/evm/batch` |
+| wbs_element | `/api/v1/evm/wbs_element/{id}/metrics` | `/api/v1/evm/wbs_element/{id}/timeseries` | `/api/v1/evm/batch` |
+| project | `/api/v1/evm/project/{id}/metrics` | `/api/v1/evm/project/{id}/timeseries` | `/api/v1/evm/batch` |
+
+> The generic `/evm/{entity_type}/{entity_id}/metrics` and `/timeseries` routes
+> also accept `work_package` and `control_account`. `POST /evm/batch` accepts
+> `cost_element`, `wbs_element`, and `project` only (entity_type + entity_ids +
+> control_date/branch/branch_mode all go in the request body).
 
 ### Query Parameters
 

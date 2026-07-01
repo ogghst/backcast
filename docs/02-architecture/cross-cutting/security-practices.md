@@ -1,6 +1,6 @@
 # Security Practices
 
-**Last Updated:** 2026-04-14
+**Last Updated:** 2026-07-01
 
 ## Authentication
 
@@ -31,19 +31,19 @@ is_valid = password_hash.verify("user_password", hashed)
 ### JWT Token Security
 
 **Token Structure:**
-- Algorithm: HS256 (HMAC with SHA-256)
+- Algorithm: configurable via `settings.ALGORITHM` (env-driven; `jwt_utils.py` validates with `algorithms=[settings.ALGORITHM]`). Not hardcoded to HS256.
 - Payload: `{"sub": "user_id", "exp": timestamp}`
-- Secret: 256-bit random key (from environment variable)
+- Secret: `SECRET_KEY` from environment
 
 **Token Lifetime:**
-- Access tokens: 30 minutes
-- Refresh tokens: Not yet implemented (planned)
+- Access tokens: `settings.ACCESS_TOKEN_EXPIRE_MINUTES` (default 30 minutes)
+- Refresh tokens: implemented — login (`POST /api/auth/login`) returns both an access and a refresh token; `POST /api/auth/refresh` issues a new access token from a valid refresh token; `POST /api/auth/logout` revokes it. Lifetime is `settings.REFRESH_TOKEN_EXPIRE_DAYS` (default 30 days).
 
 **Security Measures:**
-- Tokens signed with `SECRET_KEY` from environment
-- Expiration enforced on every request
+- Tokens signed with `SECRET_KEY` from environment, using `settings.ALGORITHM`
+- Expiration enforced on every request (expired tokens rejected in `validate_jwt_token`)
 - No sensitive data in token payload
-- Tokens stateless (server doesn't store them)
+- Refresh tokens are revocable server-side (not purely stateless)
 
 **Implementation:**
 ```python
@@ -51,36 +51,53 @@ import jwt
 from datetime import datetime, timedelta, timezone
 
 def create_access_token(subject: str) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(minutes=30)
+    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode = {"exp": expire, "sub": str(subject)}
-    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 ```
+
+> **Active-user cache:** `get_current_user` performs a cache-first `is_active` check against the in-memory `_user_active_cache` (TTL 300s). A deactivated user may retain access until the TTL elapses, so any deactivation path **must** call `invalidate_user_active_cache(user_id)` to take effect immediately.
 
 ---
 
 ## Authorization
 
-### Role-Based Access Control (RBAC)
+### Unified RBAC
 
-**Roles:**
-- `admin`: Full system access
-- `viewer`: Read-only access
-- `editor`: Read + write to own resources
+The legacy single-column `User.role` model (and the `admin`/`viewer`/`editor` triple) was removed during the 2026-05-16 Unified RBAC cleanup — the `users.role` column was dropped (migration `fa57821982c7_drop_users_role_column.py`) and code no longer reads `current_user.versions[0].role`. Authorization is now driven by **scoped role assignments** managed by `UnifiedRBACService` (`app/core/rbac_unified.py`). See [ADR-014: Unified RBAC System](../decisions/ADR-014-unified-rbac.md).
 
-**Enforcement Points:**
-- Route level via dependencies (`get_current_active_user`)
-- Service layer for fine-grained checks
-- Database constraints where possible
+**Data model:** `UserRoleAssignment(user_id, role_id, scope_type, scope_id, metadata_, granted_by, granted_at, expires_at)` where `scope_type ∈ {GLOBAL, PROJECT, CHANGE_ORDER}` (`scope_id` is NULL for global). Roles and their permission strings live in `rbac_roles` / `rbac_role_permissions` (seeded from `app/db/seed_users_rbac.py`).
+
+**Roles (seeded):** `admin`, `manager`, `cost-controller`, `pmo-director`, `viewer`, `ai-viewer`, `ai-manager`, `ai-admin`. The `admin` global role short-circuits every check and `get_user_permissions()` returns the wildcard `["*"]` for it.
+
+**Permissions:** granular strings (e.g. `project-read`, `project-update`, `cost-registration-create`, `evm-read`, `ai-chat`, `mcp-tool-execute`). Notable gates:
+- `portfolio-read` is manager+ only — intentionally **not** granted to `viewer` / `ai-viewer`.
+- `role-assignment-{read,create,update,delete}` is `admin`-only.
+
+**Resolution order (`has_permission`):** (1) global roles are always checked; (2) `admin` global role bypasses everything; (3) otherwise the scoped role for the requested `scope_type`/`scope_id` is also checked. Checks are cache-first (permissions cache TTL 1h, assignment cache TTL 5min) and fail-secure.
+
+**Enforcement points:**
+- Route level via dependencies — `RoleChecker` (global roles/permissions, incl. any-of `required_permissions`) and `ProjectRoleChecker` (project-scoped permission). Both delegate to `UnifiedRBACService`.
+- Service layer for fine-grained/authority checks (`has_authority_level` for change-order approvals: LOW < MEDIUM < HIGH < CRITICAL).
 
 **Pattern:**
 ```python
-@router.post("/users")
-async def create_user(
-    current_user: User = Depends(get_current_active_user),
-):
-    if current_user.versions[0].role != "admin":
-        raise HTTPException(status_code=403, detail="Admin only")
-    # ...
+from app.api.dependencies.auth import RoleChecker, ProjectRoleChecker
+
+# Global permission check
+@router.delete("/users/{user_id}",
+    dependencies=[Depends(RoleChecker(required_permission="user-delete"))])
+async def delete_user(user_id: UUID): ...
+
+# Any-of permissions (route reachable by holders of different read perms)
+@router.get("/dashboard",
+    dependencies=[Depends(RoleChecker(required_permissions=["project-read", "portfolio-read"]))])
+async def dashboard(): ...
+
+# Project-scoped permission check
+@router.put("/projects/{project_id}",
+    dependencies=[Depends(ProjectRoleChecker(required_permission="project-update"))])
+async def update_project(project_id: UUID): ...
 ```
 
 ---
@@ -100,8 +117,9 @@ All API inputs validated through Pydantic:
 class UserRegister(BaseModel):
     email: EmailStr  # Validates email format
     password: str = Field(min_length=8)
-    role: str = Field(pattern="^(admin|viewer|editor)$")
 ```
+
+> Note: effective authorization is governed by Unified RBAC role assignments (see above), not by a role string on the registration payload.
 
 ### SQL Injection Prevention
 

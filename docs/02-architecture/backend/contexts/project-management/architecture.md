@@ -1,20 +1,21 @@
-# Project Members Bounded Context
+# Project Management Bounded Context
 
-**Last Updated:** 2026-04-11
+**Last Updated:** 2026-07-01
 **Owner:** Backend Team
 
 ---
 
 ## Responsibility
 
-The Project Members context manages **project-level role assignments** for users within the Backcast system. It provides a many-to-many relationship between Users and Projects with role-based access control (RBAC), enabling fine-grained permissions at the project level.
+The Project Management context owns the **Project** aggregate — the top-level entity that scopes Work Breakdown Structure elements (WBEs), cost elements, schedules, forecasts, change orders, documents, and AI conversations in Backcast.
+
+A `Project` is a fully versioned and branchable EVCS entity: it supports bitemporal tracking (`valid_time`, `transaction_time`) and branch isolation for change-order workflows. It also carries the **portfolio attribution** links (organizational unit, project manager, customer) used by portfolio/functional dashboards.
 
 **Key Capabilities:**
-- **Role Assignment:** Assign users to projects with specific roles (admin, manager, editor, viewer)
-- **Membership Management:** Add, update, and remove project members
-- **Access Control:** Project-scoped permissions via `ProjectRoleChecker` dependency
-- **Audit Trail:** Track who assigned roles and when
-- **Query Support:** List members by project, list projects by user, check membership
+- **Versioned aggregate:** Project is the EVCS root that child entities reference via root ID.
+- **Portfolio attribution:** nullable root-ID FKs to organizational unit, project manager, and customer.
+- **Custom fields:** admin-defined JSONB `custom_fields` plus a captured definitions snapshot.
+- **Project-scoped RBAC:** access governed by Unified RBAC (`UserRoleAssignment` with `scope_type=PROJECT`), not per-project membership rows.
 
 ---
 
@@ -25,520 +26,280 @@ The Project Members context manages **project-level role assignments** for users
 ```mermaid
 graph TB
     subgraph "API Layer"
-        A[Project Members Routes]
+        A[Projects Routes]
         B[ProjectRoleChecker Dependency]
     end
 
     subgraph "Service Layer"
-        C[ProjectMemberService]
+        C[ProjectService - BranchableService]
     end
 
     subgraph "Model Layer"
-        D[ProjectMember Model]
-        E[User Model]
-        F[Project Model]
+        D[Project Model]
+        E[Organizational Unit / User / Customer]
     end
 
     subgraph "RBAC Layer"
-        G[RBACServiceABC]
-        H[ProjectRole Enum]
+        F[UnifiedRBACService]
+        G[UserRoleAssignment scope_type=PROJECT]
     end
 
     subgraph "Database"
-        I[(project_members)]
+        I[(projects)]
+        J[(user_role_assignments)]
     end
 
     A --> C
-    B --> G
+    B --> F
     C --> D
     D --> E
-    D --> F
-    D --> I
-    G --> H
+    F --> G
+    G --> J
     C --> I
 ```
 
 ### Layer Responsibilities
 
-| Layer        | Responsibility                                  | Key Components                        |
-| ------------ | ---------------------------------------------- | ------------------------------------- |
-| **API**      | HTTP endpoints for membership CRUD             | `/projects/{id}/members` routes       |
-| **Auth**     | Project-level authorization checks             | `ProjectRoleChecker` dependency       |
-| **Service**  | Business logic for membership operations       | `ProjectMemberService`                |
-| **Model**    | Data structures and ORM mapping                | `ProjectMember`, `ProjectRole` enum   |
-| **RBAC**     | Permission validation for project access       | `RBACServiceABC.has_project_access()` |
+| Layer        | Responsibility                                         | Key Components                          |
+| ------------ | ------------------------------------------------------ | --------------------------------------- |
+| **API**      | HTTP endpoints for project CRUD + history/branches     | `/api/v1/projects` routes               |
+| **Auth**     | Project-scoped permission checks                       | `ProjectRoleChecker` dependency         |
+| **Service**  | Business logic, budget computation, EVCS branching     | `ProjectService(BranchableService)`     |
+| **Model**    | ORM mapping, EVCS mixins, attribution FKs, JSONB      | `Project(EntityBase, Versionable, Branchable)` |
+| **RBAC**     | Scoped role/permission resolution (global + project)   | `UnifiedRBACService.has_permission()`   |
 
 ---
 
 ## Data Model
 
-### ProjectMember Entity
+### Project Entity
 
-**Purpose:** Non-versioned entity managing user-to-project role assignments. Satisfies `SimpleEntityProtocol` via `SimpleEntityBase`.
+**Location:** `backend/app/models/domain/project.py`
 
-| Field        | Type            | Constraints               | Description                                    |
-| ------------ | --------------- | ------------------------- | ---------------------------------------------- |
-| id           | UUID            | PK, auto-generated        | Primary key (version identifier)               |
-| user_id      | UUID            | FK → users.user_id        | User being assigned (root ID)                  |
-| project_id   | UUID            | FK → projects.project_id  | Project for assignment (root ID)               |
-| role         | String(50)      | NOT NULL, indexed         | ProjectRole enum value                         |
-| assigned_at  | DateTime TZ     | NOT NULL, default=now()   | When role was assigned                         |
-| assigned_by  | UUID            | FK → users.user_id        | User who assigned the role (NULL if deleted)   |
-| created_at   | DateTime TZ     | NOT NULL, default=now()   | Record creation timestamp                      |
-| updated_at   | DateTime TZ     | NOT NULL, default=now()   | Record update timestamp                        |
+**Purpose:** Top-level versioned, branchable aggregate. Satisfies `BranchableProtocol` via structural subtyping (`EntityBase` + `VersionableMixin` + `BranchableMixin`).
 
-**Constraints:**
-- `uq_project_members_user_project`: Unique constraint on (user_id, project_id) — one role per user per project
-- Foreign keys cascade on delete (user/project deletion removes memberships)
+| Field                              | Type              | Constraints                 | Description                                                        |
+| ---------------------------------- | ----------------- | --------------------------- | ------------------------------------------------------------------ |
+| `id`                               | UUID              | PK                          | Per-version primary key (not used in relationships)                |
+| `project_id`                       | UUID              | NOT NULL, indexed           | **Root ID** — stable identity across versions/branches; used in FKs, URLs, endpoints |
+| `name`                             | String(200)       | NOT NULL                    | Project name                                                       |
+| `code`                             | String(50)        | NOT NULL, indexed           | Unique project code                                                |
+| `budget`                           | Decimal           | computed (not stored)       | Sum of all cost-element budgets; populated on read by `ProjectService` |
+| `contract_value`                   | Decimal(15,2)     | nullable                    | Contract value (if different from budget)                          |
+| `currency`                         | String(3)         | NOT NULL, default `EUR`     | ISO currency code                                                  |
+| `organizational_unit_id`           | UUID              | nullable, indexed           | Portfolio attribution FK (root ID) — app-level integrity           |
+| `project_manager_id`               | UUID              | nullable, indexed           | Responsible PM (root ID) — app-level integrity                     |
+| `customer_id`                      | UUID              | nullable, indexed           | Customer (root ID) — app-level integrity                           |
+| `status`                           | String(50)        | NOT NULL, default `draft`   | Project lifecycle status                                           |
+| `start_date` / `end_date`          | DateTime TZ       | nullable                    | Schedule window                                                    |
+| `description`                      | Text              | nullable                    | Free-text description                                              |
+| `custom_fields`                    | JSONB             | nullable                    | Admin-defined custom field values (per `CustomEntityTemplate`)     |
+| `custom_entity_template_root_id`   | UUID              | nullable                    | Root ID of the template that defined the project's custom fields   |
+| `custom_field_definitions_snapshot`| JSONB             | nullable                    | Captured definitions at time of edit (for historical rendering)    |
 
-**Relationships:**
-```python
-user: Mapped["User"]        # Viewonly relationship to assigned user
-project: Mapped["Project"]  # Viewonly relationship to project
-assigner: Mapped["User"]    # Viewonly relationship to assigner
-```
+**Inherited from EVCS mixins** (`VersionableMixin`, `BranchableMixin`):
+- `valid_time`, `transaction_time` — TSTZRANGE bitemporal columns
+- `deleted_at` — soft-delete timestamp
+- `branch` — branch name (default `main`)
+- `parent_id`, `merge_from_branch` — branching lineage
 
-**Computed Properties:**
-- `user_name`: Full name of assigned user (lazy-loaded)
-- `user_email`: Email of assigned user (lazy-loaded)
-- `assigned_by_name`: Name of user who assigned role (lazy-loaded)
-- `project_name`: Name of project (lazy-loaded)
+**Constraints / Indexes:**
+- `ix_projects_current_version` — unique partial index on `(project_id, branch) WHERE upper(valid_time) IS NULL AND deleted_at IS NULL`, guaranteeing exactly one current (open, non-deleted) version per `(root, branch)`. Mirrors the migration and the EVCS root-id convention (ADR-005).
 
----
-
-## Role System
-
-### ProjectRole Enum
-
-**Location:** `backend/app/core/enums.py`
-
-| Role                | Permissions                                                                                                                                                 |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PROJECT_ADMIN`     | `project-*`, `cost-element-*`, `wbe-*`, `progress-entry-*`, `change-order-*`, `forecast-*`                                                                 |
-| `PROJECT_MANAGER`   | `project-read`, `project-update`, `cost-element-*`, `wbe-*`, `progress-entry-*`, `change-order-read/create`, `forecast-*`                                  |
-| `PROJECT_EDITOR`    | `project-read`, `project-update`, `cost-element-create/read/update`, `wbe-read`, `progress-entry-create/read/update`, `change-order-read`, `forecast-*` |
-| `PROJECT_VIEWER`    | `project-read`, `cost-element-read`, `wbe-read`, `progress-entry-read`, `change-order-read`, `forecast-read`                                             |
-
-**UI Color Mapping:**
-- `PROJECT_ADMIN`: error (red)
-- `PROJECT_MANAGER`: warning (orange)
-- `PROJECT_EDITOR`: processing (blue)
-- `PROJECT_VIEWER`: default (gray)
-
-### Permission Format
-
-**Pattern:** `{resource}-{action}`
-
-**Resources:**
-- `project`, `cost-element`, `wbe`, `progress-entry`, `change-order`, `forecast`
-
-**Actions:**
-- `read`, `create`, `update`, `delete`, `admin`
-
-**Wildcard:**
-- `*` matches all actions for a resource
-
----
-
-## API Endpoints
-
-### Base Path
-`/api/v1/projects/{project_id}/members`
-
-### Operations
-
-#### List Project Members
-```
-GET /api/v1/projects/{project_id}/members
-Authorization: Bearer <token>
-```
-
-**Permission Required:** `project-read`
-
-**Response:** `ProjectMemberPublic[]`
-
-**Example Response:**
-```json
-[
-  {
-    "id": "123e4567-e89b-12d3-a456-426614174000",
-    "user_id": "user-uuid",
-    "project_id": "project-uuid",
-    "role": "project_admin",
-    "assigned_at": "2026-04-11T10:00:00Z",
-    "assigned_by": "admin-uuid",
-    "user_name": "John Doe",
-    "user_email": "john@example.com",
-    "assigned_by_name": "Admin User",
-    "project_name": "Project Alpha",
-    "created_at": "2026-04-11T10:00:00Z",
-    "updated_at": "2026-04-11T10:00:00Z"
-  }
-]
-```
-
-#### Add Project Member
-```
-POST /api/v1/projects/{project_id}/members
-Authorization: Bearer <token>
-Content-Type: application/json
-```
-
-**Permission Required:** `project-admin`
-
-**Request Body:** `ProjectMemberCreate`
-```json
-{
-  "user_id": "user-uuid",
-  "project_id": "project-uuid",
-  "role": "project_editor"
-}
-```
-
-**Response:** `201 Created` + `ProjectMemberPublic`
-
-**Validation:**
-- Path `project_id` must match body `project_id`
-- User cannot be added if already a member (unique constraint)
-
-#### Update Member Role
-```
-PATCH /api/v1/projects/{project_id}/members/{user_id}
-Authorization: Bearer <token>
-Content-Type: application/json
-```
-
-**Permission Required:** `project-admin`
-
-**Request Body:** `ProjectMemberUpdate`
-```json
-{
-  "role": "project_admin"
-}
-```
-
-**Response:** `200 OK` + `ProjectMemberPublic`
-
-**Behavior:** Updates role, sets `assigned_by` to current user
-
-#### Remove Project Member
-```
-DELETE /api/v1/projects/{project_id}/members/{user_id}
-Authorization: Bearer <token>
-```
-
-**Permission Required:** `project-admin`
-
-**Response:** `204 No Content`
-
-**Behavior:** Hard delete (removes membership record)
+> **Relationship convention:** Other versioned entities reference `Project.project_id` (the root ID), not `id`. There is no DB-level FK because root IDs are not unique across versions; integrity is enforced at the application level. See `docs/02-architecture/backend/contexts/evcs-core/`.
 
 ---
 
 ## Authorization Model
 
-### System-Level vs Project-Level Access
+Project access is enforced by the **Unified RBAC** system. There is no `project_members` table and no `users.role` column — both were removed in the 2026-05 Unified RBAC cleanup (see [ADR-014](../../../decisions/ADR-014-unified-rbac.md)).
 
-The system implements **two-tier authorization**:
+### Scoped Role Assignments
 
-1. **System-Level:** User's global role (admin, manager, viewer) from `users.role`
-2. **Project-Level:** User's role within a specific project from `project_members.role`
+Roles are granted via `UserRoleAssignment` (`backend/app/models/domain/user_role_assignment.py`), a non-versioned `SimpleEntityBase` row in `user_role_assignments`:
+
+| Field          | Type    | Description                                                        |
+| -------------- | ------- | ------------------------------------------------------------------ |
+| `user_id`      | UUID    | The user (root ID). App-level validation (no DB FK — business key).|
+| `role_id`      | UUID    | FK → `rbac_roles.id` (CASCADE).                                    |
+| `scope_type`   | String  | `global` \| `project` \| `change_order` (`ScopeType` enum).        |
+| `scope_id`     | UUID    | The scoped entity's ID. **NULL for `global`**; the `project_id` root ID for project scope. |
+| `granted_by`   | UUID    | Audit: who granted the role.                                       |
+| `granted_at`   | DateTime| Audit: when granted.                                               |
+| `expires_at`   | DateTime| Optional expiry.                                                   |
+| `metadata_`    | JSONB   | e.g., authority level for change-order scope.                      |
+
+### System Roles
+
+Seed-managed roles are defined in `backend/app/db/seed_users_rbac.py` (`ROLE_PERMISSIONS`). Eight roles exist:
+
+| Role             | Scope use                                         |
+| ---------------- | ------------------------------------------------- |
+| `admin`          | Global — unrestricted (`["*"]` wildcard)          |
+| `manager`        | Global — most CRUD, portfolio access              |
+| `cost-controller`| Global — cost-focused CRUD                        |
+| `pmo-director`   | Global — PMO oversight                            |
+| `viewer`         | Global — read-only                                |
+| `ai-viewer`      | Global — AI read-only                             |
+| `ai-manager`     | Global — AI CRUD                                  |
+| `ai-admin`       | Global — AI full administrative                   |
+
+Any role can also be assigned at `scope_type=PROJECT` to grant project-specific permissions independent of the user's global role.
+
+### Permission Format
+
+- **Pattern:** `{resource}-{action}` (e.g., `project-read`, `wbs-element-update`).
+- **Resources:** `project`, `wbs-element`, `control-account`, `work-package`, `cost-element-type`, `organizational-unit`, `custom-entity-template`, `project-documents`, `role-assignment`, `user`, and more.
+- **Actions:** `read`, `create`, `update`, `delete`.
+- **Admin wildcard:** the `admin` role resolves to `["*"]`, granting every permission (`UnifiedRBACService.get_user_permissions`, `backend/app/core/rbac_unified.py`).
 
 ### Access Decision Flow
 
 ```mermaid
 flowchart TD
-    A[Request to Project Resource] --> B{User System Role}
-    B -->|admin| C[Grant Access - System Admin]
-    B -->|manager/viewer| D{Project Membership Check}
-    D -->|Not Member| E[Deny - 403 Forbidden]
-    D -->|Member| F{Project Role Permission Check}
-    F -->|Has Permission| C
-    F -->|Missing Permission| E
+    A[Request to project-scoped resource] --> B[ProjectRoleChecker dependency]
+    B --> C[UnifiedRBACService.has_permission]
+    C --> D[Resolve user roles: global + scope_type=PROJECT, scope_id=project_id]
+    D --> E{admin in roles?}
+    E -->|yes| F[Grant — wildcard]
+    E -->|no| G[Union permissions from all roles]
+    G --> H{required_permission in permissions?}
+    H -->|yes| F
+    H -->|no| I[Deny — 403 Forbidden]
 ```
 
-### ProjectRoleChecker Dependency
+`ProjectRoleChecker` (`backend/app/api/dependencies/auth.py`) is a thin FastAPI dependency that injects the request DB session into the ContextVar used by `UnifiedRBACService` and calls `has_permission(user_id, required_permission, scope_type=PROJECT, scope_id=project_id)`.
 
-**Purpose:** FastAPI dependency for project-scoped authorization
-
-**Usage:**
-```python
-from app.api.dependencies.auth import ProjectRoleChecker
-
-@router.get("/projects/{project_id}/wbes")
-async def list_project_wbes(
-    project_id: UUID,
-    current_user: User = Depends(
-        ProjectRoleChecker(required_permission="project-read")
-    ),
-):
-    # Only executes if user has project-read access
-    ...
-```
-
-**Authorization Logic:**
-1. System admins bypass all project-level checks (always grant)
-2. For non-admins, queries `project_members` table for membership
-3. Checks if user's project role has required permission
-4. Returns 403 Forbidden if access denied
-
-### RBAC Integration
-
-**Methods in `RBACServiceABC`:**
-
-- `async has_project_access(user_id, user_role, project_id, required_permission) -> bool`
-- `async get_user_projects(user_id, user_role) -> list[UUID]`
-- `async get_project_role(user_id, project_id) -> str | None`
-
-**Implementation:**
-- System admins: Returns all projects, grants all permissions
-- Project members: Queries `project_members` table, checks role permissions
+> **See also:** [Unified RBAC Implementation](../auth/unified-rbac-implementation.md) and [ADR-014: Unified RBAC](../../../decisions/ADR-014-unified-rbac.md) for the full role/permission matrix, caching strategy, and change-order authority levels.
 
 ---
 
 ## Service Layer
 
-### ProjectMemberService
+### ProjectService
 
-**Location:** `backend/app/services/project_member.py`
+**Location:** `backend/app/services/project.py`
 
-**Methods:**
+Extends `BranchableService[Project]` (the highest EVCS tier — versioning + branching), so it inherits temporal reads, branch clone/update/merge/revert, and history queries.
 
-| Method                                      | Description                                                 |
-| ------------------------------------------- | ----------------------------------------------------------- |
-| `get(entity_id)`                            | Get member by ID                                            |
-| `create(**fields)`                          | Create new membership                                       |
-| `update(entity_id, **updates)`              | Update member fields                                        |
-| `delete(entity_id)`                         | Hard delete membership                                      |
-| `get_by_user_and_project(user_id, project_id)` | Get membership by user + project (unique lookup)        |
-| `list_by_project(project_id, skip, limit)`  | Paginated list of project members                          |
-| `list_by_user(user_id, skip, limit)`        | Paginated list of user's project memberships               |
-| `get_with_details(member_id)`               | Get member with eager-loaded relationships                  |
-| `list_by_project_with_details(project_id)`  | List members with eager-loaded relationships                |
-| `check_membership(user_id, project_id)`     | Check if user is a member                                   |
-| `remove_member(member_id)`                  | Alias for delete                                            |
+**Key methods:**
 
-**Query Patterns:**
-- Uses `selectinload` for eager-loading related entities
-- Supports pagination via `skip`/`limit` parameters
-- Returns `None` for not-found scenarios (vs exceptions)
+| Method                                  | Description                                                |
+| --------------------------------------- | --------------------------------------------------------- |
+| `get_as_of(...)`                        | Bitemporal read of a project as of a point in time         |
+| `get_projects(...)`                     | Paginated list with branch mode (merged/isolated), filters, sort |
+| `get_by_code(code, branch)`             | Lookup by unique code                                     |
+| `create_project(...)`                   | Create new project (applies creation defaults)            |
+| `update_project(...)`                   | Versioned update via `UpdateCommand`                      |
+| `delete_project(...)`                   | Soft-delete the current version                           |
+| `get_project_history(project_id)`       | Version history for a project                             |
+| `get_project_as_of(...)`                | Historical point-in-time read (API-facing)                |
+| `get_project_branches(...)`             | List branches for a project                               |
+| `get_recently_updated(...)`             | Recent activity feed                                      |
+| `_compute_project_budget(...)` / `_populate_computed_budgets(...)` | Sum cost-element budgets and attach to the read model |
 
----
-
-## Database Schema
-
-### Table: project_members
-
-**Migration:** `021bb7eeaa21_add_project_members_table.py`
-
-**Indexes:**
-- `ix_project_members_user_id`: Fast lookup by user
-- `ix_project_members_project_id`: Fast lookup by project
-- `ix_project_members_role`: Fast lookup by role (for admin queries)
-
-**Foreign Keys:**
-- `user_id` → `users.user_id` (CASCADE DELETE)
-- `project_id` → `projects.project_id` (CASCADE DELETE)
-- `assigned_by` → `users.user_id` (SET NULL)
-
-**Constraints:**
-- `uq_project_members_user_project`: Ensures one role per user per project
+Budget is **not stored** — `Project.budget` is a non-mapped attribute (`__allow_unmapped__ = True`) populated on read.
 
 ---
 
-## Pydantic Schemas
+## API Endpoints
 
-**Location:** `backend/app/models/schemas/project_member.py`
+**Location:** `backend/app/api/routes/projects.py` (mounted under `/api/v1/projects`)
 
-### Schemas
+| Method   | Path                  | Permission              | Description                         |
+| -------- | --------------------- | ----------------------- | ----------------------------------- |
+| `GET`    | `/`                   | `project-read`          | Paginated project list (branch mode, filters, sort) |
+| `POST`   | `/`                   | `project-create`        | Create project                      |
+| `GET`    `/{project_id}`            | `project-read`  | Get a project (with computed budget) |
+| `PATCH`  `/{project_id}`            | `project-update`| Versioned update           |
+| `DELETE` `/{project_id}`            | `project-delete`| Soft-delete current version|
+| `GET`    `/{project_id}/history`    | `project-read`  | Version history             |
+| `GET`    `/{project_id}/branches`   | `project-read`  | List branches               |
 
-| Schema                  | Purpose                                       |
-| ----------------------- | --------------------------------------------- |
-| `ProjectMemberBase`     | Base fields (role)                            |
-| `ProjectMemberCreate`   | Input for creating membership                |
-| `ProjectMemberUpdate`   | Input for updating role                       |
-| `ProjectMemberRead`     | Output with computed fields (user_name, etc.) |
-| `ProjectMemberPublic`   | Alias for ProjectMemberRead                   |
-
-**Note:** `assigned_by` is optional in create (auto-set to current user)
+Project-scoped routes use `ProjectRoleChecker(required_permission=...)`; list/create use `RoleChecker(required_permission=...)` (global permission). Sub-resources (`/wbs-elements`, `/cost-elements`, `/schedule`, `/change-orders`, `/documents`, `/forecast`, `/gantt`) are routed by their own routers, all gated by `ProjectRoleChecker` for the relevant resource permission.
 
 ---
 
 ## Integration Points
 
-### Auth Context
+### EVCS Core
+- Project is the **root aggregate** referenced by all child entities via `project_id` (root ID).
+- Full branching support for change orders (clone, update, merge, revert).
 
-- **Dependency:** `ProjectRoleChecker` uses `get_current_user` from auth context
-- **RBAC:** Uses `RBACServiceABC` for permission validation
-- **User Model:** References `User` entity for assigner information
+### Portfolio Attribution
+- `organizational_unit_id`, `project_manager_id`, `customer_id` drive portfolio/functional dashboards. These are nullable root-ID references (no DB FK — app-level integrity).
 
-### Project Context
+### Custom Fields
+- `custom_fields` JSONB holds admin-defined values from `CustomEntityTemplate` (Phase 0/1, migration `c93e9767de59`). The snapshot columns preserve historical definitions for rendering past versions. See [Custom Fields Analysis](../../../../../03-project-plan/iterations/2026-06-24-custom-fields-analysis/).
 
-- **Membership:** Projects use `project_members` for access control
-- **Operations:** All project-scoped routes use `ProjectRoleChecker`
-- **Deletion:** Cascade delete removes memberships when project deleted
-
-### Future Integrations
-
-- **Notifications:** Notify users when assigned to projects
-- **Audit Logging:** Track role changes for compliance
-- **Bulk Operations:** Batch add/remove members
-- **Role Templates:** Pre-defined role sets for common scenarios
+### AI Chat
+- Project scope (`set_project_context` tool, `AIConversationSession.project_id`) restricts AI tools to a single project's data; RBAC-gated.
 
 ---
 
 ## Code Locations
 
-### Backend Files
+### Backend
 
 ```
 backend/app/
 ├── api/
 │   ├── dependencies/
-│   │   └── auth.py                      # ProjectRoleChecker dependency
+│   │   └── auth.py                 # ProjectRoleChecker (delegates to UnifiedRBAC)
 │   └── routes/
-│       └── project_members.py           # Project members API routes
+│       ├── projects.py             # Project CRUD/history/branches routes
+│       ├── project_budget_settings.py
+│       ├── gantt.py                # (gated by ProjectRoleChecker)
+│       └── documents.py            # (gated by ProjectRoleChecker)
 ├── core/
-│   ├── enums.py                         # ProjectRole enum with permissions
-│   └── rbac.py                          # RBACServiceABC with project access methods
+│   ├── rbac_unified.py            # UnifiedRBACService — scoped role resolution + caching
+│   └── enums.py                   # Legacy ProjectRole enum (kept for UI color mapping)
 ├── models/
-│   ├── domain/
-│   │   └── project_member.py            # ProjectMember ORM model
-│   └── schemas/
-│       └── project_member.py            # Pydantic schemas
-└── services/
-    └── project_member.py                # ProjectMemberService
-```
-
-### Database
-
-```
-backend/alembic/versions/
-└── 021bb7eeaa21_add_project_members_table.py  # Migration for project_members table
-```
-
-### Tests
-
-```
-backend/tests/
+│   └── domain/
+│       ├── project.py             # Project ORM model
+│       ├── user_role_assignment.py# UserRoleAssignment + ScopeType
+│       └── rbac.py                # RBACRole, RBACRolePermission
 ├── services/
-│   └── test_project_member_service.py    # 16 service tests
-└── api/
-    └── routes/
-        └── test_project_members.py       # API endpoint tests
+│   └── project.py                 # ProjectService(BranchableService[Project])
+└── db/
+    └── seed_users_rbac.py         # ROLE_PERMISSIONS — the 8 system roles
 ```
 
-### Configuration
-
-```
-backend/
-└── config/
-    └── rbac.json                        # System-level role permissions
-```
+> **Note on `core/enums.py`:** the `ProjectRole` enum still exists for **UI color mapping only** (`PROJECT_ADMIN` → error/red, etc.). It is **not** used for authorization — that is exclusively the job of Unified RBAC via `rbac_roles` / `user_role_assignments`.
 
 ---
 
 ## Important Patterns & Gotchas
 
-### 1. One Role Per User Per Project
+### 1. Root ID vs Version ID
+Relationships and endpoints use `project_id` (root), never `id` (version PK). No DB-level FK exists on root IDs because they are not unique across versions; integrity is enforced in the service layer.
 
-**Pattern:** Unique constraint on (user_id, project_id)
+### 2. One Current Version Per (Root, Branch)
+The partial unique index `ix_projects_current_version` enforces a single open, non-deleted version per `(project_id, branch)`. Creating a new current version supersedes the prior one.
 
-**Gotcha:** Cannot assign multiple roles to same user in same project. To change roles, update existing membership instead of creating new one.
+### 3. Budget Is Computed, Not Stored
+`Project.budget` is populated on read by `ProjectService._populate_computed_budgets`. Never write to it; it will not persist.
 
-### 2. System Admins Bypass Project Checks
+### 4. Authorization Is Unified RBAC, Not Membership
+There is no per-project membership table. Grant access by assigning a role at `scope_type=PROJECT, scope_id=<project_id>` via `user_role_assignments`. The `admin` global role short-circuits all checks via the `["*"]` wildcard.
 
-**Pattern:** System admins (user.role = "admin") always have project access
-
-**Gotcha:** System admins don't need `ProjectMember` entries. Don't auto-create memberships for admins.
-
-### 3. Cascade Deletion
-
-**Pattern:** Deleting a user or project cascades to memberships
-
-**Gotcha:** `assigned_by` field uses `SET NULL` to preserve audit trail when assigner deleted
-
-### 4. Lazy-Loaded Computed Properties
-
-**Pattern:** `user_name`, `user_email`, etc. check relationship load status
-
-**Gotcha:** These return `None` if relationships not eager-loaded. Use `get_with_details()` or `list_by_project_with_details()` for populated values.
-
-### 5. Role vs Permission
-
-**Pattern:** `project_members.role` stores role enum value
-
-**Gotcha:** Permissions are derived from role, not stored. Check `ProjectRole.permissions` property for permission list.
-
-### 6. Audit Trail
-
-**Pattern:** `assigned_by` tracks who made role assignments
-
-**Gotcha:** `assigned_by` not automatically updated on role changes. API routes must explicitly set it.
-
----
-
-## Testing Strategy
-
-### Unit Tests
-
-**File:** `backend/tests/services/test_project_member_service.py`
-
-**Coverage:**
-- CRUD operations (create, read, update, delete)
-- Unique constraint enforcement
-- Pagination
-- Membership checks
-- Relationship loading
-
-**Test Count:** 16 tests
-
-### Integration Tests
-
-**File:** `backend/tests/api/routes/test_project_members.py`
-
-**Coverage:**
-- Endpoint availability
-- Permission checks
-- Validation logic
-- Response schemas
-
-### RBAC Tests
-
-**File:** `backend/tests/api/test_dependencies/test_project_role_checker.py`
-
-**Coverage:**
-- System admin bypass
-- Project member access
-- Permission validation
-- Non-member denial
-
----
-
-## Future Enhancements
-
-- **Role Inheritance:** Hierarchical roles (e.g., manager inherits editor permissions)
-- **Temporary Access:** Time-limited memberships with expiration dates
-- **Membership Requests:** User-requested memberships with approval workflow
-- **Role History:** Track role changes over time (temporal versioning)
-- **Bulk Operations:** Batch import/export members via CSV
-- **Notification Integration:** Email/in-app notifications for role changes
-- **Delegation:** Allow project admins to delegate admin privileges
+### 5. Attribution FKs Are Nullable and App-Level
+`organizational_unit_id`/`project_manager_id`/`customer_id` are nullable to allow backfill; referential integrity is the application's responsibility, not the database's.
 
 ---
 
 ## Related Documentation
 
-- [Auth & Authorization Context](../auth/architecture.md) — System-level RBAC
-- [User Management Context](../user-management/architecture.md) — User entity
-- [EVCS Core Architecture](../evcs-core/architecture.md) — Entity versioning patterns
-- [ADR-007: RBAC Service Design](../../decisions/ADR-007-rbac-service.md) — RBAC architecture decision
+- [Unified RBAC Implementation](../auth/unified-rbac-implementation.md) — full scoped RBAC model
+- [ADR-014: Unified RBAC](../../../decisions/ADR-014-unified-rbac.md) — replaces `ProjectMember` + `users.role`
+- [EVCS Core Architecture](../evcs-core/architecture.md) — versioning and branching patterns
 - [Cross-Cutting: API Conventions](../../cross-cutting/api-conventions.md) — API standards
 
 ---
 
 ## Changelog
 
-| Date       | Change                                    | Author       |
-| ---------- | ----------------------------------------- | ------------ |
-| 2026-04-11 | Initial project members context documentation | Backend Team |
+| Date       | Change                                                                 | Author       |
+| ---------- | --------------------------------------------------------------------- | ------------ |
+| 2026-07-01 | Rewrote to reflect Unified RBAC cleanup; document Project EVCS model, portfolio attribution FKs, custom fields, and real service/route locations. Removed deleted `ProjectMember`/`ProjectRole`/`project_members` content. | Backend Team |
+| 2026-04-11 | Initial project members context documentation (since-deleted system).   | Backend Team |

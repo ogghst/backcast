@@ -1,13 +1,27 @@
 # EVM API Guide
 
-**Last Updated:** 2026-04-14
+**Last Updated:** 2026-07-01
 **Related Iteration:** [2026-01-22-evm-analyzer-master-detail-ui](../../03-project-plan/iterations/2026-01-22-evm-analyzer-master-detail-ui/)
 
 ---
 
 ## Overview
 
-The EVM (Earned Value Management) API provides generic endpoints for calculating and retrieving EVM metrics across multiple entity types: **Cost Elements**, **WBEs** (Work Breakdown Elements), and **Projects**.
+The EVM (Earned Value Management) API provides generic endpoints for calculating and retrieving EVM metrics across a 4-tier entity hierarchy: **Project → WBS Element → Control Account → Work Package → Cost Element**.
+
+The budget holder is the **Work Package** (PMI semantics): BAC/PV/AC/EV are computed at the Work Package level, and every higher tier (Control Account, WBS Element, Project) rolls its descendant Work Packages up via the batch endpoint. A `cost_element` query resolves the owning Work Package and returns that Work Package's metrics.
+
+Entity types accepted by the API (`EntityType` enum):
+
+| `entity_type`     | Tier          | Role |
+|-------------------|---------------|------|
+| `cost_element`    | Leaf (EOC)    | Resolves the owning Work Package and returns its metrics |
+| `work_package`    | Budget holder | BAC/PV/AC/EV computed directly here |
+| `control_account` | WBS × Org Unit| Aggregates its child Work Packages |
+| `wbs_element`     | Intermediate  | Aggregates all descendant Work Packages (recursively expanded) |
+| `project`         | Root          | Aggregates all Work Packages under its WBS tree |
+
+> **Note:** the literal `wbe` does **not** exist — use `wbs_element`. Sending an unknown `entity_type` yields a `422`.
 
 All endpoints support:
 
@@ -15,6 +29,7 @@ All endpoints support:
 - **Branch isolation** via `branch` and `branch_mode` parameters
 - **Multi-entity aggregation** via batch endpoint
 - **Time-series data** for chart visualization
+- **Portfolio rollup** via the dedicated `/portfolio` endpoint
 
 ---
 
@@ -28,15 +43,102 @@ All endpoints support:
 
 ## Authentication
 
-All EVM endpoints require authentication with the `evm-read` permission:
+EVM endpoints require authentication. The single-entity, time-series, and batch endpoints require the `evm-read` permission. The portfolio endpoint additionally requires `portfolio-read`:
 
 ```http
 Authorization: Bearer <jwt_token>
 ```
 
+> **Batch + Project scoping (G2):** when `entity_type=project` is used with `/batch`, the request is **membership-scoped** — project IDs the caller cannot access (resolved via RBAC `get_accessible_projects`) are silently dropped before aggregation. Non-project entity types keep their current behavior (no portfolio-membership concept).
+
 ---
 
 ## Endpoints
+
+### 0. Portfolio EVM (Cross-Project Rollup)
+
+Get rolled-up EVM metrics across the caller's **accessible** projects, with a per-project breakdown and an at-risk subset.
+
+**Endpoint:**
+
+```http
+GET /api/v1/evm/portfolio
+```
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `control_date` | datetime | No | now | Control date for the time-travel EVM query (ISO 8601). Monetary values are converted to the base currency at this date. |
+| `branch` | string | No | `main` | Branch name to query |
+| `branch_mode` | string | No | `merged` | Branch mode: `isolated` or `merged` |
+
+**Permission:** `portfolio-read` (not `evm-read`).
+
+**Membership scoping:** resolves the caller's accessible project set via unified RBAC (`get_accessible_projects`, same pattern as `/projects`) before computing EVM. A non-member sees only their own projects. If the caller has **no** accessible projects, the endpoint returns `404`.
+
+**Response:** `PortfolioEVMResponse`
+
+```json
+{
+  "summary": {
+    "entity_type": "project",
+    "entity_id": "00000000-0000-0000-0000-000000000000",
+    "bac": "12000000.00",
+    "pv": "4500000.00",
+    "ac": "5200000.00",
+    "ev": "4100000.00",
+    "cv": "-1100000.00",
+    "sv": "-400000.00",
+    "cpi": 0.79,
+    "spi": 0.91,
+    "eac": "15100000.00",
+    "vac": "-3100000.00",
+    "etc": "9900000.00",
+    "tcpi": 0.79,
+    "control_date": "2026-07-01T00:00:00Z",
+    "branch": "main",
+    "branch_mode": "merged",
+    "progress_percentage": 34.2,
+    "warning": null
+  },
+  "projects": [
+    {
+      "project_id": "123e4567-e89b-12d3-a456-426614174000",
+      "name": "Line Automation - Plant B",
+      "status": "active",
+      "cpi": 0.79,
+      "spi": 0.88,
+      "vac": "-3100000.00",
+      "contract_value": "15000000.00",
+      "bac": "12000000.00",
+      "eac": "15100000.00",
+      "currency": "EUR",
+      "organizational_unit_id": "ab1c...",
+      "project_manager_id": "cd2e...",
+      "customer_id": "ef3a...",
+      "at_risk": true,
+      "delta_eac": 250000.0,
+      "start_date": "2026-02-01T00:00:00Z",
+      "end_date": "2026-12-15T00:00:00Z"
+    }
+  ],
+  "at_risk_projects": [],
+  "control_date": "2026-07-01T00:00:00Z"
+}
+```
+
+**Field semantics:**
+
+- `summary`: rolled-up portfolio metrics via the industry-standard **"roll up, never average"** aggregation (CPI/SPI/TCPI re-derived from summed EV/AC/PV/BAC/EAC).
+- `projects[]`: per-project breakdown. Each row carries the project's CPI/SPI/VAC/BAC/EAC plus `contract_value`, `delta_eac` (ΔEAC forecast drift), owning org unit / PM / customer, and dates.
+- `at_risk_projects[]`: subset of `projects` where SPI is present and `< 0.9` (interim delayed/at-risk proxy).
+
+**Currency / FX:** all monetary values are expressed in the project base currency (EUR). `convert_to_base` is applied per project at `control_date` before aggregation. Today every project is EUR, so conversion is a no-op pass-through; the path is wired for the multi-currency case.
+
+**Performance:** resolves every accessible project's Work Packages in a constant number of queries (one recursive CTE per layer: WBS → descendants → Control Accounts → Work Packages), then computes EVM for the full Work Package set in a single batched pass — O(1) DB round-trips regardless of project count.
+
+---
 
 ### 1. Get EVM Metrics
 
@@ -52,7 +154,7 @@ GET /api/v1/evm/{entity_type}/{entity_id}/metrics
 
 | Parameter | Type | Description | Values |
 |-----------|------|-------------|--------|
-| `entity_type` | string | Type of entity | `cost_element`, `wbe`, `project` |
+| `entity_type` | string | Type of entity | `cost_element`, `work_package`, `control_account`, `wbs_element`, `project` |
 | `entity_id` | UUID | Entity ID | Valid UUID |
 
 **Query Parameters:**
@@ -61,7 +163,7 @@ GET /api/v1/evm/{entity_type}/{entity_id}/metrics
 |-----------|------|----------|---------|-------------|
 | `control_date` | datetime | No | now | Control date for time-travel query (ISO 8601) |
 | `branch` | string | No | `main` | Branch name to query |
-| `branch_mode` | string | No | `merge` | Branch mode: `strict` (only this branch) or `merge` (fall back to parent) |
+| `branch_mode` | string | No | `merged` | Branch mode: `isolated` (only this branch) or `merged` (fall back to main/parent) |
 
 **Response:** `EVMMetricsResponse`
 
@@ -80,9 +182,10 @@ GET /api/v1/evm/{entity_type}/{entity_id}/metrics
   "eac": "150000.00",
   "vac": "-50000.00",
   "etc": "120000.00",
+  "tcpi": 0.67,
   "control_date": "2026-01-15T00:00:00Z",
   "branch": "main",
-  "branch_mode": "merge",
+  "branch_mode": "merged",
   "progress_percentage": 20.0,
   "warning": null
 }
@@ -103,6 +206,7 @@ GET /api/v1/evm/{entity_type}/{entity_id}/metrics
 | `eac` | Decimal | Estimate at Completion | From forecast |
 | `vac` | Decimal | Variance at Completion | `bac - eac` |
 | `etc` | Decimal | Estimate to Complete | `eac - ac` |
+| `tcpi` | Decimal | To-Complete Performance Index | `bac / eac` (defaults to `1.0` when EAC is missing or zero) |
 | `progress_percentage` | Decimal | Progress percentage | From latest progress entry |
 | `warning` | string | Warning message | Null if no warning |
 
@@ -117,8 +221,10 @@ curl -X GET "http://localhost:8020/api/v1/evm/cost_element/123e4567-e89b-12d3-a4
 
 | Status | Description |
 |--------|-------------|
-| `404` | Entity not found |
-| `422` | Validation error (invalid UUID, entity_type) |
+| `404` | Entity genuinely not found / unsupported type |
+| `422` | Validation error (invalid UUID, `entity_type`) |
+
+> **Pre-baseline / pre-version behavior (NOT a 404):** for `wbs_element` and `project`, if the entity exists in principle but has **no version valid as of `control_date`** (e.g. the project's `valid_time` starts after `control_date`), the endpoint returns `200` with an **empty, zeroed `EVMMetricsResponse`** and a `warning` such as `"No 'project' data available as of 2026-01-15"`. This is "no data yet", not an error. The `404` is reserved for genuinely-missing or unsupported types.
 
 ---
 
@@ -136,7 +242,7 @@ GET /api/v1/evm/{entity_type}/{entity_id}/timeseries
 
 | Parameter | Type | Description | Values |
 |-----------|------|-------------|--------|
-| `entity_type` | string | Type of entity | `cost_element`, `wbe`, `project` |
+| `entity_type` | string | Type of entity | `cost_element`, `work_package`, `control_account`, `wbs_element`, `project` |
 | `entity_id` | UUID | Entity ID | Valid UUID |
 
 **Query Parameters:**
@@ -146,7 +252,7 @@ GET /api/v1/evm/{entity_type}/{entity_id}/timeseries
 | `granularity` | string | No | `week` | Time granularity: `day`, `week`, `month` |
 | `control_date` | datetime | No | now | Control date for time-travel query (ISO 8601) |
 | `branch` | string | No | `main` | Branch name to query |
-| `branch_mode` | string | No | `merge` | Branch mode: `strict` or `merge` |
+| `branch_mode` | string | No | `merged` | Branch mode: `isolated` or `merged` |
 
 **Response:** `EVMTimeSeriesResponse`
 
@@ -185,9 +291,9 @@ GET /api/v1/evm/{entity_type}/{entity_id}/timeseries
 
 | Entity Type | Date Range |
 |-------------|------------|
-| **Cost Element** | Schedule baseline start_date to end_date |
-| **WBE** | Earliest child cost element start to latest end |
-| **Project** | Project start_date to max(target_end_date, control_date) |
+| **Cost Element / Work Package** | Linked ScheduleBaseline `start_date` → `end_date` |
+| **Control Account / WBS Element** | Min → max of child Work Package baseline ranges |
+| **Project** | `project.start_date` → `max(project.end_date, control_date)` |
 
 **Granularity Options:**
 
@@ -233,7 +339,7 @@ POST /api/v1/evm/batch
 
 ```json
 {
-  "entity_type": "cost_element",
+  "entity_type": "wbs_element",
   "entity_ids": [
     "123e4567-e89b-12d3-a456-426614174000",
     "223e4567-e89b-12d3-a456-426614174001",
@@ -241,7 +347,7 @@ POST /api/v1/evm/batch
   ],
   "control_date": "2026-01-15T00:00:00Z",
   "branch": "main",
-  "branch_mode": "merge"
+  "branch_mode": "merged"
 }
 ```
 
@@ -249,17 +355,17 @@ POST /api/v1/evm/batch
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `entity_type` | string | Yes | - | Type of entities (`cost_element`, `wbe`, `project`) |
+| `entity_type` | string | Yes | - | Type of entities (`cost_element`, `work_package`, `control_account`, `wbs_element`, `project`) |
 | `entity_ids` | array[UUID] | Yes | - | List of entity IDs to aggregate |
 | `control_date` | datetime | No | now | Control date for time-travel query |
 | `branch` | string | No | `main` | Branch name to query |
-| `branch_mode` | string | No | `merge` | Branch mode: `strict` or `merge` |
+| `branch_mode` | string | No | `merged` | Branch mode: `isolated` or `merged` |
 
 **Response:** `EVMMetricsResponse` (aggregated)
 
 ```json
 {
-  "entity_type": "cost_element",
+  "entity_type": "wbs_element",
   "entity_id": null,
   "bac": "300000.00",
   "pv": "75000.00",
@@ -272,26 +378,32 @@ POST /api/v1/evm/batch
   "eac": "450000.00",
   "vac": "-150000.00",
   "etc": "360000.00",
+  "tcpi": 0.67,
   "control_date": "2026-01-15T00:00:00Z",
   "branch": "main",
-  "branch_mode": "merge",
+  "branch_mode": "merged",
   "progress_percentage": 20.0,
   "warning": null
 }
 ```
 
-**Aggregation Rules:**
+**Aggregation Rules** (industry-standard **"roll up, never average"**):
 
 | Metric Type | Aggregation Method | Formula |
 | ----------- | ------------------ | ------- |
-| **Amounts** (BAC, PV, AC, EV, CV, SV, EAC, VAC, ETC) | Sum | `sum(child.metric)` |
-| **Indices** (CPI, SPI) | Weighted Average by BAC | `sum(child.metric × child.BAC) / sum(child.BAC)` |
+| **Amounts** (BAC, PV, AC, EV, EAC, VAC, ETC) | Sum | `sum(child.metric)` |
+| **Variances** (CV, SV) | Re-derived from summed flows | `cv = ev - ac`, `sv = ev - pv` |
+| **Indices** (CPI, SPI) | **Re-derived from summed EV/AC/PV** (never averaged) | `cpi = sum(ev) / sum(ac)`, `spi = sum(ev) / sum(pv)` |
+| **TCPI** | Re-derived from summed BAC/EAC | `bac / eac` (defaults to `1.0` when EAC is missing/zero) |
+
+> Indices are **re-derived from the rolled-up EV/AC/PV**, not averaged. Averaging CPI/SPI (even BAC-weighted) gives mathematically wrong portfolio indices; the code intentionally re-derives them so the rolled-up numbers are consistent with the summed flows.
 
 **Special Cases:**
 
 - **Empty entity_ids**: Returns zero metrics with warning
 - **Single entity**: Returns identical metrics (no aggregation)
 - **Null CPI/SPI**: When division by zero occurs (e.g., AC = 0, PV = 0)
+- **`entity_type=project`**: request is membership-scoped — inaccessible project IDs are silently dropped before aggregation
 
 **Example Request:**
 
@@ -300,7 +412,7 @@ curl -X POST "http://localhost:8020/api/v1/evm/batch" \
   -H "Authorization: Bearer ${TOKEN}" \
   -H "Content-Type: application/json" \
   -d '{
-    "entity_type": "cost_element",
+    "entity_type": "wbs_element",
     "entity_ids": ["123e4567-e89b-12d3-a456-426614174000", "223e4567-e89b-12d3-a456-426614174001"],
     "control_date": "2026-01-15T00:00:00Z"
   }'
@@ -317,61 +429,54 @@ curl -X POST "http://localhost:8020/api/v1/evm/batch" \
 
 ## Entity Type Behavior
 
+EVM is computed at the **Work Package** (PMI budget holder) level and rolled up the hierarchy. The chain is:
+
+```
+Project → WBS Element → Control Account → Work Package → Cost Element
+                                  ▲
+                  BAC/PV/AC/EV computed here
+```
+
 ### Cost Element (`cost_element`)
 
-**Description:** Individual budget line items (leaf level)
+**Description:** Individual budget line items (leaf / EOC).
+
+**Metrics Calculation:** the owning Work Package is resolved (`cost_element.work_package_id`) and **that Work Package's metrics are returned**. Cost Elements do not carry their own BAC/PV/AC/EV in the EVM model.
+
+### Work Package (`work_package`)
+
+**Description:** The PMI budget holder — where BAC/PV/AC/EV are actually computed.
 
 **Metrics Calculation:**
 
-- **BAC**: From `cost_element.budget_amount`
-- **PV**: From schedule baseline progression strategy
-- **AC**: Sum of cost registrations for this cost element
-- **EV**: BAC × progress_percentage / 100
-- **EAC, VAC, ETC**: From latest forecast
+- **BAC**: `work_package.budget_amount` (as of `control_date`)
+- **PV**: `BAC × progress` from the linked `ScheduleBaseline` progression strategy (as of `control_date`)
+- **AC**: Sum of `CostRegistration`s through the Work Package's Cost Elements (global facts — not branchable)
+- **EV**: `BAC × progress_percentage / 100` from the latest `ProgressEntry` (as of `control_date`)
+- **EAC**: `forecast.eac_amount` from the linked `Forecast` (as of `control_date`)
+- **VAC / ETC / TCPI**: derived (`bac - eac`, `eac - ac`, `bac / eac`)
 
-**Aggregation:**
+### Control Account (`control_account`)
 
-- Single entity (no child aggregation)
+**Description:** WBS × Organizational Unit intersection.
 
-### WBE (`wbe`)
+**Aggregation:** resolves its child Work Packages (`work_package.control_account_id`) and rolls them up via `aggregate_evm_metrics`.
 
-**Description:** Work Breakdown Elements (groups of cost elements)
+### WBS Element (`wbs_element`)
 
-**Metrics Calculation:**
+**Description:** Intermediate WBS node.
 
-- Aggregates from all child cost elements
-- Uses hierarchical aggregation (sum + weighted avg)
+**Aggregation:** recursively expands **all descendant WBS Elements**, resolves the Control Accounts under that expanded set, then the Work Packages under those Control Accounts, and rolls the Work Packages up. On a non-main branch with `branch_mode=merged`, descendant resolution prefers the branch's version over `main` (and drops `main` rows shadowed by a branch deletion) — see `_get_descendants_merged` in `wbs_element_service.py`.
 
-**Aggregation:**
-
-- Fetches all cost elements where `cost_element.wbe_id = wbe.id`
-- Calculates metrics for each child cost element
-- Aggregates using sum for amounts, weighted avg for indices
-
-**Date Range (Time-Series):**
-
-- Start: `min(child.baseline.start_date)`
-- End: `max(child.baseline.end_date)`
+**Date Range (Time-Series):** `min(child.baseline.start_date)` → `max(child.baseline.end_date)`.
 
 ### Project (`project`)
 
-**Description:** Projects (groups of WBEs)
+**Description:** Root node.
 
-**Metrics Calculation:**
+**Aggregation:** fetches the project's WBS Elements, then delegates to the WBS Element aggregation path (which expands descendants → Control Accounts → Work Packages). Identical rollup math.
 
-- Aggregates from all child WBEs
-- Uses hierarchical aggregation (sum + weighted avg)
-
-**Aggregation:**
-
-- Fetches all WBEs where `wbe.project_id = project.id`
-- Calculates WBE metrics (which aggregate from cost elements)
-- Aggregates WBE metrics using sum for amounts, weighted avg for indices
-
-**Date Range (Time-Series):**
-
-- Start: `project.start_date`
-- End: `max(project.target_end_date, control_date)`
+**Date Range (Time-Series):** `project.start_date` → `max(project.end_date, control_date)`.
 
 ---
 
@@ -406,16 +511,20 @@ GET /api/v1/evm/cost_element/{id}/metrics?branch=main
 # Get EVM for change order branch
 GET /api/v1/evm/cost_element/{id}/metrics?branch=BR-001-feature-addition
 
-# Get EVM for change order with strict mode (no fallback to parent)
-GET /api/v1/evm/cost_element/{id}/metrics?branch=BR-001&branch_mode=strict
+# Get EVM for change order with isolated mode (no fallback to parent)
+GET /api/v1/evm/cost_element/{id}/metrics?branch=BR-001&branch_mode=isolated
 ```
 
 ### Branch Modes
 
-| Mode | Description | Use Case |
-|------|-------------|----------|
-| `merge` | Fall back to parent branches if entity not in current branch | Default, most common |
-| `strict` | Only query current branch, no fallback | Isolated change order analysis |
+The `BranchMode` enum has two members (literal values lowercase):
+
+| Mode | Literal | Description | Use Case |
+|------|---------|-------------|----------|
+| `MERGED` | `merged` | Fall back to the `main` branch if an entity is not present on the current branch | Default for all EVM routes; most common |
+| `ISOLATED` | `isolated` | Only query the current branch, no `main` fallback | Isolated change-order analysis |
+
+> The EVM route default is `MERGED`. On a non-main branch in `MERGED` mode, descendant/version resolution prefers the branch's row over `main` (and excludes `main` rows shadowed by a branch deletion) — see `_get_descendants_merged` / `_expand_wbs_descendants_batch` in the WBS / EVM services.
 
 ---
 
@@ -438,11 +547,11 @@ GET /api/v1/evm/cost_element/{id}/metrics?branch=BR-001&branch_mode=strict
 
 ### Database Indexes
 
-The following indexes optimize EVM queries:
+Key indexes that optimize EVM queries (defined on the domain models):
 
-- `ix_cost_registrations_cost_element_date` - Speeds up AC time-series
-- `ix_progress_entries_cost_element_reported_date` - Speeds up EV time-series
-- `ix_wbes_project_id` - Speeds up WBE aggregation for projects
+- `ix_cr_cost_element_id_current` / `ix_cr_cost_registration_id_current` — partial current-version indexes on `cost_registrations`, speed up AC lookups and time-series
+- `ix_work_packages_current_version` — partial current-version index on `work_packages`, speeds up Work Package batch resolution
+- `ix_wbs_elements_current_version` — partial current-version index on `wbs_elements`, speeds up WBS descendant expansion for Project/Control Account aggregation
 
 ---
 
@@ -476,7 +585,7 @@ The following indexes optimize EVM queries:
 
 ```json
 {
-  "detail": "Invalid request body: entity_type must be one of: cost_element, wbe, project"
+  "detail": "Invalid request body: Invalid entity_type: wbe"
 }
 ```
 
@@ -486,9 +595,11 @@ The API may return warning messages in the `warning` field:
 
 | Warning | Cause | Action |
 |---------|-------|--------|
-| `"No progress reported for this cost element"` | No progress entries exist | Create progress entry to enable EV calculation |
-| `"WBE has no child cost elements"` | WBE has no children | Add cost elements to WBE |
-| `"Project has no child WBEs"` | Project has no WBEs | Add WBEs to project |
+| `"No progress reported for this work package"` | No progress entries exist | Create a progress entry to enable EV calculation |
+| `"No work packages found for WBS Elements"` | WBS Element has no descendant Work Packages | Add Work Packages under the WBS tree |
+| `"No WBS Elements found for project"` | Project has no WBS Elements | Add WBS Elements to the project |
+| `"No 'project' data available as of <date>"` | Project exists but no version is valid as of `control_date` (pre-baseline) | Use a later `control_date`, or backdate the project version |
+| `"No 'wbe' data available as of <date>"` | WBS Element exists but no version is valid as of `control_date` | Use a later `control_date` |
 
 ---
 
@@ -528,3 +639,14 @@ The Swagger UI includes:
 - Added WBE and Project entity type support
 - Added time-travel query support
 - Added performance optimization (batch queries, database indexes)
+
+### 2026-07-01
+
+- **Corrected `entity_type` enum** (was the biggest source of `422`s): `wbe` removed; `wbs_element`, `control_account`, `work_package` added. Full set is now `cost_element`, `work_package`, `control_account`, `wbs_element`, `project`.
+- **Documented the 4-tier aggregation chain** (Project → WBS Element → Control Account → Work Package → Cost Element) with Work Package as the PMI budget holder where BAC/PV/AC/EV are computed.
+- **Fixed the batch aggregation rule**: indices (CPI/SPI/TCPI) are **re-derived from summed EV/AC/PV/BAC/EAC** (industry-standard "roll up, never average"), not BAC-weighted averages.
+- **Added `tcpi`** (`bac / eac`, defaults to `1.0` when EAC is missing/zero) to the metrics table and all response examples.
+- **Added the `GET /api/v1/evm/portfolio` endpoint** (cross-project rollup, `portfolio-read`, FX conversion, at-risk subset, O(1) batched resolution).
+- **Corrected pre-baseline behavior**: a missing-as-of-`control_date` version for `wbs_element`/`project` now returns `200` with empty zeroed metrics + warning (not `404`); `404` is reserved for genuinely-missing/unsupported types.
+- **Aligned `branch_mode` literals** with the `BranchMode` enum: `merged`/`isolated` (the old `merge`/`strict` were wrong). EVM route default is `MERGED`.
+- **RBAC notes**: `portfolio-read` for `/portfolio`; `/batch` with `entity_type=project` is membership-scoped (inaccessible project IDs silently dropped).

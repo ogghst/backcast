@@ -22,7 +22,7 @@ Documentation MUST be updated when:
 
 ### Code Changes
 1. **New Entity Created** → Update `01-bounded-contexts.md`, `glossary.md`
-2. **New API Endpoint** → Update `api-endpoints.md`
+2. **New API Endpoint** → Add/modify route in `backend/app/api/routes/`; the spec is auto-reflected in the live OpenAPI docs at `/docs`
 3. **New Error Code** → Update `error-codes.md`
 4. **New Configuration Option** → Update `configuration.md`
 5. **New Frontend Feature** → Update `frontend-features.md`

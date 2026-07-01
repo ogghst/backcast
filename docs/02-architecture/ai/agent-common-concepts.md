@@ -142,7 +142,7 @@ Conversation history is **not** loaded unbounded into every turn. `ContextGuardM
 
 The three knobs (`AI_CONTEXT_TOKEN_LIMIT`, `AI_CONTEXT_SUMMARY_THRESHOLD_PCT`, `AI_CONTEXT_KEEP_RECENT`) flow from `Settings`/`.env` and are re-exported from `ai/config.py` (~51-57). A `_MIN_MESSAGES_TO_TRIM` floor (~8 messages) prevents false positives on early turns where tool schemas dominate the token estimate.
 
-> Specialists are unaffected: each specialist receives an isolated message list built fresh on every invocation, so it never accumulates long history.
+> Specialists do not accumulate long cross-turn history (each receives an isolated message list built fresh on every invocation), but they **do** run their own `ContextGuardMiddleware` with a specialist-specific cap. The supervisor's `AI_CONTEXT_TOKEN_LIMIT` (120k) sits far above the latency knee a specialist hits, so the specialist guard is calibrated separately: `AI_SPECIALIST_CONTEXT_TOKEN_LIMIT=24000` with `AI_SPECIALIST_CONTEXT_KEEP_RECENT=4` (`config.py:68,74`), mounted with `preserve_head=2` so the assignment survives the trim (`subagent_compiler.py:200-208`).
 
 ### Graph Input Assembly
 
@@ -236,7 +236,7 @@ When specialists are invoked (via handoff tools), each specialist gets its own i
 
 - **Own system prompt** — domain-specific prompt from the specialist's `AIAssistantConfig` row.
 - **Own tool list** — filtered to the specialist's `allowed_tools` whitelist.
-- **Own middleware stack** — same `TemporalContextMiddleware` + `BackcastSecurityMiddleware`.
+- **Own middleware stack** — a specialist-specific `ContextGuardMiddleware` (much lower token cap, see below) followed by `SequentialToolCallsMiddleware` + `TemporalContextMiddleware` + `BackcastSecurityMiddleware` (see Section 6).
 - **Same `BackcastRuntimeContext`** — via `ContextVar`, so security context is preserved.
 
 The specialist receives the compiled briefing document as its only input (not raw message history). See [Supervisor > State Schema](./supervisor-orchestrator.md#3-state-schema) for the state layout.
@@ -287,8 +287,8 @@ Each tool is decorated with `@ai_tool` which attaches metadata: name, descriptio
 
 There are **two** distinct counts worth distinguishing — do not collapse them into one bare number:
 
-1. **Runtime tools** built by `create_project_tools()` (`tools/__init__.py:136-333`): the list the agent executes. With the current template set this is **92 tools** (the backcast-defined tools; MCP-discovered tools are appended on top when MCP servers are configured).
-2. **Registry-discovered tools** (~**92**) surfaced by the `GET /api/v1/ai/config/tools` endpoint (`ai_config.py` ~384-416). The endpoint calls `registry.discover_and_register(...)` across the same template modules (`registry.py` ~111) and returns `get_all_tools()` as `AIToolPublic` for the admin UI. The two counts are derived from the same template set, so they agree today; they are conceptually independent (one is the executable tool list, the other is the metadata catalog).
+1. **Runtime tools** built by `create_project_tools()` (`tools/__init__.py:136-333`): the list the agent executes. The count is **dynamic** — it depends on the current template set and is logged at tool-cache fill (`"Created and cached N tools for AI chat"`, `tools/__init__.py:342`); MCP-discovered tools are appended on top when MCP servers are configured.
+2. **Registry-discovered tools** surfaced by the `GET /api/v1/ai/config/tools` endpoint (`ai_config.py` ~384-416). The endpoint calls `registry.discover_and_register(...)` across the same template modules (`registry.py` ~111) and returns `get_all_tools()` as `AIToolPublic` for the admin UI. The two counts are derived from the same template set, so they agree today; they are conceptually independent (one is the executable tool list, the other is the metadata catalog).
 
 ### Filtering Chain
 
@@ -374,18 +374,26 @@ Specialist configs are loaded from the database via `ai/subagents/db_loader.py` 
 Compilation applies the same process:
 1. Filter tools by specialist's `allowed_tools` list (or use all available tools when `None`).
 2. Intersect with the main agent's tool whitelist (if configured).
-3. Apply the middleware stack: `TemporalContextMiddleware` + `BackcastSecurityMiddleware`.
+3. Apply the middleware stack: specialist-specific `ContextGuardMiddleware` (lower cap) + `build_backcast_middleware()` = `[SequentialToolCallsMiddleware?, TemporalContextMiddleware, BackcastSecurityMiddleware]`. `SequentialToolCallsMiddleware` is gated on `AI_SEQUENTIAL_TOOL_CALLS` (default true).
 4. Compile via `langchain_create_agent()` with the specialist's domain-specific system prompt.
 
 ---
 
 ## 6. Security Middleware Stack
 
-The supervisor orchestrator applies the same middleware stack to all agents (main, subagents, specialists):
+The supervisor orchestrator applies a shared base middleware stack to all agents (main, subagents, specialists) via `build_backcast_middleware()` (`subagent_compiler.py:86-108`):
 
 ```mermaid
 flowchart TD
     INC["Incoming Tool Call"]
+
+    subgraph MW0 ["0. SequentialToolCallsMiddleware  (specialists; if AI_SEQUENTIAL_TOOL_CALLS)"]
+        direction TB
+        SEQ1["Injects parallel_tool_calls=False into model_settings"]
+        SEQ2["Holds a shared asyncio.Lock around tool execution"]
+        SEQ3["Native langgraph v1 public API — replaced the deleted private-API ToolNode fork"]
+        SEQ1 --> SEQ2 --> SEQ3
+    end
 
     subgraph MW1 ["1. TemporalContextMiddleware"]
         direction TB
@@ -405,10 +413,12 @@ flowchart TD
 
     EXEC["Execute tool handler"]
 
-    INC --> MW1 --> MW2 --> EXEC
+    INC --> MW0 --> MW1 --> MW2 --> EXEC
 ```
 
 > The supervisor node additionally runs `ContextGuardMiddleware` (history trimming, see Section 3) and `PlanAwareToolMiddleware` before the base stack. See [Supervisor > The Supervisor Node](./supervisor-orchestrator.md#5-the-supervisor-node-and-system-prompt).
+>
+> Specialists prepend their **own** `ContextGuardMiddleware` (specialist-specific token cap, see Section 3) ahead of the base stack (`subagent_compiler.py:200-208`). `SequentialToolCallsMiddleware` is part of the shared base stack but only appended when `AI_SEQUENTIAL_TOOL_CALLS` is true (default true); it is a native langgraph v1 public-API middleware — `parallel_tool_calls=False` (emission control) plus a shared `asyncio.Lock` (execution serialization) — that replaced the deleted private-API `ToolNode` fork.
 
 ### Bypass Rules
 
@@ -565,15 +575,17 @@ The system always uses the supervisor orchestrator. The `OrchestratorMode` enum 
 | `ai/graph_cache.py` | `BackcastRuntimeContext`, `LLMClientCache`, `shared_checkpointer`, ContextVar helpers |
 | `ai/subagents/__init__.py` | Re-exports `load_specialists_from_db`, `invalidate_cache` (DB-only; no hardcoded fallback) |
 | `ai/subagents/db_loader.py` | `load_specialists_from_db()`, `assistant_config_to_specialist_dict()`: TTL-cached DB specialist loading (returns `[]` when DB is empty) |
+| `ai/subagent_compiler.py` | `build_backcast_middleware()`, `compile_subagents()`: assembles the specialist middleware stack (specialist `ContextGuardMiddleware` + base `[SequentialToolCallsMiddleware?, Temporal..., Backcast...]`) |
 | `ai/tools/__init__.py` | `create_project_tools()` (runtime tool list), `filter_tools_by_execution_mode()`, `filter_tools_by_role()` |
 | `ai/tools/registry.py` | Tool registry + `discover_and_register()`, `get_all_tools()` (surfaces `GET /api/v1/ai/config/tools`) |
 | `ai/tools/subagent_task.py` | `build_task_tool()`, `TASK_SYSTEM_PROMPT`, `TASK_TOOL_DESCRIPTION`, `_summarize_structured_output()` |
 | `ai/middleware/context_guard.py` | `ContextGuardMiddleware`: deterministic history trimming via briefing summary |
 | `ai/middleware/temporal_context.py` | `TemporalContextMiddleware`: injects temporal params into tool args |
 | `ai/middleware/backcast_security.py` | `BackcastSecurityMiddleware`: RBAC + risk checks + approval workflow |
+| `ai/middleware/sequential_tool_calls.py` | `SequentialToolCallsMiddleware`: native v1 public-API sequential tool execution (`parallel_tool_calls=False` + shared `asyncio.Lock`); replaced the deleted private-API `ToolNode` fork |
 | `ai/execution/agent_event_bus.py` | `AgentEventBus`: pub/sub with bounded log |
 | `ai/execution/runner_manager.py` | `RunnerManager`: execution_id → event_bus registry |
 | `ai/token_estimator.py` | Token usage estimation and accumulation |
 | `ai/telemetry.py` | OpenTelemetry integration for tracing |
 
-**Last Updated:** 2026-06-14
+**Last Updated:** 2026-07-01

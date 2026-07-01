@@ -35,7 +35,6 @@ Quick reference for finding architecture documents. Start here when working on t
 ├── README.md                     # This file - navigation index
 │
 ├── Root-Level Guides
-│   ├── api-endpoints.md                  # API endpoint reference
 │   ├── configuration.md                  # Configuration reference
 │   ├── error-codes.md                    # Error code catalog
 │   ├── migration-troubleshooting.md      # Migration issues & solutions
@@ -171,7 +170,7 @@ For the full index, see [`decisions/adr-index.md`](decisions/adr-index.md).
 
 | Topic | File |
 | ----- | ---- |
-| API endpoints | [`api-endpoints.md`](api-endpoints.md) |
+| API endpoints | Live OpenAPI: `/docs` (Swagger) · `/openapi.json` |
 | Code review checklist | [`code-review-checklist.md`](code-review-checklist.md) |
 | Error codes | [`error-codes.md`](error-codes.md) |
 | Configuration | [`configuration.md`](configuration.md) |

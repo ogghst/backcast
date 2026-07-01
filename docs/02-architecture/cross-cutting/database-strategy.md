@@ -1,6 +1,6 @@
 # Database Strategy
 
-**Last Updated:** 2025-12-29
+**Last Updated:** 2026-07-01
 
 ## ORM and Database Layer
 
@@ -33,11 +33,13 @@ All database operations use `AsyncSession` and `await` pattern for optimal concu
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
 engine = create_async_engine(
-    settings.DATABASE_URL,
-    echo=settings.DEBUG,
+    str(settings.ASYNC_DATABASE_URI),
+    echo=settings.LOG_LEVEL.upper() == "DEBUG",
     pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=20,
+    pool_size=20,
+    max_overflow=30,
+    pool_recycle=300,   # recycle connections before the DB/PGBouncer idle timeout
+    pool_timeout=30,
 )
 
 async_session_maker = async_sessionmaker(
@@ -48,6 +50,13 @@ async_session_maker = async_sessionmaker(
     autoflush=False,
 )
 ```
+
+The pool sizing (`pool_size=20, max_overflow=30` → 50-connection cap) and the
+`DB_CONCURRENCY_SEMAPHORE` (size 10, also in `session.py`) were tuned after a
+connection-pool-exhaustion incident; do not lower these without checking the
+`get_pool_status()` utilization metric. A task-local `tool_scoped_session_factory`
+(async_scoped_session on `asyncio.current_task`) exists for concurrent AI tool
+execution — LangGraph runs multiple tools per task and each needs its own session.
 
 ### Session Lifecycle
 
@@ -66,6 +75,12 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         finally:
             await session.close()
 ```
+
+> **Test gotcha:** because `get_db` commits on exit, the backend test `db` fixture
+> also commits — so data created by tests is visible to the ASGI client and persists
+> in the dev DB. Tests that create persistent rows MUST clean up (autouse
+> `@pytest_asyncio.fixture` deleting the ids, or a rolled-back session) or junk
+> accumulates. Async fixtures need `@pytest_asyncio.fixture`, not `@pytest.fixture`.
 
 ---
 
@@ -161,11 +176,16 @@ stmt = select(Model).limit(100).offset(skip)
 
 ### Required Indexes
 
-**Version Tables:**
+**Versioned Tables:**
 
-- `(head_id, valid_from)` - Time travel queries
-- `(head_id, branch)` - Branch filtering
-- `valid_to` - Active version filtering
+Versioned entities (Project, WBSElement, CostElement, WorkPackage, ChangeOrder,
+CustomEntityTemplate) use a **root ID** + `valid_time` TSTZRANGE column, not
+`head_id`/`valid_from`/`valid_to`:
+
+- `(root_id, branch)` — branch filtering + current-version lookup (the root ID is
+  `project_id`, `wbs_element_id`, `work_package_id`, etc.)
+- GIST on `valid_time` — time-travel / as-of queries
+- GIST on `transaction_time` — audit-history queries
 
 **Standard Tables:**
 
@@ -193,7 +213,7 @@ stmt = select(Model).limit(100).offset(skip)
 **Check Constraints:**
 
 - Enforce business rules at DB level where possible
-- Example: `CHECK (valid_from < valid_to OR valid_to IS NULL)`
+- Example (range bounds): `CHECK (lower(valid_time) < upper(valid_time))`
 
 **Unique Constraints:**
 
@@ -245,8 +265,8 @@ transaction_time TSTZRANGE NOT NULL DEFAULT tstzrange(NOW(), NOW(), '[]')
 ### Current Version Query Pattern
 
 ```sql
-SELECT * FROM entity_versions
-WHERE entity_id = :id
+SELECT * FROM projects
+WHERE project_id = :root_id         -- root ID, not per-version id
   AND branch = :branch
   AND valid_time @> NOW()::timestamptz
   AND transaction_time @> NOW()::timestamptz
@@ -264,10 +284,13 @@ GIST indexes are **required** for efficient range queries:
 CREATE INDEX ix_{table}_valid_gist ON {table} USING GIST (valid_time);
 CREATE INDEX ix_{table}_tx_gist ON {table} USING GIST (transaction_time);
 
--- Partial unique index: one current version per entity per branch
-CREATE UNIQUE INDEX uq_{table}_current ON {table} (entity_id, branch)
+-- C1 partial unique index: the EVCS "one current version per (root, branch)"
+-- invariant. Note: root_id (NOT entity_id) and NO transaction_time clause —
+-- ADR-005's upper(transaction_time) IS NULL is intentionally deferred (frozen
+-- decision C1). Mirrored in each model's __table_args__ and in migration
+-- c93e9767de59.
+CREATE UNIQUE INDEX ix_{table}_current_version ON {table} (root_id, branch)
 WHERE upper(valid_time) IS NULL
-  AND upper(transaction_time) IS NULL
   AND deleted_at IS NULL;
 ```
 
@@ -276,8 +299,8 @@ WHERE upper(valid_time) IS NULL
 Query entity state at a specific point in time:
 
 ```sql
-SELECT * FROM entity_versions
-WHERE entity_id = :id
+SELECT * FROM projects
+WHERE project_id = :root_id
   AND branch = :branch
   AND valid_time @> :as_of_time::timestamptz
   AND transaction_time @> :as_of_time::timestamptz
@@ -303,6 +326,64 @@ stmt = select(Entity).where(
     Entity.valid_time.op("@>")(func.now())
 )
 ```
+
+### Custom Fields (JSONB)
+
+Admin-defined custom fields ride EVCS for free — no EAV table. Each branchable
+entity (`projects`, `wbs_elements`, `work_packages`, `change_orders`) carries
+three nullable JSONB/UUID columns added in migration `c93e9767de59`:
+
+- `custom_fields JSONB` — `{field_code: value}` dict, validated against the
+  entity's `CustomEntityTemplate`. Rides `clone()` / `UpdateCommand` like any
+  other column, so it versions/branches automatically.
+- `custom_entity_template_root_id UUID` — root ID of the template the values
+  were validated against.
+- `custom_field_definitions_snapshot JSONB` — point-in-time snapshot of the
+  field definitions, so historical versions stay interpretable after the
+  template is edited.
+
+The same migration applies the **C1 unique partial index** per branchable table
+(see [GIST Indexing](#gist-indexing-for-ranges) above). `custom_entity_templates`
+itself (the template registry) is Versionable but NOT branchable, org-scoped —
+its C1 index is single-column on `custom_entity_template_id`.
+
+### ORM UUID Convention
+
+UUID columns use `Mapped[UUID]` (stdlib `uuid.UUID`) with the
+`sqlalchemy.dialects.postgresql.UUID` (`PG_UUID`) type:
+
+```python
+from uuid import UUID
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.orm import Mapped, mapped_column
+
+project_id: Mapped[UUID] = mapped_column(PG_UUID, nullable=False, index=True)
+```
+
+`PG_UUID` returns `uuid.UUID` objects at runtime (`as_uuid=True` default).
+**Use the ORM attribute directly — never wrap it in `UUID(field)`** (raises
+`AttributeError` because `uuid.UUID` has no `.hex`-style attributes the wrapper
+expects). The EVCS/AI modules are unified on `Mapped[UUID]`.
+
+> **Legacy debt:** a handful of older models still declare UUID columns as
+> `Mapped[str]` with `PG_UUID` (e.g. `documents`, `document_version`,
+> `document_folder`, `document_entity_link`, `schedule_dependency`, and
+> `started_at`/`completed_at` on the AI execution model are `Mapped[str]` over
+> `DateTime`). These return `str` at runtime — convert at the boundary. Do not
+> propagate the pattern to new models.
+
+### Project Portfolio Attribution
+
+`Project` carries nullable root-ID portfolio FKs (no DB-level constraint —
+integrity is app-level per the EVCS root-ID convention, see ADR-005):
+
+- `organizational_unit_id` — org unit owning the project
+- `project_manager_id` — PM user root ID
+- `customer_id` — customer root ID
+
+A GLOBAL organizational unit
+(`00000000-0000-4000-8000-00000000fffd`) is seeded so projects without an
+explicit org unit still resolve; custom-field templates are seeded against it.
 
 ### Related Documentation
 

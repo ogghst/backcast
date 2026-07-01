@@ -1,6 +1,6 @@
 # AI Chat Developer Guide
 
-**Last Updated:** 2026-06-14
+**Last Updated:** 2026-07-01
 **Status:** Active (canonical — kept by design)
 
 End-to-end integration reference for the Backcast AI chat system: connection lifecycle, decoupled execution, approval / human-in-the-loop flow, sequence diagrams, and debugging.
@@ -81,10 +81,10 @@ Browser (React)                          Backend (FastAPI)
 
 | Path | When Used | Description |
 |------|-----------|-------------|
-| **Supervisor Orchestrator** (primary) | Default path | Parent `StateGraph(BackcastSupervisorState)` built by `SupervisorOrchestrator.create_supervisor_graph()`: supervisor node + specialist function nodes + handoff tools. Main agents can use configured `direct_tools` directly. |
-| **StateGraph fallback** | Supervisor unavailable (e.g. import error) or no specialists | Direct LangGraph `StateGraph(AgentState)` with agent node, tool node, and conditional edges. Iteration cap is `max_tool_iterations` in agent state (docstring example default 5). |
+| **Supervisor Orchestrator** (primary) | Default path (specialists compiled) | Parent `StateGraph(BackcastSupervisorState)` built by `SupervisorOrchestrator.create_supervisor_graph()`: supervisor node + specialist function nodes + handoff tools. Main agents can use configured `direct_tools` directly. |
+| **Direct-agent fallback** | No specialists compiled (DB load failed, or all filtered out) | `SupervisorOrchestrator._build_fallback_graph()` returns a plain `langchain_create_agent(model, tools, system_prompt, middleware, ...)` — a single agent with direct tool access and the same middleware stack (no hand-built `StateGraph` / tool-node selection). |
 
-The primary path is created in `agent_service._create_deep_agent_graph()` (`agent_service.py:557`), which delegates graph compilation to `SupervisorOrchestrator.create_supervisor_graph()` (`supervisor_orchestrator.py:323`). On `ImportError` or other compile failure it falls back to `graph.create_graph()` (`graph.py:148`). Specialist graphs are compiled by `compile_subagents()` in `app/ai/subagent_compiler.py:98`.
+The primary path is created in `agent_service._create_deep_agent_graph()` (`agent_service.py:557`), which delegates graph compilation to `SupervisorOrchestrator.create_supervisor_graph()` (`supervisor_orchestrator.py:802`). When no valid specialist is compiled (`supervisor_orchestrator.py:851`), it falls back to `_build_fallback_graph()` (`supervisor_orchestrator.py:1900`). Specialist graphs are compiled by `compile_subagents()` in `app/ai/subagent_compiler.py:98`.
 
 ### Core Components
 
@@ -250,6 +250,7 @@ The `sendMessage()` function handles non-OPEN states by force-closing stale conn
 | `branch_name` | string | no | `"main"` default |
 | `branch_mode` | string | no | `"merged"` or `"isolated"` |
 | `execution_mode` | string | no | `"safe"`, `"standard"` (default), or `"expert"` |
+| `run_in_background` | bool | no | `false` default. When `true` the execution survives a WebSocket disconnect (no grace-stop on last-observer detach), appears on the **Agents History** page, and can be stopped via the Stop endpoint. See [§ Background Execution](#5-decoupled-execution) and `WSChatRequest.run_in_background` (`schemas/ai.py`). |
 
 ### Session Creation
 
@@ -375,7 +376,7 @@ The system uses a single orchestration pattern:
 
 **SupervisorOrchestrator** (`supervisor_orchestrator.py`): Builds a parent `StateGraph(BackcastSupervisorState)` where the supervisor routes to specialist agents via handoff tools (`handoff_to_{agent_name}`). Each specialist is a function node that runs in isolation with the compiled briefing document. The supervisor can also use configured **direct tools** from the main agent's `delegation_config.direct_tools` (e.g., `get_temporal_context`, `set_temporal_context`, `global_search`).
 
-Specialists are loaded from the database (`ai_assistant_configs` where `agent_type='specialist'`) via `subagents/db_loader.py:load_specialists_from_db()` with a TTL cache. There is **no hardcoded fallback config**: if the DB returns no specialists (or all are filtered out), the system falls back to the StateGraph path.
+Specialists are loaded from the database (`ai_assistant_configs` where `agent_type='specialist'`) via `subagents/db_loader.py:load_specialists_from_db()` with a TTL cache. There is **no hardcoded fallback config**: if the DB returns no specialists (or all are filtered out), the system falls back to the direct-agent path (`_build_fallback_graph()`, a single agent with direct tools).
 
 ```
 1. create_project_tools(context)     -> dynamic tool list (12 template modules + _pagination)
@@ -441,7 +442,7 @@ This means middleware baked into a cached graph at compile time still gets fresh
 
 ### Specialists (DB-Configurable)
 
-Specialists are stored in `ai_assistant_configs` with `agent_type='specialist'` and loaded via `subagents/db_loader.py:load_specialists_from_db()`. The set is fully DB-driven (seeded from `backend/seed/ai_specialist_configs.json`); there is no hardcoded specialist list in code. Typical seeded specialists:
+Specialists are stored in `ai_assistant_configs` with `agent_type='specialist'` and loaded via `subagents/db_loader.py:load_specialists_from_db()`. The set is fully DB-driven (seeded from the `ai_specialist_configs` section of `backend/seed/seed_system_config.json`); there is no hardcoded specialist list in code. Typical seeded specialists:
 
 | Specialist | Purpose | Key Tools |
 |----------|---------|-----------|
@@ -545,31 +546,32 @@ Three AI-specific roles control tool access:
 
 The assistant's `default_role` field determines which role is used for filtering. This role is applied AFTER execution mode filtering and BEFORE subagent compilation, so subagents also inherit the role restriction.
 
-### StateGraph Fallback
+### Direct-Agent Fallback
 
-When the supervisor path is unavailable (import error, no specialists compiled, or all filtered out), the system falls back to `graph.py:create_graph()`:
+When the supervisor path produces no specialists (DB load failed, or all specialists filtered out by `delegation_config.allowed_specialists`), `create_supervisor_graph()` falls back to `SupervisorOrchestrator._build_fallback_graph()` (`supervisor_orchestrator.py:1900`, triggered at `:851`). This is **not** a hand-built `StateGraph` with tool-node selection — it is a single LangChain native agent with direct tool access:
 
+```python
+return langchain_create_agent(
+    model=self.model,
+    tools=all_tools,
+    system_prompt=base_prompt,            # supervisor prompt (+ enforcement section)
+    middleware=self._build_middleware(all_tools),  # same middleware stack as the supervisor
+    checkpointer=config.checkpointer,
+    context_schema=config.context_schema,
+)
 ```
-StateGraph(AgentState)
-    entry_point -> "agent"
-    "agent" --[has tool_calls]--> "tools"
-    "agent" --[no tool_calls]--> END
-    "tools" --------------------> "agent"  (loop back)
 
-Iteration cap: max_tool_iterations (agent state field; docstring example default 5)
+Key properties:
 
-Returns: (compiled_graph, interrupt_node) tuple
-```
-
-Tool node selection:
-- With context + websocket + session_id -> `InterruptNode` (approval support)
-- With context only -> `RBACToolNode` (permission checks)
-- No context -> `ToolNode` (basic)
+- **Same middleware stack** as the supervisor path (`_build_middleware`), so RBAC (`BackcastSecurityMiddleware`), temporal context, briefing context, and plan-aware tool handling all still apply.
+- **Same `InterruptNode`** registration for HIGH-risk approval — approval is wired through middleware, not a separate tool node.
+- **Sequential tool calls** enforced by `SequentialToolCallsMiddleware` (`parallel_tool_calls=False` + lock), not by a hand-built tool loop.
+- **No handoff tools** — the lone agent runs all tools directly (logged: `Building fallback graph with direct tool access`).
+- The old deleted artifacts (`graph.py:create_graph`, `RBACToolNode`, `risk_check_node`, `max_tool_iterations` state field) no longer exist; tool-node selection by context presence is gone.
 
 > **Recursion limit.** The per-request `recursion_limit` passed to `astream_events`
 > defaults to **25** (`agent_service.py:860-862`) and is configurable per assistant via
-> `assistant_config.recursion_limit`. This is distinct from the StateGraph-fallback
-> `max_tool_iterations` state field.
+> `assistant_config.recursion_limit`.
 
 ---
 
@@ -1142,11 +1144,10 @@ docker compose -f backend/docker/phoenix.docker-compose.yml up -d
 |------|---------|
 | `backend/app/api/routes/ai_chat.py` | WebSocket endpoint `chat_stream()` at `/stream`, REST endpoints (`/invoke`, `/executions/*`), auth, message dispatch, subscribe handling |
 | `backend/app/ai/agent_service.py` | Main orchestration: `_create_deep_agent_graph()` (557), `_run_agent_graph()` (1722), `_process_stream_events()` (1412), `start_execution()` (2001), approval registration, history building |
-| `backend/app/ai/supervisor_orchestrator.py` | `SupervisorOrchestrator` — handoff-based delegation via parent StateGraph with direct tool support and DB specialist loading |
+| `backend/app/ai/supervisor_orchestrator.py` | `SupervisorOrchestrator` — handoff-based delegation via parent StateGraph with direct tool support and DB specialist loading; also owns the direct-agent fallback `_build_fallback_graph()` (`:1900`) used when no specialists compile |
 | `backend/app/ai/supervisor_state.py` | `BackcastSupervisorState` — shared state schema for supervisor graph (messages, active_agent, tool_call_count) |
 | `backend/app/ai/handoff_tools.py` | `create_handoff_tool()` / `create_all_handoff_tools()` — handoff tools using `Command(goto=...)` for specialist routing |
 | `backend/app/ai/graph_cache.py` | Caching infrastructure: `LLMClientCache`, `CompiledGraphCache`, `GraphCacheKey`, `BackcastRuntimeContext`, shared checkpointer, ContextVar helpers |
-| `backend/app/ai/graph.py` | `create_graph()` — StateGraph fallback (no specialists) |
 | `backend/app/ai/state.py` | `AgentState` TypedDict (messages, tool_call_count, max_tool_iterations, next) |
 
 ### Execution Architecture
@@ -1176,12 +1177,10 @@ docker compose -f backend/docker/phoenix.docker-compose.yml up -d
 | `backend/app/ai/tools/__init__.py` | `create_project_tools()` factory (dynamic tool count), `filter_tools_by_execution_mode()`, `filter_tools_by_role()` |
 | `backend/app/ai/tools/types.py` | `ToolContext`, `ToolMetadata`, `RiskLevel`, `ExecutionMode` |
 | `backend/app/ai/tools/decorator.py` | `@ai_tool` decorator for tool registration with metadata |
-| `backend/app/ai/tools/interrupt_node.py` | `InterruptNode` — approval request/response via WebSocket |
-| `backend/app/ai/tools/rbac_tool_node.py` | `RBACToolNode` — permission-aware tool node (StateGraph path) |
+| `backend/app/ai/tools/interrupt_node.py` | `InterruptNode` — approval request/response via WebSocket (survived the langgraph-prebuilt 1.x fix; approval is now wired through `BackcastSecurityMiddleware`, not a separate tool node) |
 | `backend/app/ai/tools/subagent_task.py` | `build_task_tool()`, `TASK_SYSTEM_PROMPT` — task tool for subagent delegation |
 | `backend/app/ai/tools/session_manager.py` | `ToolSessionManager` — task-local DB sessions for concurrent tool execution |
 | `backend/app/ai/tools/approval_audit.py` | Approval audit trail logging |
-| `backend/app/ai/tools/risk_check_node.py` | Standalone risk checking node |
 | `backend/app/ai/tools/templates/` | Tool template modules: 12 functional templates (project, wbe, cost_element, cost_event, cost_event_type, change_order, forecast_cost_progress, control_account, work_package, analysis, advanced_analysis, diagram) + `_pagination` shared helper |
 
 ### Middleware

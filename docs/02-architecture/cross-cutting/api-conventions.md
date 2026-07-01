@@ -1,6 +1,6 @@
 # API Conventions
 
-**Last Updated:** 2026-03-02
+**Last Updated:** 2026-07-01
 
 > **Scope:** This is the authoritative reference for **protocol-level API patterns** in Backcast.
 >
@@ -13,7 +13,7 @@
 >
 > **For detailed response patterns** (paginated vs. array responses, server-side filtering implementation, frontend integration), see [API Response Patterns](./api-response-patterns.md).
 >
-> **For a complete endpoint catalog**, see [API Endpoints Reference](../api-endpoints.md) or the live OpenAPI docs at `/docs`.
+> **For a complete endpoint catalog**, see the live OpenAPI docs at `/docs` (Swagger UI) or `/openapi.json` (raw spec).
 
 ---
 
@@ -99,16 +99,19 @@ Avoid deep nesting; use query parameters instead:
 }
 ```
 
-**Collection:**
+**Collection (paginated endpoints):**
 
 ```json
 {
   "items": [...],
   "total": 150,
   "page": 1,
-  "per_page": 50
+  "per_page": 20,
+  "pages": 8
 }
 ```
+
+> The pagination envelope is `PaginatedResponse[T]` (`app/models/schemas/common.py`), which adds a derived `pages` field. Non-paginated list endpoints (e.g. history) return a bare JSON array.
 
 ---
 
@@ -117,14 +120,13 @@ Avoid deep nesting; use query parameters instead:
 ### Query Parameters
 
 - `page`: Page number (1-indexed, default: 1)
-- `per_page`: Number of items per page (default: 50, max: 100)
+- `per_page`: Number of items per page (default: 20, minimum: 1; no enforced maximum)
 
-### Response Headers
+> A handful of routes (notably `GET /api/v1/users` and AI chat history) expose the lower-level `skip`/`limit` pair instead; both schemes compute the same offset (`skip = (page - 1) * per_page`) at the service layer.
 
-```
-X-Total-Count: 150
-Link: </api/v1/users?page=2&per_page=50>; rel="next"
-```
+### Response Body
+
+Pagination metadata is returned **in the response body** as part of the `PaginatedResponse[T]` envelope (`items`, `total`, `page`, `per_page`, derived `pages`). There are no pagination-related response headers — `X-Total-Count` and `Link` are **not** emitted.
 
 ---
 
@@ -291,22 +293,27 @@ WHERE valid_time @> '2025-03-01T12:00:00Z'::timestamp
 
 ### Standard Error Structure
 
+The error body is a single `detail` field. For most errors `detail` is a string:
+
 ```json
 {
-  "detail": "User not found",
-  "error_code": "USER_NOT_FOUND",
-  "timestamp": "2025-01-15T10:30:00Z"
+  "detail": "User not found"
 }
 ```
 
+Some handlers add structured keys alongside `detail`. For example, a locked branch returns 403 with `detail`, `branch`, `entity_type`, `entity_id`; a database transaction error returns 500 with `detail` and `error_type: "transaction_error"`.
+
 ### Validation Errors
+
+Request validation failures (422) return `detail` plus an `errors` array of `{field, message, type}` objects:
 
 ```json
 {
-  "detail": [
+  "detail": "Validation error",
+  "errors": [
     {
-      "loc": ["body", "email"],
-      "msg": "Invalid email format",
+      "field": "body -> email",
+      "message": "Invalid email format",
       "type": "value_error.email"
     }
   ]
@@ -325,8 +332,8 @@ Authorization: Bearer <jwt_token>
 
 ### Token Lifetime
 
-- Access tokens: 30 minutes
-- Refresh tokens: 7 days (future enhancement)
+- Access tokens: 60 minutes (`ACCESS_TOKEN_EXPIRE_MINUTES`)
+- Refresh tokens: 30 days (`REFRESH_TOKEN_EXPIRE_DAYS`) — refresh via `POST /api/v1/auth/refresh`
 
 ---
 
@@ -362,8 +369,10 @@ X-RateLimit-Reset: 1610715600
 
 ### Allowed Origins
 
-- Development: `http://localhost:3000`
-- Production: `https://app.example.com`
+Origins are configured via the `BACKEND_CORS_ORIGINS` setting (`app/core/config.py`, sourced from `.env`). Typical values:
+
+- Development: `http://localhost:5173` (Vite dev server) — additional local/LAN ports (e.g. `:3000`, `:4173`, `192.168.1.15:5173`) are also allowed in the dev env.
+- Production: served under `*.backcast.duckdns.org` (via the reverse proxy; `BACKEND_CORS_ORIGINS` is set per environment).
 
 ### Allowed Methods
 
@@ -386,8 +395,10 @@ Content-Type, Authorization, X-Requested-With
 FastAPI automatically generates:
 
 - OpenAPI 3.0 spec at `/api/v1/openapi.json`
-- Interactive docs at `/api/v1/docs` (Swagger UI)
-- ReDoc at `/api/v1/redoc`
+- Interactive docs at `/docs` (Swagger UI)
+- ReDoc at `/redoc`
+
+> The OpenAPI JSON is mounted under the API prefix (`openapi_url=f"{API_V1_STR}/openapi.json"` in `app/main.py`); the Swagger and ReDoc UIs are mounted at the application root by FastAPI.
 
 ### Documentation Standards
 

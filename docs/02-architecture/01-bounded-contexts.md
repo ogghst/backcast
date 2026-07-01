@@ -39,7 +39,7 @@ This document defines the bounded contexts used to partition the Backcast  syste
 **Key Files:**
 
 - `app/core/security.py` - JWT handling, password hashing (Argon2)
-- `app/api/v1/auth.py` - Login endpoint, token refresh
+- `app/api/routes/auth.py` - Login endpoint, token refresh
 - `app/services/rbac.py` - Permission checking, role enforcement
 
 ---
@@ -74,7 +74,7 @@ This document defines the bounded contexts used to partition the Backcast  syste
 
 - `app/models/domain/user.py` - User model, Role enum
 - `app/services/user.py` - UserService, user history tracking
-- `app/api/v1/users.py` - User endpoints, RBAC enforcement
+- `app/api/routes/users.py` - User endpoints, RBAC enforcement
 
 ---
 
@@ -200,16 +200,29 @@ Cost Elements are the leaf level of the project hierarchy where budgets are allo
 
 ### 8. EVM Calculations & Reporting
 
-**Responsibility:** Planned Value, Earned Value, Actual Cost, performance indices, variance analysis
+**Responsibility:** Planned Value, Earned Value, Actual Cost, performance indices, variance analysis, portfolio-level rollup
 **Owner:** Backend Team
-**Status:** Planned
+**Status:** ✅ Implemented
+**Versioning:** Read-only aggregation over EVCS-valid-time actuals (as-of cuts via bitemporal queries)
 
 **Key Calculations:**
 
-- PV = BAC × % Planned Completion (using schedule registrations)
-- EV = BAC × % Physical Completion
-- AC = Sum of cost registrations
+- PV = BAC × % Planned Completion (using schedule baselines)
+- EV = BAC × % Physical Completion (progress entries)
+- AC = Sum of cost registrations (as-of valid_time)
 - CPI, SPI, TCPI, CV, SV, VAC
+
+**Key Endpoints:** (mounted at `/api/v1/evm`)
+
+- `GET /portfolio` — portfolio-level EVM rollup across the caller's accessible projects (`portfolio-read` RBAC)
+- `GET /{entity_type}/{entity_id}/metrics` — single-entity EVM metrics (project/wbs-element/cost-element)
+- `GET /{entity_type}/{entity_id}/timeseries` — EVM metric time series
+- `POST /batch` — batch metrics for multiple entities
+
+**Key Files:**
+
+- `app/services/evm_service.py` - EVM calculation engine
+- `app/api/routes/evm.py` - EVM endpoints (portfolio, metrics, timeseries, batch)
 
 **Documentation:** [EVM Requirements](../../01-product-scope/evm-requirements.md)
 
@@ -317,8 +330,12 @@ AI/ML Integration provides a conversational AI interface built on LangGraph, ena
 - `backend/app/api/routes/ai_chat.py` - Chat endpoints with WebSocket streaming
 - `backend/app/api/routes/ai_upload.py` - Image/file upload endpoints
 - `backend/app/api/routes/ai_config.py` - AI configuration management
+- `backend/app/api/routes/agent_schedules.py` - Cron-based agent scheduling endpoints (`/api/v1/ai/agent-schedules`)
+- `backend/app/api/routes/mcp_servers.py` - MCP (Model Context Protocol) server registry endpoints (`/api/v1/mcp/servers`)
 - `backend/app/models/domain/ai.py` - AI entities (sessions, messages, attachments)
 - `backend/app/services/ai_config_service.py` - AI configuration service
+- `backend/app/services/agent_schedule_service.py` - Agent schedule lifecycle + cron trigger service
+- `backend/app/services/mcp_server_service.py` - MCP server config CRUD + encrypted credential storage
 - `frontend/src/features/ai/chat/` - React chat interface components
 - `frontend/src/hooks/navigation/` - Navigation abstraction hooks
 
@@ -341,18 +358,15 @@ AI/ML Integration provides a conversational AI interface built on LangGraph, ena
 
 **Responsibility:** Generate standard and custom reports from project data
 **Owner:** Backend Team
-**Status:** Planned
+**Status:** Not yet built (report generation, scheduling, and export remain planned)
 **Versioning:** Not versioned (read-only aggregation)
 
 **Description:**
-Reporting & Analytics provides comprehensive reporting capabilities across all bounded contexts without modifying source data.
+Reporting & Analytics provides comprehensive reporting capabilities across all bounded contexts without modifying source data. Interactive dashboards are served today via the **Dashboard & Widget Layouts** context (section 13); the entities below are the not-yet-built report-generation layer.
 
-**Key Entities:**
-
-- `ReportTemplate` - Reusable report definitions (name, query_spec, format)
-- `ReportSchedule` - Automated report generation (frequency, recipients)
-- `ReportInstance` - Generated report tracking (created_at, status, file_url)
-- `DashboardConfiguration` - User dashboard settings (widgets, layout, filters)
+> [!NOTE]
+> The following entities are **planned, not implemented** — no model/service/route exists for them yet:
+> `ReportTemplate`, `ReportSchedule`, `ReportInstance`. (`DashboardConfiguration` is superseded by the live `DashboardLayout` model — see section 13.)
 
 **Key Responsibilities:**
 
@@ -384,33 +398,28 @@ Reporting & Analytics provides comprehensive reporting capabilities across all b
 
 **Responsibility:** Aggregate and analyze data across multiple projects for executive oversight
 **Owner:** Backend Team
-**Status:** Planned
+**Status:** ✅ Implemented (no dedicated entity — exposed as EVM endpoints + dashboard layout discriminator)
 **Versioning:** Not versioned (aggregated view)
 
 **Description:**
-Portfolio Management enables executive-level oversight by aggregating data across 50+ concurrent projects.
+Portfolio Management provides executive-level oversight by aggregating data across the caller's accessible projects. Backcast is project-scoped (no `Portfolio` table); portfolio views are computed live and surfaced through two mechanisms:
 
-**Key Entities:**
+1. **EVM rollup** — `GET /api/v1/evm/portfolio` aggregates CPI/SPI/VAC/EAC/BAC/TCPI across RBAC-accessible projects.
+2. **Portfolio-scoped dashboard layouts** — `DashboardLayout.scope = "portfolio"` (vs `"project"`) plus an optional `role` tag selects which portfolio template defaults to a given role.
 
-- `Portfolio` - Project groupings (name, description, project_ids)
-- `PortfolioMetric` - Aggregated measurements (metric_name, value, calculated_at)
-- `ResourceAllocation` - Cross-project resources (resource_id, project_allocations)
-- `ExecutiveDashboard` - Portfolio view configuration (widgets, kpis, filters)
+**Key Endpoints / Models:**
 
-**Key Responsibilities:**
+- `GET /api/v1/evm/portfolio` — portfolio EVM rollup (`portfolio-read` RBAC; see section 8)
+- `DashboardLayout` columns: `scope` (`"project"` | `"portfolio"`), `role` (role-tagged portfolio templates), `is_template`, `is_default` (see section 13)
 
-- Aggregate metrics across 50+ concurrent projects
-- Provide portfolio-level performance dashboards
-- Support multi-project resource allocation
-- Generate executive summary reports
-- Track portfolio-wide trends and benchmarks
-- Enable project comparison and ranking
+> [!NOTE]
+> Earlier iterations of this doc listed phantom entities `Portfolio`, `PortfolioMetric`, `ResourceAllocation`, and `ExecutiveDashboard`. **None of these exist as code** — portfolio is a view, not a persisted entity. Project groupings / resource allocation remain out of scope.
 
 **Dependencies:**
 
 - All bounded contexts (data aggregation)
 - Reporting & Analytics (portfolio reports)
-- Authentication & Authorization (executive access)
+- Authentication & Authorization (`portfolio-read` for executive access)
 
 **Boundaries:**
 
@@ -419,6 +428,152 @@ Portfolio Management enables executive-level oversight by aggregating data acros
 - Does NOT make project-level decisions
 
 **Documentation:** [Functional Requirements Section 17](../../01-product-scope/functional-requirements.md#17-performance-and-scalability-requirements)
+
+---
+
+### 13. Dashboard & Widget Layouts
+
+**Responsibility:** Composable dashboard grid, user/project/portfolio layouts, reusable templates
+**Owner:** Backend Team
+**Status:** ✅ Implemented
+**Versioning:** Simple entities (not versioned)
+
+**Description:**
+Persisted dashboard compositions built on `react-grid-layout`. Layouts are scoped per user and per project, or global (portfolio). Templates are role-tagged for default rollout.
+
+**Key Entities:**
+
+- `DashboardLayout` - Persisted layout (widgets, layout config)
+  - `scope`: `"project"` | `"portfolio"` discriminator
+  - `role`: role tag for portfolio templates
+  - `is_template`, `is_default` flags
+
+**Key Files:**
+
+- `app/models/domain/dashboard_layout.py` - DashboardLayout model (scope/role/is_template)
+- `app/services/dashboard_service.py` - Dashboard composition service
+- `app/services/dashboard_layout_service.py` - Layout CRUD + template management
+- `app/api/routes/dashboard.py` - Dashboard endpoints
+- `app/api/routes/dashboard_layouts.py` - Layout endpoints
+
+---
+
+### 14. Unified Notifications
+
+**Responsibility:** Single pub/sub notification funnel with pluggable channels (in-app WebSocket + Telegram)
+**Owner:** Backend Team
+**Status:** ✅ Implemented
+**Versioning:** Simple entities (not versioned)
+
+**Description:**
+`NotificationDispatcher` is the single funnel for all domain events (change orders, agents, broadcasts). Delivery is deferred to after-commit to avoid FK races. Channels include in-app WebSocket and Telegram (bot deep-link linking).
+
+**Key Entities:**
+
+- `Notification` - Notification record
+- `NotificationDelivery` - Per-channel delivery tracking
+- `UserNotificationPreference` - Per-user channel/category preferences
+- `TelegramAccount` - Telegram user link
+
+**Key Files:**
+
+- `app/models/domain/notification.py` - Notification model
+- `app/models/domain/notification_delivery.py` - Delivery model
+- `app/models/domain/notification_preference.py` - Preference model
+- `app/models/domain/telegram_account.py` - Telegram link model
+- `app/services/notification_service.py` - NotificationDispatcher + emission
+- `app/services/notification_preference_service.py` - Preference CRUD
+- `app/services/telegram_link_service.py` - Telegram linking flow
+- `app/api/routes/notifications.py` - Notification endpoints
+
+---
+
+### 15. Custom Fields
+
+**Responsibility:** Admin-defined custom entity templates with typed, queryable JSONB field values
+**Owner:** Backend Team
+**Status:** ✅ Implemented (Phase 0+1; field queryability/indexes in progress)
+**Versioning:** Templates ride EVCS clone(); per-version values stored in JSONB `custom_fields` dict
+
+**Description:**
+`CustomEntityTemplate` defines a set of typed field definitions (object-oriented field classes). Values are stored as a JSONB `custom_fields` dict on each versioned entity row, riding EVCS `clone()`/`UpdateCommand` for free versioning. `ai_visible` gates LLM exposure; `searchable` gates global-search inclusion.
+
+**Key Entities:**
+
+- `CustomEntityTemplate` - Admin template (branchable)
+- Field definition OO package - Typed field classes (string/number/date/enum/...)
+
+**Key Files:**
+
+- `app/models/custom_fields/` - Field definition OO package (`base.py`, `fields.py`, `registry.py`)
+- `app/models/domain/custom_entity_template.py` - CustomEntityTemplate model
+- `app/services/custom_entity_template_service.py` - Template service
+- `app/services/custom_field_service.py` - Field definition service
+- `app/api/routes/custom_entity_templates.py` - Template endpoints (`/api/v1/custom-entity-templates`)
+
+---
+
+### 16. Global Search
+
+**Responsibility:** Cross-entity text search with FilterParser (incl. JSONB custom-field filter/sort)
+**Owner:** Backend Team
+**Status:** ✅ Implemented
+**Versioning:** Read-only over current versions
+
+**Key Files:**
+
+- `app/services/global_search_service.py` - Search + FilterParser
+- `app/api/routes/search.py` - Search endpoint
+
+---
+
+### 17. Documents
+
+**Responsibility:** Document upload, metadata, folder hierarchy, processing/extraction
+**Owner:** Backend Team
+**Status:** ✅ Implemented
+**Versioning:** Simple entities (not versioned)
+
+**Key Files:**
+
+- `app/services/document_service.py` - Document CRUD
+- `app/services/document_folder_service.py` - Folder hierarchy
+- `app/services/document_processing_service.py` - Extraction/processing
+- `app/api/routes/documents.py` - Document endpoints
+
+---
+
+### 18. MCP (Model Context Protocol) Servers
+
+**Responsibility:** Registry of external MCP servers for AI tool integration, with encrypted config
+**Owner:** Backend Team
+**Status:** ✅ Implemented
+**Versioning:** Simple entity (not versioned)
+
+**Description:**
+Admins register MCP servers (with encrypted credentials via Fernet) so the AI agent subsystem can connect to external tool sources.
+
+**Key Files:**
+
+- `app/services/mcp_server_service.py` - MCPServerService (CRUD + encrypt/decrypt config)
+- `app/api/routes/mcp_servers.py` - MCP server endpoints (`/api/v1/mcp/servers`)
+
+---
+
+### 19. Agent Scheduling
+
+**Responsibility:** Cron-based scheduling of AI agent runs (global/project/WBS scoped)
+**Owner:** Backend Team
+**Status:** ✅ Implemented
+**Versioning:** Simple entity (not versioned); runs spawn fresh AI sessions
+
+**Description:**
+In-process lifespan task fires scheduled runs via `trigger_schedule_run` (shared overlap-guarded launcher). Scope discriminator mirrors AI chat (Global/Project/WBS). Skip-missed grace; fire-and-forget task held in strong-ref set.
+
+**Key Files:**
+
+- `app/services/agent_schedule_service.py` - Schedule lifecycle + cron trigger
+- `app/api/routes/agent_schedules.py` - Schedule endpoints (`/api/v1/ai/agent-schedules`)
 
 ---
 

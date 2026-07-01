@@ -204,30 +204,46 @@ async def check_branch_locking(
 ### Approver Authority Validation
 
 ```python
-from app.services.approval_matrix_service import ApprovalMatrixService
+from app.core.rbac_unified import (
+    get_unified_rbac_service,
+    set_unified_rbac_session,
+)
+from app.services.change_order_config_service import ChangeOrderConfigService
 
 async def validate_approval_authority(
     user: User,
     change_order: ChangeOrder,
     db_session: AsyncSession,
 ) -> bool:
-    """Validate if user can approve this change order."""
-    approval_service = ApprovalMatrixService(db_session)
+    """Validate if user can approve this change order.
 
-    # Check authority
-    can_approve = await approval_service.can_approve(user, change_order)
+    Authority is resolved via UnifiedRBACService (the former
+    ApprovalMatrixService was deleted in the unified RBAC cleanup).
+    """
+    # Resolve the required authority for this impact level from config
+    config_service = ChangeOrderConfigService(db_session)
+    impact_authority = await config_service.get_impact_authority_mapping()
+    required_authority = (
+        impact_authority.get(change_order.impact_level, "UNKNOWN")
+        if change_order.impact_level
+        else "UNKNOWN"
+    )
+
+    # Check authority via unified RBAC
+    set_unified_rbac_session(db_session)
+    try:
+        unified_rbac = get_unified_rbac_service()
+        can_approve = await unified_rbac.has_authority_level(
+            user_id=user.id,
+            required_authority=required_authority,
+            scope_id=change_order.project_id,
+        )
+    finally:
+        set_unified_rbac_session(None)
 
     if not can_approve:
-        # Get details for error message
-        user_authority = approval_service.get_user_authority_level(user)
-        required_authority = approval_service.get_authority_for_impact(
-            change_order.impact_level
-        )
-
         print(f"Authority check failed:")
-        print(f"  User authority: {user_authority}")
         print(f"  Required authority: {required_authority}")
-
         return False
 
     return True
@@ -241,12 +257,16 @@ async def get_approval_info(
     db_session: AsyncSession,
 ) -> dict[str, Any]:
     """Get comprehensive approval information."""
-    approval_service = ApprovalMatrixService(db_session)
+    # Required authority is derived from config, not a matrix service
+    config_service = ChangeOrderConfigService(db_session)
+    impact_authority = await config_service.get_impact_authority_mapping()
 
     return {
         "impact_level": change_order.impact_level,
-        "required_authority": approval_service.get_authority_for_impact(
-            change_order.impact_level
+        "required_authority": (
+            impact_authority.get(change_order.impact_level, "UNKNOWN")
+            if change_order.impact_level
+            else "UNKNOWN"
         ),
         "assigned_approver_id": change_order.assigned_approver_id,
         "sla_assigned_at": change_order.sla_assigned_at,
@@ -639,7 +659,7 @@ async def batch_submit_with_control_dates(
 - `app/services/change_order_config_service.py` - Configurable workflow parameters
 
 ### Supporting Services
-- `app/services/approval_matrix_service.py` - Approver authority validation
+- `app/core/rbac_unified.py` - Approver authority validation via `UnifiedRBACService.has_authority_level()`
 - `app/services/sla_service.py` - SLA deadline calculation (config-driven)
 - `app/services/financial_impact_service.py` - Impact level calculation (config-driven)
 
