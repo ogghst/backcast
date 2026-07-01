@@ -73,9 +73,12 @@ async def create_project(
         budget: Optional project budget
         start_date: Optional start date (ISO format string)
         end_date: Optional end date (ISO format string)
-        custom_fields: Optional {code: value} dict of custom-field values. Codes
-            must match the bound template's field definitions; the service
-            validates and captures an immutable snapshot at create.
+        custom_fields: Optional {code: value} dict for CUSTOM fields only. Every
+            key MUST be a code declared by the bound template's field
+            definitions; unknown codes are rejected. Standard fields (e.g. name,
+            description) are not custom fields — set them via their own
+            parameters, never here. Leave unset if no custom-field template
+            applies.
         custom_entity_template_root_id: Optional UUID of the CustomEntityTemplate
             to bind (required when custom_fields is non-empty).
         context: Injected tool execution context
@@ -191,12 +194,14 @@ async def update_project(
         name: New project name (optional)
         description: New description (optional)
         status: New status (optional)
-        custom_fields: Optional {code: value} dict of custom-field values. When
-            provided (even empty), the service validates against the snapshot
-            captured at create; omit to leave custom fields untouched.
+        custom_fields: Optional {code: value} dict for CUSTOM fields only. Valid
+            codes are fixed by the template bound at create; unknown codes are
+            rejected. Standard fields (e.g. name, description) are not custom
+            fields — set them via their own parameters. If the entity has no
+            custom-field template you MUST omit this entirely (the update is
+            rejected otherwise). Omit to leave custom fields untouched.
         custom_entity_template_root_id: Optional UUID of the bound
-            CustomEntityTemplate (only meaningful at create; ignored on update
-            where the snapshot is immutable).
+            CustomEntityTemplate (ignored on update; the binding is immutable).
         context: Injected tool execution context
 
     Returns:
@@ -492,8 +497,12 @@ async def create_wbs_element(
         code: Unique WBS Element code
         description: Optional description
         parent_wbs_element_id: Optional UUID of the parent WBS Element to create as a child
-        custom_fields: Optional {code: value} dict of custom-field values; the
-            service validates against the bound template and captures a snapshot.
+        custom_fields: Optional {code: value} dict for CUSTOM fields only. Every
+            key MUST be a code declared by the bound template's field
+            definitions; unknown codes are rejected. Standard fields (e.g. name,
+            description) are not custom fields — set them via their own
+            parameters, never here. Leave unset if no custom-field template
+            applies.
         custom_entity_template_root_id: Optional UUID of the CustomEntityTemplate
             to bind (required when custom_fields is non-empty).
         context: Injected tool execution context
@@ -598,11 +607,14 @@ async def update_wbs_element(
         name: New name (optional)
         description: New description (optional)
         revenue_allocation: New revenue allocation as a decimal value (optional)
-        custom_fields: Optional {code: value} dict; when provided the service
-            validates against the snapshot captured at create. Omit to leave
-            custom fields untouched.
+        custom_fields: Optional {code: value} dict for CUSTOM fields only. Valid
+            codes are fixed by the template bound at create; unknown codes are
+            rejected. Standard fields (e.g. name, description) are not custom
+            fields — set them via their own parameters. If the entity has no
+            custom-field template you MUST omit this entirely (the update is
+            rejected otherwise). Omit to leave custom fields untouched.
         custom_entity_template_root_id: Optional UUID of the bound
-            CustomEntityTemplate (only meaningful at create; ignored on update).
+            CustomEntityTemplate (ignored on update; the binding is immutable).
         context: Injected tool execution context
 
     Returns:

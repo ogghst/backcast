@@ -246,8 +246,12 @@ async def create_change_order(
         reason: Business justification for the change
         impact_level: Risk/impact level — one of LOW, MEDIUM, HIGH
         effective_date: When the change takes effect (ISO 8601 date string, optional)
-        custom_fields: Optional {code: value} dict of custom-field values; the
-            service validates against the bound template and captures a snapshot.
+        custom_fields: Optional {code: value} dict for CUSTOM fields only. Every
+            key MUST be a code declared by the bound template's field
+            definitions; unknown codes are rejected. Standard fields (e.g. name,
+            description) are not custom fields — set them via their own
+            parameters, never here. Leave unset if no custom-field template
+            applies.
         custom_entity_template_root_id: Optional UUID of the CustomEntityTemplate
             to bind (required when custom_fields is non-empty).
         context: Injected tool execution context
@@ -362,11 +366,14 @@ async def update_change_order(
         justification: New business justification (optional)
         impact_level: New impact level — LOW/MEDIUM/HIGH (optional)
         effective_date: New effective date (ISO 8601, optional)
-        custom_fields: Optional {code: value} dict; when provided the service
-            validates against the snapshot captured at create. Omit to leave
-            custom fields untouched.
+        custom_fields: Optional {code: value} dict for CUSTOM fields only. Valid
+            codes are fixed by the template bound at create; unknown codes are
+            rejected. Standard fields (e.g. name, description) are not custom
+            fields — set them via their own parameters. If the entity has no
+            custom-field template you MUST omit this entirely (the update is
+            rejected otherwise). Omit to leave custom fields untouched.
         custom_entity_template_root_id: Optional UUID of the bound
-            CustomEntityTemplate (only meaningful at create; ignored on update).
+            CustomEntityTemplate (ignored on update; the binding is immutable).
         context: Injected tool execution context
 
     Returns:

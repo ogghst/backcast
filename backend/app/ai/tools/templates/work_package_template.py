@@ -251,8 +251,12 @@ async def create_work_package(
         eac_amount: Optional EAC amount for auto-created forecast (defaults to budget_amount)
         basis_of_estimate: Optional basis of estimate for forecast (defaults to "Initial forecast")
         control_date: Optional control date for valid_time start (ISO format)
-        custom_fields: Optional {code: value} dict of custom-field values; the
-            service validates against the bound template and captures a snapshot.
+        custom_fields: Optional {code: value} dict for CUSTOM fields only. Every
+            key MUST be a code declared by the bound template's field
+            definitions; unknown codes are rejected. Standard fields (e.g. name,
+            description) are not custom fields — set them via their own
+            parameters, never here. Leave unset if no custom-field template
+            applies.
         custom_entity_template_root_id: Optional UUID of the CustomEntityTemplate
             to bind (required when custom_fields is non-empty).
         context: Injected tool execution context
@@ -385,11 +389,14 @@ async def update_work_package(
         eac_amount: New EAC amount for the forecast (optional)
         basis_of_estimate: New basis of estimate for the forecast (optional)
         control_date: Control date for valid_time start in ISO format (optional)
-        custom_fields: Optional {code: value} dict; when provided the service
-            validates against the snapshot captured at create. Omit to leave
-            custom fields untouched.
+        custom_fields: Optional {code: value} dict for CUSTOM fields only. Valid
+            codes are fixed by the template bound at create; unknown codes are
+            rejected. Standard fields (e.g. name, description) are not custom
+            fields — set them via their own parameters. If the entity has no
+            custom-field template you MUST omit this entirely (the update is
+            rejected otherwise). Omit to leave custom fields untouched.
         custom_entity_template_root_id: Optional UUID of the bound
-            CustomEntityTemplate (only meaningful at create; ignored on update).
+            CustomEntityTemplate (ignored on update; the binding is immutable).
         context: Injected tool execution context
 
     Returns:

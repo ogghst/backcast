@@ -97,6 +97,7 @@ def test_manifest_lists_only_ai_visible_labels_sorted() -> None:
         "label": "A",
         "type": "integer",
         "required": False,
+        "status": "active",
     }
     assert manifest[1]["required"] is True
     # Non-ai_visible label must never appear.

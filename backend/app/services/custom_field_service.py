@@ -355,7 +355,11 @@ class CustomFieldService:
         if template_root_id is None:
             if custom_fields:
                 raise CustomFieldValidationError(
-                    "custom_fields require a custom_entity_template_root_id"
+                    "custom_fields were provided without a "
+                    "custom_entity_template_root_id to validate against. "
+                    "Provide a template id, or omit custom_fields. Standard "
+                    "fields (name, description, code, ...) are not custom "
+                    "fields — set them via their own arguments."
                 )
             return custom_fields, None
 
@@ -495,7 +499,10 @@ class CustomFieldService:
         # binding cannot validate anything → reject.
         if effective_snapshot is None:
             raise CustomFieldValidationError(
-                "custom_fields require a custom_entity_template_root_id"
+                "This entity has no custom-field template, so custom_fields "
+                "cannot be set. Omit custom_fields. Standard fields (name, "
+                "description, code, ...) are not custom fields — set them via "
+                "their own arguments."
             )
 
         # Phase 3 (M2) — status-authority split: value/type/options are checked

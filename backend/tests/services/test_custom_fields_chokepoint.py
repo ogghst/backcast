@@ -794,7 +794,7 @@ class TestFirstTimeTemplateBindingOnUpdate:
             service = ProjectService(db)
             with pytest.raises(
                 CustomFieldValidationError,
-                match="custom_entity_template_root_id",
+                match="no custom-field template",
             ):
                 await service.update_project(
                     project_root,
