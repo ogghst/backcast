@@ -64,7 +64,7 @@ describe("useEVMMetrics", () => {
     };
 
     server.use(
-      http.get("/api/v1/cost-elements/:costElementId/evm", () => {
+      http.get("/api/v1/evm/:entityType/:entityId/metrics", () => {
         return HttpResponse.json(mockMetrics);
       })
     );
@@ -109,7 +109,7 @@ describe("useEVMMetrics", () => {
     };
 
     server.use(
-      http.get("/api/v1/cost-elements/:costElementId/evm", ({ request }) => {
+      http.get("/api/v1/evm/:entityType/:entityId/metrics", ({ request }) => {
         const url = new URL(request.url);
         expect(url.searchParams.get("branch")).toBe("feature-branch");
         expect(url.searchParams.get("control_date")).toBe("2024-01-01T00:00:00Z");
@@ -136,7 +136,7 @@ describe("useEVMMetrics", () => {
   it("should handle errors gracefully", async () => {
     // Arrange: Mock error response
     server.use(
-      http.get("/api/v1/cost-elements/:costElementId/evm", () => {
+      http.get("/api/v1/evm/:entityType/:entityId/metrics", () => {
         return HttpResponse.json(
           { detail: "Cost element not found" },
           { status: 404 }
@@ -317,62 +317,41 @@ describe("useEVMMetricsBatch", () => {
   });
 
   it("should fetch aggregated metrics for multiple entities", async () => {
-    // Arrange: Mock the API response
+    // Arrange: Mock the API response — backend returns a single
+    // aggregated EVMMetricsResponse (NOT a metrics[]/aggregated envelope).
     const mockBatchMetrics = {
       entity_type: EntityType.COST_ELEMENT,
-      metrics: [
-        {
-          entity_id: "550e8400-e29b-41d4-a716-446655440000",
-          bac: 100000,
-          pv: 50000,
-          ac: 45000,
-          ev: 48000,
-          cv: 3000,
-          sv: -2000,
-          cpi: 1.07,
-          spi: 0.96,
-          eac: 93458,
-          vac: 6542,
-          etc: 48458,
-        },
-        {
-          entity_id: "550e8400-e29b-41d4-a716-446655440001",
-          bac: 150000,
-          pv: 75000,
-          ac: 70000,
-          ev: 72000,
-          cv: 2000,
-          sv: -3000,
-          cpi: 1.03,
-          spi: 0.96,
-          eac: 145631,
-          vac: 4369,
-          etc: 75631,
-        },
-      ],
-      aggregated: {
-        bac: 250000,
-        pv: 125000,
-        ac: 115000,
-        ev: 120000,
-        cv: 5000,
-        sv: -5000,
-        cpi: 1.04,
-        spi: 0.96,
-        eac: 239089,
-        vac: 10911,
-        etc: 124089,
-      },
+      entity_id: null,
+      bac: 250000,
+      pv: 125000,
+      ac: 115000,
+      ev: 120000,
+      cv: 5000,
+      sv: -5000,
+      cpi: 1.04,
+      spi: 0.96,
+      eac: 239089,
+      vac: 10911,
+      etc: 124089,
+      control_date: "2024-01-15T10:00:00Z",
+      branch: "main",
+      branch_mode: "merge",
+      progress_percentage: 48,
+      warning: null,
     };
 
     server.use(
-      http.post("/api/v1/evm/cost_element/batch", async ({ request }) => {
+      http.post("/api/v1/evm/batch", async ({ request }) => {
         const body = await request.json();
+        // control_date is undefined → stripped from serialized body
         expect(body).toEqual({
+          entity_type: EntityType.COST_ELEMENT,
           entity_ids: [
             "550e8400-e29b-41d4-a716-446655440000",
             "550e8400-e29b-41d4-a716-446655440001",
           ],
+          branch: "main",
+          branch_mode: "merged",
         });
         return HttpResponse.json(mockBatchMetrics);
       })
@@ -399,36 +378,7 @@ describe("useEVMMetricsBatch", () => {
   });
 
   it("should disable query when entity_ids list is empty", async () => {
-    // Arrange
-    const mockEmptyResponse = {
-      entity_type: EntityType.COST_ELEMENT,
-      metrics: [],
-      aggregated: {
-        bac: 0,
-        pv: 0,
-        ac: 0,
-        ev: 0,
-        cv: 0,
-        sv: 0,
-        cpi: null,
-        spi: null,
-        eac: null,
-        vac: null,
-        etc: null,
-      },
-    };
-
-    server.use(
-      http.post("/api/v1/evm/cost_element/batch", async ({ request }) => {
-        const body = await request.json();
-        expect(body).toEqual({ entity_ids: [] });
-        return HttpResponse.json(mockEmptyResponse);
-      })
-    );
-
-    // Act - Note: With empty array, query is disabled, so we need to handle differently
-    // The current implementation has enabled: !!entityIds && entityIds.length > 0
-    // So the query won't fire with empty array
+    // Arrange — query is disabled for empty lists, so no request fires.
     const { result } = renderHook(
       () => useEVMMetricsBatch(EntityType.COST_ELEMENT, []),
       { wrapper: createWrapper() }
@@ -441,7 +391,7 @@ describe("useEVMMetricsBatch", () => {
   it("should handle errors gracefully", async () => {
     // Arrange: Mock error response
     server.use(
-      http.post("/api/v1/evm/cost_element/batch", () => {
+      http.post("/api/v1/evm/batch", () => {
         return HttpResponse.json(
           { detail: "Invalid entity type" },
           { status: 400 }

@@ -83,24 +83,9 @@ function transformEVMMetricsResponse(data: unknown): EVMMetricsResponse {
 }
 
 /**
- * Response from batch EVM metrics query
- */
-interface EVMMetricsBatchResponse {
-  /** Entity type for all metrics */
-  entity_type: EntityType;
-  /** Individual entity metrics */
-  metrics: Array<Omit<EVMMetricsResponse, "entity_type">>;
-  /** Aggregated metrics across all entities */
-  aggregated: Omit<
-    EVMMetricsResponse,
-    "entity_type" | "entity_id" | "control_date" | "branch"
-  >;
-}
-
-/**
  * Fetch EVM metrics for a single entity.
  *
- * @param entityType - Type of entity (cost_element, wbe, project)
+ * @param entityType - Type of entity (cost_element | work_package | control_account | wbs_element | project)
  * @param entityId - ID of the entity to fetch metrics for
  * @param params - Optional query parameters
  * @returns TanStack Query result with EVM metrics
@@ -127,36 +112,21 @@ export function useEVMMetrics(
       mode: tmMode,
     }),
     queryFn: async () => {
-      // For cost elements, use the existing endpoint
-      // For WBE and project, we'll need to check if those endpoints exist
-      // and fall back to the appropriate endpoint or throw an error
-      const data =
-        entityType === "cost_element"
-          ? await __request(OpenAPI, {
-              method: "GET",
-              url: "/api/v1/cost-elements/{cost_element_id}/evm",
-              path: {
-                cost_element_id: entityId,
-              },
-              query: {
-                control_date: controlDate || undefined,
-                branch,
-                branch_mode: tmMode,
-              },
-            })
-          : await __request(OpenAPI, {
-              method: "GET",
-              url: "/api/v1/evm/{entity_type}/{entity_id}/metrics",
-              path: {
-                entity_type: entityType,
-                entity_id: entityId,
-              },
-              query: {
-                control_date: controlDate || undefined,
-                branch,
-                branch_mode: tmMode,
-              },
-            });
+      // All entity types (incl. cost_element) use the generic EVM metrics route.
+      // The backend resolves a cost_element to its owning Work Package server-side.
+      const data = await __request(OpenAPI, {
+        method: "GET",
+        url: "/api/v1/evm/{entity_type}/{entity_id}/metrics",
+        path: {
+          entity_type: entityType,
+          entity_id: entityId,
+        },
+        query: {
+          control_date: controlDate || undefined,
+          branch,
+          branch_mode: tmMode,
+        },
+      });
 
       return transformEVMMetricsResponse(data);
     },
@@ -181,7 +151,7 @@ interface EVMTimeSeriesParams extends EVMQueryParams {
 /**
  * Fetch time-series EVM data for an entity.
  *
- * @param entityType - Type of entity (cost_element, wbe, project)
+ * @param entityType - Type of entity (cost_element | work_package | control_account | wbs_element | project)
  * @param entityId - ID of the entity to fetch time-series for
  * @param granularity - Time granularity for data points
  * @param params - Optional query parameters
@@ -241,7 +211,7 @@ export function useEVMTimeSeries(
 interface EVMMetricsBatchParams extends EVMQueryParams {
   /** TanStack Query options */
   queryOptions?: Omit<
-    UseQueryOptions<EVMMetricsBatchResponse>,
+    UseQueryOptions<EVMMetricsResponse>,
     "queryKey" | "queryFn"
   >;
 }
@@ -249,7 +219,7 @@ interface EVMMetricsBatchParams extends EVMQueryParams {
 /**
  * Fetch aggregated EVM metrics for multiple entities.
  *
- * @param entityType - Type of entities (cost_element, wbe, project)
+ * @param entityType - Type of entities (cost_element | work_package | control_account | wbs_element | project)
  * @param entityIds - Array of entity IDs to fetch metrics for
  * @param params - Optional query parameters
  * @returns TanStack Query result with batch metrics
@@ -272,29 +242,28 @@ export function useEVMMetricsBatch(
   const branch = params?.branch || tmBranch || "main";
   const controlDate = params?.controlDate || asOf;
 
-  return useQuery<EVMMetricsBatchResponse>({
+  return useQuery<EVMMetricsResponse>({
     queryKey: queryKeys.evm.batch(entityType, entityIds || [], {
       branch,
       controlDate,
       mode: tmMode,
     }),
     queryFn: async () => {
-      // Use the batch endpoint for all entity types
-      return await __request(OpenAPI, {
+      // POST /evm/batch — all params in the body; backend returns a single
+      // aggregated EVMMetricsResponse (re-derives CPI/SPI/TCPI from summed
+      // EV/AC/PV).
+      const data = await __request(OpenAPI, {
         method: "POST",
-        url: "/api/v1/evm/{entity_type}/batch",
-        path: {
+        url: "/api/v1/evm/batch",
+        body: {
           entity_type: entityType,
-        },
-        query: {
+          entity_ids: entityIds || [],
           control_date: controlDate || undefined,
           branch,
           branch_mode: tmMode,
         },
-        body: {
-          entity_ids: entityIds || [],
-        },
       });
+      return transformEVMMetricsResponse(data);
     },
     enabled: !!entityIds && entityIds.length > 0,
     ...params?.queryOptions,

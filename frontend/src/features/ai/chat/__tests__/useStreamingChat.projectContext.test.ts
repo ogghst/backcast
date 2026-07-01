@@ -103,7 +103,7 @@ describe("useStreamingChat project_context_change dispatch", () => {
       (selector: AuthStoreSelector<unknown>) =>
         selector({
           token: "test-jwt-token",
-          user: { user_id: "user-123", email: "test@example.com" },
+          user: { user_id: "user-123" },
         })
     );
 
@@ -127,6 +127,9 @@ describe("useStreamingChat project_context_change dispatch", () => {
         assistantId: "assistant-1",
         projectId: "project-abc",
         activeExecutionId: "exec-1",
+        onToken: vi.fn(),
+        onComplete: vi.fn(),
+        onError: vi.fn(),
         onProjectContextChange,
       })
     );
