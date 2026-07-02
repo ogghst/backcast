@@ -94,3 +94,6 @@ snapshot/
 # Generated OpenAPI spec (run: cd backend && uv run generate-openapi)
 openapi.json
 .mcp.json
+
+#oh my py
+.omp/mcp.json
